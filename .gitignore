@@ -22,10 +22,9 @@ Thumbs.db
 *.zip
 *.tar.gz
 *.rar
+.kotlin/
 
 # Gradle
-.gradle/
-build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
@@ -38,7 +37,6 @@ target/
 *.apk
 *.ap_
 *.dex
-*.class
 bin/
 gen/
 app/build/
