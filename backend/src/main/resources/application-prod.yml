@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: backend
+
+  datasource:
+    url: ${SUPABASE_DB_URL}
+    username: postgres
+    password: ${SUPABASE_POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          lob:
+            non_contextual_creation: true
+    show-sql: false
+
+  flyway:
+    enabled: true
+    baselineOnMigrate: true
+    locations: classpath:db/migration
