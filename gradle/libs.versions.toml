@@ -1,4 +1,6 @@
 [versions]
+hibernateCoreVersion = "6.6.29.Final"
+hibernateSpatialVersion = "6.6.29.Final"
 kotlin = "2.2.20"
 agp = "8.10.1"
 compose = "1.7.0"
@@ -11,8 +13,27 @@ androidx-lifecycle = "2.8.6"
 [libraries]
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "androidx-activity" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }
-androidx-lifecycle-runtime-compose  = { module = "androidx.lifecycle:lifecycle-runtime-compose",  version.ref = "androidx-lifecycle" }
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
+hibernate-core-v6629final = { module = "org.hibernate.orm:hibernate-core", version.ref = "hibernateCoreVersion" }
+hibernate-spatial-v6629final = { module = "org.hibernate.orm:hibernate-spatial", version.ref = "hibernateSpatialVersion" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
+flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql" }
+flyway-core = { module = "org.flywaydb:flyway-core" }
+jackson-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
 kotlin-test = { group = "org.jetbrains.kotlin", name = "kotlin-test", version.ref = "kotlin" }
+kotlin-test-junit5 = { module = "org.jetbrains.kotlin:kotlin-test-junit5" }
+postgresql = { module = "org.postgresql:postgresql" }
+projectlombok-lombok = { module = "org.projectlombok:lombok" }
+lombok = { module = "org.projectlombok:lombok" }
+spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+spring-boot-starter-data-jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa" }
+spring-boot-starter-oauth2-client = { module = "org.springframework.boot:spring-boot-starter-oauth2-client" }
+spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
+spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web" }
+spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
+spring-boot-starter-security = { module = "org.springframework.boot:spring-boot-starter-security" }
+spring-security-test = { module = "org.springframework.security:spring-security-test" }
 
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
