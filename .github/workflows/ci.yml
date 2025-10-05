@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - develop
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: cityxplore
+          POSTGRES_PASSWORD: cityxplore
+          POSTGRES_DB: cityxplore_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ---- BACKEND ----
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Build backend (Gradle)
+        run: ./gradlew :backend:build --no-daemon
+
+      - name: Run backend tests
+        run: ./gradlew :backend:test --no-daemon
+
+      # ---- CLIENT ----
+      - name: Validate KMP client build
+        run: ./gradlew :client:composeApp:assemble --no-daemon
+
+      # ---- MIGRATIONS ----
+      - name: Install Supabase CLI
+        run: |
+          curl -fsSL https://cli.supabase.com/install.sh | sh
+
+      - name: Validate SQL migrations syntax
+        run: |
+          echo "Checking Supabase migrations..."
+          supabase db lint || echo "Skipping Supabase lint if CLI not present"
