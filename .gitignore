@@ -57,3 +57,12 @@ crashlytics-build.properties
 .env
 .env.*
 *.properties
+
+# Supabase
+supabase/.branches
+supabase/.temp
+
+# dotenvx
+.env.keys
+.env.local
+.env.*.local
