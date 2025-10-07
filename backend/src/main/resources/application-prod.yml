@@ -6,10 +6,11 @@ spring:
     oauth2:
       resourceserver:
         jwt:
+          jwk-set-uri: https://${SUPABASE_PROJECT_REF}.supabase.co/auth/v1/.well-known/jwks.json
           issuer-uri: https://${SUPABASE_PROJECT_REF}.supabase.co/auth/v1
 
   datasource:
-    url: jdbc:postgresql://aws-1-us-east-2.pooler.supabase.com:6543/postgres?sslmode=require
+    url: jdbc:postgresql://aws-1-eu-central-1.pooler.supabase.com:6543/postgres?sslmode=require
     username: ${SUPABASE_DB_USER}
     password: ${SUPABASE_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
@@ -27,6 +28,10 @@ spring:
 
   flyway:
     enabled: false
+
+supabase:
+  project-ref: ${SUPABASE_PROJECT_REF}
+  api-key: ${SUPABASE_PUBLISHABLE_KEY}
 
 logging:
   level:

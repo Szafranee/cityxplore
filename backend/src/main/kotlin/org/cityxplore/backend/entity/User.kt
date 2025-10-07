@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import org.hibernate.proxy.HibernateProxy
+import java.math.BigDecimal
 import java.time.LocalDateTime
 import java.util.UUID
 
@@ -31,8 +32,8 @@ data class User(
     @Column(name = "last_active_at")
     val lastActiveAt: LocalDateTime? = null,
 
-    @Column(name = "total_distance")
-    val totalDistance: Double = 0.0,
+    @Column(name = "total_distance", precision = 10, scale = 2)
+    val totalDistance: BigDecimal = BigDecimal.ZERO,
 
     @Column(name = "total_pois_discovered")
     val totalPoisDiscovered: Int = 0
