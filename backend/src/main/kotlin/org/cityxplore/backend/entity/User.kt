@@ -54,7 +54,6 @@ data class User(
     final override fun hashCode(): Int =
         if (this is HibernateProxy) this.hibernateLazyInitializer.persistentClass.hashCode() else javaClass.hashCode()
 
-    @Override
     override fun toString(): String {
         return this::class.simpleName + "(  id = $id   ,   email = $email   ,   username = $username   ,   avatarUrl = $avatarUrl   ,   createdAt = $createdAt   ,   lastActiveAt = $lastActiveAt   ,   totalDistance = $totalDistance   ,   totalPoisDiscovered = $totalPoisDiscovered )"
     }
