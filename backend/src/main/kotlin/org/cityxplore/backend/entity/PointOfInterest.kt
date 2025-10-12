@@ -59,7 +59,6 @@ data class PointOfInterest(
     final override fun hashCode(): Int =
         if (this is HibernateProxy) this.hibernateLazyInitializer.persistentClass.hashCode() else javaClass.hashCode()
 
-    @Override
     override fun toString(): String {
         return this::class.simpleName + "(  id = $id   ,   name = $name   ,   description = $description   ,   category = $category   ,   location = $location   ,   metadata = $metadata   ,   imageUrls = $imageUrls   ,   createdAt = $createdAt   ,   updatedAt = $updatedAt   ,   isActive = $isActive )"
     }
