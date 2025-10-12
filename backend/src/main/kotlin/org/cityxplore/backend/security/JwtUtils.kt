@@ -10,8 +10,8 @@ object JwtUtils {
 
         return try {
             UUID.fromString(rawSub)
-        } catch (_: IllegalArgumentException) {
-            throw IllegalArgumentException("Invalid 'sub' claim format: expected UUID")
+        } catch (e: IllegalArgumentException) {
+            throw IllegalArgumentException("Invalid 'sub' claim format: expected UUID", e)
         }
     }
 }

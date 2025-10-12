@@ -22,7 +22,7 @@ import java.util.UUID
  *
  * This controller is mapped to the `/api/users` endpoint.
  *
- * @constructor Initializes the controller with a `UserRepository` instance for database interactions.
+ * @constructor Initializes the controller with a `UserService` instance for user-related operations.
  */
 @RestController
 @RequestMapping("/api/users")

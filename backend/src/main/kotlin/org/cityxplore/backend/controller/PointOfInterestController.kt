@@ -32,7 +32,7 @@ class PointOfInterestController(
     /**
      * Retrieves all Points of Interest (POIs) from the service.
      *
-     * @return a list of all `PointOfInterest` entities.
+     * @return a list of all `PointOfInterestResponseDto` objects.
      */
     @GetMapping
     fun getAllPOIs(): List<PointOfInterestResponseDto> = poiService.getAll()
