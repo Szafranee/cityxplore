@@ -1,9 +1,8 @@
 package org.cityxplore.backend.controller
 
-import org.cityxplore.backend.entity.UserPoiDiscovery
-import org.cityxplore.backend.repository.PointOfInterestRepository
-import org.cityxplore.backend.repository.UserPoiDiscoveryRepository
-import org.springframework.http.HttpStatus
+import org.cityxplore.backend.dto.UserPoiDiscoveryDto
+import org.cityxplore.backend.security.JwtUtils
+import org.cityxplore.backend.service.PoiDiscoveryService
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
@@ -23,8 +22,7 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/pois")
 class PoiDiscoveryController(
-    private val poiRepository: PointOfInterestRepository,
-    private val userPoiRepository: UserPoiDiscoveryRepository
+    private val poiDiscoveryService: PoiDiscoveryService
 ) {
 
     /**
@@ -37,49 +35,31 @@ class PoiDiscoveryController(
      * @param poiId the unique identifier of the Point of Interest to be discovered
      * @param jwt the JSON Web Token (JWT) containing authenticated user information
      * @return a `ResponseEntity` containing the result of the operation:
-     * - 200 OK with the saved discovery if successful
+     * - 200 OK with the saved discovery DTO if successful
      * - 404 NOT FOUND if the POI does not exist
-     * - 409 CONFLICT if the POI is already discovered by the user
+     * - 409 CONFLICT if the user has already discovered the POI
      */
     @PostMapping("/{poiId}/discover")
     fun discoverPoi(
         @PathVariable poiId: UUID,
         @AuthenticationPrincipal jwt: Jwt
-    ): ResponseEntity<Any> {
-        val userId = UUID.fromString(jwt.claims["sub"].toString())
+    ): ResponseEntity<UserPoiDiscoveryDto> {
+        val userId = JwtUtils.extractUserId(jwt)
+        val dto = poiDiscoveryService.discoverPoi(userId, poiId)
 
-        if (!poiRepository.existsById(poiId)) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(mapOf("error" to "POI not found"))
-        }
-
-        val isPoiAlreadyDiscovered = userPoiRepository.existsByUserIdAndPoiId(userId, poiId)
-
-        if (isPoiAlreadyDiscovered) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(mapOf("message" to "Already discovered"))
-        }
-
-        val discovery = userPoiRepository.save(
-            UserPoiDiscovery(
-                userId = userId,
-                poiId = poiId
-            )
-        )
-
-        return ResponseEntity.ok(discovery)
+        return ResponseEntity.ok(dto)
     }
 
     /**
      * Retrieves the list of Points of Interest (POIs) discovered by the authenticated user.
      *
      * @param jwt the JSON Web Token (JWT) containing the authenticated user information
-     * @return a list of `UserPoiDiscovery` objects associated with the authenticated user
+     * @return a list of UserPoiDiscoveryDto objects associated with the authenticated user
      */
     @GetMapping("/discoveries")
-    fun getUserDiscoveries(@AuthenticationPrincipal jwt: Jwt): List<UserPoiDiscovery> {
-        val userId = UUID.fromString(jwt.claims["sub"].toString())
+    fun getUserDiscoveries(@AuthenticationPrincipal jwt: Jwt): List<UserPoiDiscoveryDto> {
+        val userId = JwtUtils.extractUserId(jwt)
 
-        return userPoiRepository.findAllByUserId(userId)
+        return poiDiscoveryService.getUserDiscoveries(userId)
     }
 }

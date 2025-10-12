@@ -4,6 +4,10 @@ spring:
     username: cityxplore
     password: cityxplore
     driver-class-name: org.postgresql.Driver
+    hikari:
+      data-source-properties:
+        prepareThreshold: 0
+        autosave: conservative
 
   jpa:
     hibernate:
