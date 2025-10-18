@@ -7,13 +7,15 @@ import jakarta.persistence.Id
 import jakarta.persistence.Table
 import org.hibernate.proxy.HibernateProxy
 import java.util.UUID
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 
 @Entity
 @Table(name = "achievements")
 data class Achievement(
     @Id
     @GeneratedValue
-    val id: UUID? = null,
+    var id: UUID? = null,
 
     val name: String,
 
@@ -21,7 +23,8 @@ data class Achievement(
 
     val category: String? = null,
 
-    @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column
     val criteria: String, // JSON string eg. {"type":"discoveries","count":10}
 
     @Column(name = "icon_url")

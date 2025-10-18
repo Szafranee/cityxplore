@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
+import java.net.URI
 
 @RestController
 @RequestMapping("/api/achievements")
@@ -47,7 +48,7 @@ class AchievementController(
      *
      * @param achievementId The UUID of the achievement to grant.
      * @param jwt The authenticated user's JWT (used to determine the target user).
-     * @return A ResponseEntity containing the created or updated UserAchievementDto for the user.
+     * @return A ResponseEntity containing the created or existing UserAchievementDto for the user.
      */
     @PostMapping("/{achievementId}/grant")
     fun grantAchievement(
@@ -55,8 +56,13 @@ class AchievementController(
         @AuthenticationPrincipal jwt: Jwt
     ): ResponseEntity<UserAchievementDto> {
         val userId = JwtUtils.extractUserId(jwt)
-        val dto = achievementService.grantAchievement(userId, achievementId)
+        val result = achievementService.grantAchievement(userId, achievementId)
+        val dto = result.dto
 
-        return ResponseEntity.ok(dto)
+        return if (result.created) {
+            ResponseEntity.created(URI.create("/api/achievements/mine/${dto.achievement.id}")).body(dto)
+        } else {
+            ResponseEntity.ok(dto)
+        }
     }
 }

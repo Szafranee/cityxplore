@@ -5,12 +5,18 @@ import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.Id
 import jakarta.persistence.Table
+import jakarta.persistence.UniqueConstraint
 import org.hibernate.proxy.HibernateProxy
 import java.time.LocalDateTime
 import java.util.UUID
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 
 @Entity
-@Table(name = "user_achievements")
+@Table(
+    name = "user_achievements",
+    uniqueConstraints = [UniqueConstraint(columnNames = ["user_id", "achievement_id"])]
+)
 data class UserAchievement(
     @Id
     @GeneratedValue
@@ -25,7 +31,8 @@ data class UserAchievement(
     @Column(name = "achieved_at")
     val achievedAt: LocalDateTime = LocalDateTime.now(),
 
-    @Column(name = "progress_data", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "progress_data")
     val progressData: String? = null
 ) {
     final override fun equals(other: Any?): Boolean {
