@@ -46,7 +46,7 @@ class AchievementService(
      * Grants the specified achievement to the given user (idempotent).
      *
      * If the user already has the achievement, returns the existing record with created=false.
-     * Otherwise creates it and returns created=true.
+     * Otherwise, creates it and returns created=true.
      */
     @Transactional
     fun grantAchievement(userId: UUID, achievementId: UUID): AchievementGrantResult {
@@ -71,7 +71,7 @@ class AchievementService(
 
         // Try to create; handle race with unique constraint
         return try {
-            val saved = userAchievementRepository.save(
+            val saved = userAchievementRepository.saveAndFlush(
                 UserAchievement(userId = userId, achievementId = achievementId)
             )
             AchievementGrantResult(
