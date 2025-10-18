@@ -6,12 +6,12 @@ import org.cityxplore.backend.entity.UserAchievement
 import org.cityxplore.backend.repository.AchievementRepository
 import org.cityxplore.backend.repository.UserAchievementRepository
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
 import java.util.UUID
-import org.springframework.data.repository.findByIdOrNull
 
 @Service
 class AchievementService(
@@ -26,8 +26,6 @@ class AchievementService(
 
     /**
      * Retrieve all active achievements.
-     *
-     * @return A list of AchievementDto representing achievements with `isActive == true`.
      */
     @Transactional(readOnly = true)
     fun getAllAchievements(): List<AchievementDto> =
@@ -52,20 +50,19 @@ class AchievementService(
      */
     @Transactional
     fun grantAchievement(userId: UUID, achievementId: UUID): AchievementGrantResult {
-        // Fast-path: if user already has it, return existing without extra work
-        userAchievementRepository.findByUserIdAndAchievementId(userId, achievementId)?.let { existing ->
+        // Fast-path: already granted -> return existing as 200 OK
+        if (userAchievementRepository.existsByUserIdAndAchievementId(userId, achievementId)) {
+            val existing = userAchievementRepository.findByUserIdAndAchievementId(userId, achievementId)
+                ?: throw ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "UserAchievement exists but not found"
+                )
             val achievement = achievementRepository.findByIdOrNull(achievementId)
                 ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Achievement not found")
-            if (!achievement.isActive) {
-                throw ResponseStatusException(HttpStatus.NOT_FOUND, "Achievement not available")
-            }
-            return AchievementGrantResult(
-                dto = toDto(achievement, existing),
-                created = false
-            )
+            return AchievementGrantResult(dto = toDto(achievement, existing), created = false)
         }
 
-        // Fetch the achievement once and validate
+        // Validate target achievement before attempting to create
         val achievement = achievementRepository.findByIdOrNull(achievementId)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Achievement not found")
         if (!achievement.isActive) {
@@ -82,7 +79,6 @@ class AchievementService(
                 created = true
             )
         } catch (ex: DataIntegrityViolationException) {
-            // Another request likely created it concurrently; fetch and return existing
             val existing = userAchievementRepository.findByUserIdAndAchievementId(userId, achievementId)
                 ?: throw ex
             AchievementGrantResult(

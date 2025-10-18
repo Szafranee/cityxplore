@@ -5,7 +5,9 @@ import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.Id
 import jakarta.persistence.Table
+import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.proxy.HibernateProxy
+import org.hibernate.type.SqlTypes
 import org.springframework.data.geo.Point
 import java.time.LocalDateTime
 import java.util.UUID
@@ -28,10 +30,12 @@ data class PointOfInterest(
     @Column(columnDefinition = "GEOGRAPHY(POINT, 4326)")
     val location: Point? = null,
 
-    @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column
     val metadata: String? = null,
 
-    @Column(name = "image_urls", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "image_urls")
     val imageUrls: String? = null,
 
     @Column(name = "created_at")
