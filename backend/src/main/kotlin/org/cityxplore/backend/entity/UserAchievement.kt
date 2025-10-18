@@ -28,6 +28,12 @@ data class UserAchievement(
     @Column(name = "progress_data", columnDefinition = "jsonb")
     val progressData: String? = null
 ) {
+    /**
+     * Determines whether another object represents the same UserAchievement entity by comparing primary keys and accounting for Hibernate proxies.
+     *
+     * @param other The object to compare with this instance.
+     * @return `true` if this instance has a non-null `id` and it equals `other`'s `id`, `false` otherwise.
+     */
     final override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other == null) return false
@@ -41,9 +47,19 @@ data class UserAchievement(
         return id != null && id == other.id
     }
 
-    final override fun hashCode(): Int =
+    /**
+         * Produce a hash code based on the entity's runtime class, using the persistent class when this instance is a Hibernate proxy.
+         *
+         * @return An integer hash code derived from the proxy's persistent class if proxied, otherwise from the instance's runtime class.
+         */
+        final override fun hashCode(): Int =
         if (this is HibernateProxy) this.hibernateLazyInitializer.persistentClass.hashCode() else javaClass.hashCode()
 
+    /**
+     * Provides a string representation of the entity including all properties.
+     *
+     * @return A string containing the class name and all property values (id, userId, achievementId, achievedAt, progressData).
+     */
     @Override
     override fun toString(): String {
         return this::class.simpleName + "(  id = $id   ,   userId = $userId   ,   achievementId = $achievementId   ,   achievedAt = $achievedAt   ,   progressData = $progressData )"
