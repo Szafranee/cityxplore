@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
-import java.util.UUID
 import java.net.URI
+import java.util.UUID
 
 @RestController
 @RequestMapping("/api/achievements")
@@ -41,6 +41,26 @@ class AchievementController(
         val userId = JwtUtils.extractUserId(jwt)
 
         return achievementService.getUserAchievements(userId)
+    }
+
+
+    /**
+     * Retrieves the achievement details of a specific achievement for the authenticated user.
+     *
+     * @param achievementId The UUID of the specific achievement to retrieve details for.
+     * @param jwt The authenticated user's JWT from which the user ID is extracted.
+     * @return A ResponseEntity containing the UserAchievementDto if the achievement exists for the user,
+     *         or a ResponseEntity with a 404 status if the achievement is not found.
+     */
+    @GetMapping("/mine/{achievementId}")
+    fun getUserAchievement(
+        @PathVariable achievementId: UUID,
+        @AuthenticationPrincipal jwt: Jwt
+    ): ResponseEntity<UserAchievementDto> {
+        val userId = JwtUtils.extractUserId(jwt)
+        val dto = achievementService.getUserAchievement(userId, achievementId)
+
+        return dto?.let { ResponseEntity.ok(it) } ?: ResponseEntity.notFound().build()
     }
 
     /**

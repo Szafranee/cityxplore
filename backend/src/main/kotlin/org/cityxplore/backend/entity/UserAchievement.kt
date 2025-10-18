@@ -1,16 +1,18 @@
 package org.cityxplore.backend.entity
 
+import io.hypersistence.utils.hibernate.type.json.JsonType
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
+import org.hibernate.annotations.CreationTimestamp
+import org.hibernate.annotations.Type
 import org.hibernate.proxy.HibernateProxy
 import java.time.LocalDateTime
 import java.util.UUID
-import org.hibernate.annotations.JdbcTypeCode
-import org.hibernate.type.SqlTypes
 
 @Entity
 @Table(
@@ -19,8 +21,8 @@ import org.hibernate.type.SqlTypes
 )
 data class UserAchievement(
     @Id
-    @GeneratedValue
-    val id: UUID? = null,
+    @GeneratedValue(strategy = GenerationType.UUID)
+    var id: UUID? = null,
 
     @Column(name = "user_id", nullable = false)
     val userId: UUID,
@@ -29,11 +31,12 @@ data class UserAchievement(
     val achievementId: UUID,
 
     @Column(name = "achieved_at")
-    val achievedAt: LocalDateTime = LocalDateTime.now(),
+    @CreationTimestamp
+    var achievedAt: LocalDateTime? = null,
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "progress_data")
-    val progressData: String? = null
+    @Type(JsonType::class)
+    @Column(name = "progress_data", columnDefinition = "jsonb")
+    var progressData: MutableMap<String, Any?>? = null
 ) {
     final override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -51,8 +54,7 @@ data class UserAchievement(
     final override fun hashCode(): Int =
         if (this is HibernateProxy) this.hibernateLazyInitializer.persistentClass.hashCode() else javaClass.hashCode()
 
-    @Override
-    override fun toString(): String {
-        return this::class.simpleName + "(  id = $id   ,   userId = $userId   ,   achievementId = $achievementId   ,   achievedAt = $achievedAt   ,   progressData = $progressData )"
-    }
+    override fun toString(): String =
+        "${this::class.simpleName}(id=$id, userId=$userId, achievementId=$achievementId, " +
+                "achievedAt=$achievedAt, progressData=$progressData)"
 }

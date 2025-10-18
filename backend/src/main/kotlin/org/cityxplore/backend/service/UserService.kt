@@ -59,4 +59,3 @@ class UserService(
     fun create(request: UserCreateRequest): UserResponseDto =
         userRepository.save(request.toEntity()).toUserResponseDto()
 }
-

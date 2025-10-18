@@ -1,6 +1,7 @@
 [versions]
 hibernateCoreVersion = "6.6.29.Final"
 hibernateSpatialVersion = "6.6.29.Final"
+hypersistenceUtilsHibernateX3 = "3.11.0"
 kotlin = "2.2.20"
 agp = "8.10.1"
 compose = "1.7.0"
@@ -16,6 +17,7 @@ androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
 hibernate-core-v6629final = { module = "org.hibernate.orm:hibernate-core", version.ref = "hibernateCoreVersion" }
 hibernate-spatial-v6629final = { module = "org.hibernate.orm:hibernate-spatial", version.ref = "hibernateSpatialVersion" }
+hypersistence-utils-hibernate-x3 = { module = "io.hypersistence:hypersistence-utils-hibernate-63", version.ref = "hypersistenceUtilsHibernateX3" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
 flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql" }

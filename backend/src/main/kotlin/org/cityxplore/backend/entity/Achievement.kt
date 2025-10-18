@@ -1,38 +1,50 @@
 package org.cityxplore.backend.entity
 
+import io.hypersistence.utils.hibernate.type.json.JsonType
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.PositiveOrZero
+import org.hibernate.annotations.Type
 import org.hibernate.proxy.HibernateProxy
+import org.hibernate.validator.constraints.URL
 import java.util.UUID
-import org.hibernate.annotations.JdbcTypeCode
-import org.hibernate.type.SqlTypes
 
 @Entity
 @Table(name = "achievements")
 data class Achievement(
     @Id
-    @GeneratedValue
+    @GeneratedValue(strategy = GenerationType.UUID)
     var id: UUID? = null,
 
+    @field:NotBlank
+    @Column(nullable = false, length = 120)
     val name: String,
 
+    @field:NotBlank
+    @Column(nullable = false, length = 500)
     val description: String,
 
+    @Column(length = 50)
     val category: String? = null,
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column
-    val criteria: String, // JSON string eg. {"type":"discoveries","count":10}
+    @Type(JsonType::class)
+    @Column(columnDefinition = "jsonb", nullable = false)
+    val criteria: Map<String, Any?>, // e.g. {"type":"discoveries","count":10}
 
-    @Column(name = "icon_url")
+    @field:URL
+    @Column(name = "icon_url", length = 2048)
     val iconUrl: String? = null,
 
+    @field:PositiveOrZero
+    @Column(nullable = false)
     val points: Int = 0,
 
-    @Column(name = "is_active")
+    @Column(name = "is_active", nullable = false)
     val isActive: Boolean = true
 ) {
     final override fun equals(other: Any?): Boolean {
@@ -51,8 +63,7 @@ data class Achievement(
     final override fun hashCode(): Int =
         if (this is HibernateProxy) this.hibernateLazyInitializer.persistentClass.hashCode() else javaClass.hashCode()
 
-    @Override
-    override fun toString(): String {
-        return this::class.simpleName + "(  id = $id   ,   name = $name   ,   description = $description   ,   category = $category   ,   criteria = $criteria   ,   iconUrl = $iconUrl   ,   points = $points   ,   isActive = $isActive )"
-    }
+    override fun toString(): String =
+        "${this::class.simpleName}(id=$id, name=$name, description=$description, " +
+                "category=$category, criteria=$criteria, iconUrl=$iconUrl, points=$points, isActive=$isActive)"
 }

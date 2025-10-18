@@ -3,18 +3,23 @@ package org.cityxplore.backend.entity
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
+import jakarta.persistence.UniqueConstraint
 import org.hibernate.proxy.HibernateProxy
 import java.time.LocalDateTime
 import java.util.UUID
 
 @Entity
-@Table(name = "user_poi_discoveries")
+@Table(
+    name = "user_poi_discoveries",
+    uniqueConstraints = [UniqueConstraint(columnNames = ["user_id", "poi_id"])]
+)
 data class UserPoiDiscovery(
     @Id
-    @GeneratedValue
-    val id: UUID? = null,
+    @GeneratedValue(strategy = GenerationType.UUID)
+    var id: UUID? = null,
 
     @Column(name = "user_id", nullable = false)
     val userId: UUID,
@@ -44,7 +49,6 @@ data class UserPoiDiscovery(
     final override fun hashCode(): Int =
         if (this is HibernateProxy) this.hibernateLazyInitializer.persistentClass.hashCode() else javaClass.hashCode()
 
-    override fun toString(): String {
-        return this::class.simpleName + "(  id = $id   ,   userId = $userId   ,   poiId = $poiId   ,   discoveredAt = $discoveredAt   ,   isFavorite = $isFavorite )"
-    }
+    override fun toString(): String =
+        "${this::class.simpleName}(id=$id, userId=$userId, poiId=$poiId, discoveredAt=$discoveredAt, isFavorite=$isFavorite)"
 }

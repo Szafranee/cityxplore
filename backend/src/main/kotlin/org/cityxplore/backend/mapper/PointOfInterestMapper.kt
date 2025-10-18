@@ -3,7 +3,11 @@ package org.cityxplore.backend.mapper
 import org.cityxplore.backend.dto.PointOfInterestCreateRequest
 import org.cityxplore.backend.dto.PointOfInterestResponseDto
 import org.cityxplore.backend.entity.PointOfInterest
-import org.springframework.data.geo.Point
+import org.locationtech.jts.geom.Coordinate
+import org.locationtech.jts.geom.GeometryFactory
+import org.locationtech.jts.geom.PrecisionModel
+
+private val GEOMETRY_FACTORY = GeometryFactory(PrecisionModel(), 4326)
 
 fun PointOfInterest.toResponseDto(): PointOfInterestResponseDto = PointOfInterestResponseDto(
     id = this.id,
@@ -25,7 +29,9 @@ fun PointOfInterestCreateRequest.toEntity(): PointOfInterest = PointOfInterest(
     name = this.name,
     description = this.description,
     category = this.category,
-    location = if (latitude != null && longitude != null) Point(longitude, latitude) else null,
+    location = if (latitude != null && longitude != null) GEOMETRY_FACTORY.createPoint(
+        Coordinate(longitude, latitude)
+    ) else null,
     metadata = this.metadata,
     imageUrls = this.imageUrls
 )

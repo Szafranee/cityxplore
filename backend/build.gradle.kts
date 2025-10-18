@@ -4,7 +4,6 @@ plugins {
     id("org.springframework.boot") version "3.5.6"
     id("io.spring.dependency-management") version "1.1.7"
     kotlin("plugin.jpa") version "1.9.25"
-    kotlin("plugin.noarg") version "1.9.25"
 }
 
 group = "org.cityxplore"
@@ -43,6 +42,7 @@ dependencies {
     implementation(libs.kotlin.reflect)
     implementation(libs.hibernate.core.v6629final)
     implementation(libs.hibernate.spatial.v6629final)
+    implementation(libs.hypersistence.utils.hibernate.x3)
     compileOnly(libs.lombok)
     runtimeOnly(libs.postgresql)
     annotationProcessor(libs.projectlombok.lombok)
@@ -65,7 +65,7 @@ allOpen {
 }
 
 noArg {
-    annotation("jakarta.persistence.Entity")
+    invokeInitializers = true
 }
 
 tasks.withType<Test> {
