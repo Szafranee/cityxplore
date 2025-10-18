@@ -32,11 +32,11 @@ data class PointOfInterest(
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column
-    val metadata: String? = null,
+    val metadata: Map<String, Any?>? = null,
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "image_urls")
-    val imageUrls: String? = null,
+    val imageUrls: List<String>? = null,
 
     @Column(name = "created_at")
     val createdAt: LocalDateTime? = LocalDateTime.now(),
