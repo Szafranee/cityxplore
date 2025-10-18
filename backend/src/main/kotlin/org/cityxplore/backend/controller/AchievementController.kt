@@ -21,11 +21,11 @@ class AchievementController(
 ) {
 
     /**
-         * Retrieve all available achievements.
-         *
-         * @return A list of AchievementDto representing every achievement defined in the system.
-         */
-        @GetMapping
+     * Retrieve all available achievements.
+     *
+     * @return A list of AchievementDto representing every achievement defined in the system.
+     */
+    @GetMapping
     fun getAllAchievements(): List<AchievementDto> =
         achievementService.getAllAchievements()
 

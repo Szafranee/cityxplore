@@ -17,11 +17,11 @@ class AchievementService(
     private val userAchievementRepository: UserAchievementRepository
 ) {
     /**
-             * Retrieve all active achievements.
-             *
-             * @return A list of AchievementDto representing achievements with `isActive == true`.
-             */
-            @Transactional(readOnly = true)
+     * Retrieve all active achievements.
+     *
+     * @return A list of AchievementDto representing achievements with `isActive == true`.
+     */
+    @Transactional(readOnly = true)
     fun getAllAchievements(): List<AchievementDto> =
         achievementRepository.findAll()
             .filter { it.isActive }
@@ -85,6 +85,8 @@ class AchievementService(
      *
      * @param userId The UUID of the user whose achievements are requested.
      * @return A list of UserAchievementDto objects representing the user's earned achievements.
+     */
+
     @Transactional(readOnly = true)
     fun getUserAchievements(userId: UUID): List<UserAchievementDto> {
         val achievements = achievementRepository.findAll().associateBy { it.id }
@@ -106,5 +108,5 @@ class AchievementService(
             }
         }
     }
-
 }
+
