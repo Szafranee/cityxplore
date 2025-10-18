@@ -6,5 +6,6 @@ import java.util.UUID
 
 interface UserAchievementRepository : JpaRepository<UserAchievement, UUID> {
     fun findAllByUserId(userId: UUID): List<UserAchievement>
+
     fun existsByUserIdAndAchievementId(userId: UUID, achievementId: UUID): Boolean
 }

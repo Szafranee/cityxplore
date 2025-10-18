@@ -16,6 +16,11 @@ class AchievementService(
     private val achievementRepository: AchievementRepository,
     private val userAchievementRepository: UserAchievementRepository
 ) {
+    /**
+     * Retrieve all active achievements.
+     *
+     * @return A list of AchievementDto representing achievements with `isActive == true`.
+     */
     @Transactional(readOnly = true)
     fun getAllAchievements(): List<AchievementDto> =
         achievementRepository.findAll()
@@ -31,6 +36,18 @@ class AchievementService(
                 )
             }
 
+    /**
+     * Grants the specified achievement to the given user.
+     *
+     * Attempts to create a new UserAchievement linking the user and achievement, then returns a DTO
+     * representing the granted achievement and the timestamp when it was recorded.
+     *
+     * @param userId UUID of the user to receive the achievement.
+     * @param achievementId UUID of the achievement to grant.
+     * @return A UserAchievementDto containing the granted AchievementDto, the `achievedAt` timestamp, and `progress` set to `null`.
+     * @throws org.springframework.web.server.ResponseStatusException with HTTP 404 if the achievement does not exist.
+     * @throws org.springframework.web.server.ResponseStatusException with HTTP 409 if the user already has the achievement.
+     */
     @Transactional
     fun grantAchievement(userId: UUID, achievementId: UUID): UserAchievementDto {
         if (!achievementRepository.existsById(achievementId)) {
@@ -60,6 +77,16 @@ class AchievementService(
         )
     }
 
+    /**
+     * Fetches the achievements a user has earned and returns them as DTOs.
+     *
+     * Only user achievement records that correspond to an existing achievement definition are included.
+     * Each returned entry contains the achievement details, the timestamp when it was achieved, and optional progress mapped under the "data" key.
+     *
+     * @param userId The UUID of the user whose achievements are requested.
+     * @return A list of UserAchievementDto objects representing the user's earned achievements.
+     */
+
     @Transactional(readOnly = true)
     fun getUserAchievements(userId: UUID): List<UserAchievementDto> {
         val achievements = achievementRepository.findAll().associateBy { it.id }
@@ -81,5 +108,5 @@ class AchievementService(
             }
         }
     }
-
 }
+
