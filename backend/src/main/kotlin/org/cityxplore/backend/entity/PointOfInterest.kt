@@ -1,21 +1,29 @@
 package org.cityxplore.backend.entity
 
+import io.hypersistence.utils.hibernate.type.json.JsonType
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.EntityListeners
 import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
+import org.hibernate.annotations.Type
 import org.hibernate.proxy.HibernateProxy
-import org.springframework.data.geo.Point
+import org.locationtech.jts.geom.Point
+import org.springframework.data.annotation.CreatedDate
+import org.springframework.data.annotation.LastModifiedDate
+import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.time.LocalDateTime
 import java.util.UUID
 
 @Entity
+@EntityListeners(AuditingEntityListener::class)
 @Table(name = "points_of_interest")
 data class PointOfInterest(
     @Id
-    @GeneratedValue
-    val id: UUID? = null,
+    @GeneratedValue(strategy = GenerationType.UUID)
+    var id: UUID? = null,
 
     @Column(nullable = false, length = 200)
     val name: String,
@@ -28,17 +36,21 @@ data class PointOfInterest(
     @Column(columnDefinition = "GEOGRAPHY(POINT, 4326)")
     val location: Point? = null,
 
+    @Type(JsonType::class)
     @Column(columnDefinition = "jsonb")
-    val metadata: String? = null,
+    val metadata: Map<String, Any?>? = null,
 
+    @Type(JsonType::class)
     @Column(name = "image_urls", columnDefinition = "jsonb")
-    val imageUrls: String? = null,
+    val imageUrls: List<String>? = null,
 
-    @Column(name = "created_at")
-    val createdAt: LocalDateTime? = LocalDateTime.now(),
+    @Column(name = "created_at", nullable = true, updatable = false)
+    @CreatedDate
+    val createdAt: LocalDateTime? = null,
 
-    @Column(name = "updated_at")
-    val updatedAt: LocalDateTime? = LocalDateTime.now(),
+    @Column(name = "updated_at", nullable = true)
+    @LastModifiedDate
+    var updatedAt: LocalDateTime? = null,
 
     @Column(name = "is_active")
     val isActive: Boolean = true
@@ -59,7 +71,8 @@ data class PointOfInterest(
     final override fun hashCode(): Int =
         if (this is HibernateProxy) this.hibernateLazyInitializer.persistentClass.hashCode() else javaClass.hashCode()
 
-    override fun toString(): String {
-        return this::class.simpleName + "(  id = $id   ,   name = $name   ,   description = $description   ,   category = $category   ,   location = $location   ,   metadata = $metadata   ,   imageUrls = $imageUrls   ,   createdAt = $createdAt   ,   updatedAt = $updatedAt   ,   isActive = $isActive )"
-    }
+    override fun toString(): String =
+        "${'$'}{this::class.simpleName}(id=${'$'}id, name=${'$'}name, description=${'$'}description, " +
+                "category=${'$'}category, location=${'$'}location, metadata=${'$'}metadata, " +
+                "imageUrls=${'$'}imageUrls, createdAt=${'$'}createdAt, updatedAt=${'$'}updatedAt, isActive=${'$'}isActive)"
 }

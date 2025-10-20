@@ -20,8 +20,8 @@ data class PointOfInterestCreateRequest(
     @field:DecimalMin(value = "-180.0", inclusive = true, message = "longitude must be >= -180")
     @field:DecimalMax(value = "180.0", inclusive = true, message = "longitude must be <= 180")
     val longitude: Double? = null,
-    val metadata: String? = null,
-    val imageUrls: String? = null
+    val metadata: Map<String, Any?>? = null,
+    val imageUrls: List<String>? = null
 ) {
     @AssertTrue(message = "latitude and longitude must be provided together or both omitted")
     fun areCoordinatesPaired(): Boolean =

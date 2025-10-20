@@ -68,4 +68,3 @@ class PoiDiscoveryService(
     fun getUserDiscoveries(userId: UUID): List<UserPoiDiscoveryDto> =
         userPoiRepository.findAllByUserId(userId).toDtoList()
 }
-

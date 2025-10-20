@@ -42,6 +42,7 @@ dependencies {
     implementation(libs.kotlin.reflect)
     implementation(libs.hibernate.core.v6629final)
     implementation(libs.hibernate.spatial.v6629final)
+    implementation(libs.hypersistence.utils.hibernate.x3)
     compileOnly(libs.lombok)
     runtimeOnly(libs.postgresql)
     annotationProcessor(libs.projectlombok.lombok)
@@ -61,6 +62,10 @@ allOpen {
     annotation("jakarta.persistence.Entity")
     annotation("jakarta.persistence.MappedSuperclass")
     annotation("jakarta.persistence.Embeddable")
+}
+
+noArg {
+    invokeInitializers = true
 }
 
 tasks.withType<Test> {

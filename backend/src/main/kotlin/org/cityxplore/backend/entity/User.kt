@@ -2,35 +2,51 @@ package org.cityxplore.backend.entity
 
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.EntityListeners
 import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
+import jakarta.validation.constraints.Email
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 import org.hibernate.proxy.HibernateProxy
+import org.hibernate.validator.constraints.URL
+import org.springframework.data.annotation.CreatedDate
+import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.math.BigDecimal
 import java.time.LocalDateTime
 import java.util.UUID
 
 @Entity
+@EntityListeners(AuditingEntityListener::class)
 @Table(name = "users")
 data class User(
     @Id
-    @GeneratedValue
-    val id: UUID? = null,
+    @GeneratedValue(strategy = GenerationType.UUID)
+    var id: UUID? = null,
 
-    @Column(nullable = false, unique = true)
+    @field:NotBlank
+    @field:Email
+    @field:Size(max = 254)
+    @Column(nullable = false, unique = true, length = 254)
     val email: String,
 
+    @field:NotBlank
+    @field:Size(min = 3, max = 50)
     @Column(nullable = false, unique = true, length = 50)
     val username: String,
 
-    @Column(name = "avatar_url")
+    @field:URL
+    @Column(name = "avatar_url", length = 2048)
     val avatarUrl: String? = null,
 
-    @Column(name = "created_at")
-    val createdAt: LocalDateTime? = LocalDateTime.now(),
+    @CreatedDate
+    @Column(name = "created_at", updatable = false)
+    val createdAt: LocalDateTime? = null,
 
     @Column(name = "last_active_at")
-    val lastActiveAt: LocalDateTime? = null,
+    var lastActiveAt: LocalDateTime? = null,
 
     @Column(name = "total_distance", precision = 10, scale = 2)
     val totalDistance: BigDecimal = BigDecimal.ZERO,
@@ -54,7 +70,7 @@ data class User(
     final override fun hashCode(): Int =
         if (this is HibernateProxy) this.hibernateLazyInitializer.persistentClass.hashCode() else javaClass.hashCode()
 
-    override fun toString(): String {
-        return this::class.simpleName + "(  id = $id   ,   email = $email   ,   username = $username   ,   avatarUrl = $avatarUrl   ,   createdAt = $createdAt   ,   lastActiveAt = $lastActiveAt   ,   totalDistance = $totalDistance   ,   totalPoisDiscovered = $totalPoisDiscovered )"
-    }
+    override fun toString(): String =
+        "${this::class.simpleName}(id=$id, avatarUrl=$avatarUrl, createdAt=$createdAt, " +
+                "lastActiveAt=$lastActiveAt, totalDistance=$totalDistance, totalPoisDiscovered=$totalPoisDiscovered)"
 }

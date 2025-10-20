@@ -55,4 +55,3 @@ class PointOfInterestService(
     fun create(request: PointOfInterestCreateRequest): PointOfInterestResponseDto =
         poiRepository.save(request.toEntity()).toResponseDto()
 }
-

@@ -13,8 +13,8 @@ data class PointOfInterestResponseDto(
     val category: String,
     val latitude: Double?,
     val longitude: Double?,
-    val metadata: String?,
-    val imageUrls: String?,
+    val metadata: Map<String, Any?>?,
+    val imageUrls: List<String>?,
     val createdAt: LocalDateTime?,
     val updatedAt: LocalDateTime?,
     val isActive: Boolean
