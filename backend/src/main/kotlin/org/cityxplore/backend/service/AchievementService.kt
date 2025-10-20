@@ -93,7 +93,7 @@ class AchievementService(
      *
      * Only user achievement records that correspond to an existing achievement definition are included.
      * Each returned entry contains the achievement details, the timestamp when it was achieved, and optional progress
-     * mapped under the "progressData" key.
+     * mapped under the "progress" key.
      */
     @Transactional(readOnly = true)
     fun getUserAchievements(userId: UUID): List<UserAchievementDto> {
@@ -101,14 +101,8 @@ class AchievementService(
         val ids = userAchievements.map { it.achievementId }.toSet()
         val achievements = achievementRepository.findAllById(ids).associateBy { it.id }
 
-        return userAchievements.mapNotNull { userAchievement ->
-            achievements[userAchievement.achievementId]?.let { achievement ->
-                UserAchievementDto(
-                    achievement = achievement.toDto(),
-                    achievedAt = userAchievement.achievedAt,
-                    progress = userAchievement.progressData
-                )
-            }
+        return userAchievements.mapNotNull { ua ->
+            achievements[ua.achievementId]?.let { ach -> toDto(ach, ua) }
         }
     }
 

@@ -14,24 +14,27 @@ import java.util.UUID
 @Entity
 @Table(
     name = "user_poi_discoveries",
-    uniqueConstraints = [UniqueConstraint(columnNames = ["user_id", "poi_id"])]
+    uniqueConstraints = [UniqueConstraint(
+        name = "uq_user_poi_discoveries_user_id_poi_id",
+        columnNames = ["user_id", "poi_id"]
+    )]
 )
 data class UserPoiDiscovery(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     var id: UUID? = null,
 
-    @Column(name = "user_id", nullable = false)
+    @Column(name = "user_id", nullable = false, updatable = false)
     val userId: UUID,
 
-    @Column(name = "poi_id", nullable = false)
+    @Column(name = "poi_id", nullable = false, updatable = false)
     val poiId: UUID,
 
-    @Column(name = "discovered_at")
+    @Column(name = "discovered_at", nullable = false, updatable = false)
     val discoveredAt: LocalDateTime = LocalDateTime.now(),
 
-    @Column(name = "is_favorite")
-    val isFavorite: Boolean = false
+    @Column(name = "is_favorite", nullable = false)
+    var isFavorite: Boolean = false
 ) {
     final override fun equals(other: Any?): Boolean {
         if (this === other) return true
