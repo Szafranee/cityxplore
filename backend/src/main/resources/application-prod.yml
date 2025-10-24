@@ -43,3 +43,18 @@ logging:
     root: INFO
     org.flywaydb.core: INFO
     org.hibernate.SQL: WARN
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+  info:
+    env:
+      enabled: false
+  health:
+    diskspace:
+      enabled: true

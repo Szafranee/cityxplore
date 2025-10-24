@@ -15,6 +15,13 @@ import org.springframework.web.bind.annotation.RestController
 import java.net.URI
 import java.util.UUID
 
+/**
+ * REST controller managing achievement-related endpoints.
+ *
+ * Provides public listing of available achievements and authenticated operations
+ * for fetching and granting a user's achievements. Authentication is required for
+ * endpoints under "/mine" and grant operations.
+ */
 @RestController
 @RequestMapping("/api/achievements")
 class AchievementController(

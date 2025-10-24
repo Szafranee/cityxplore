@@ -15,13 +15,10 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder
 import java.util.UUID
 
 /**
- * Controller class handling endpoints related to Points of Interest (POIs).
+ * REST controller handling endpoints related to Points of Interest (POIs).
  *
- * This class handles providing API operations around the `PointOfInterest`
- * entity, such as retrieving all POIs, fetching a single POI by its ID, and creating
- * new POIs.
- *
- * @param poiService The service used for accessing and persisting `PointOfInterest` entities.
+ * Follows the same patterns as other controllers: DTO-based I/O, validation via
+ * Bean Validation annotations, and Location header on resource creation.
  */
 @RestController
 @RequestMapping("/api/pois")

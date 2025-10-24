@@ -17,12 +17,8 @@ import java.util.UUID
 /**
  * REST controller for managing user-related operations.
  *
- * Handles HTTP requests related to the `User` entity, including retrieving all users,
- * retrieving a specific user by ID, and creating a new user.
- *
- * This controller is mapped to the `/api/users` endpoint.
- *
- * @constructor Initializes the controller with a `UserService` instance for user-related operations.
+ * Follows the standard conventions across the project: DTOs as API contract,
+ * Bean Validation on input and Location header on creation.
  */
 @RestController
 @RequestMapping("/api/users")

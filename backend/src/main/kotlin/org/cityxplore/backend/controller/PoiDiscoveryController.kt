@@ -16,8 +16,8 @@ import java.util.UUID
 /**
  * REST controller responsible for handling Point of Interest (POI) discovery operations.
  *
- * This controller provides endpoints for users to discover POIs and to retrieve the list of POIs they have discovered.
- * It ensures that users cannot discover the same POI multiple times and handles error responses for invalid operations.
+ * Keeps a consistent approach to authentication (JwtUtils), error semantics, and
+ * DTO-based responses as in other controllers.
  */
 @RestController
 @RequestMapping("/api/pois")

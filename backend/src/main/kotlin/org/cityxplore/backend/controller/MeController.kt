@@ -1,20 +1,32 @@
 package org.cityxplore.backend.controller
 
 import org.cityxplore.backend.dto.response.MeResponse
+import org.cityxplore.backend.security.JwtUtils
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
+/**
+ * Public endpoint exposing basic information about the currently authenticated user.
+ *
+ * This controller simply reflects selected claims from the access token and returns
+ * them in a lightweight DTO. It uses [JwtUtils] for consistent user id extraction
+ * across the application, matching conventions used in other controllers.
+ */
 @RestController
 @RequestMapping("/api/me")
 class MeController {
 
+    /**
+     * Returns the current user's basic identity data derived from the JWT.
+     */
     @GetMapping
     fun getUser(@AuthenticationPrincipal jwt: Jwt): MeResponse {
+        val userId = JwtUtils.extractUserId(jwt).toString()
         return MeResponse(
-            userId = jwt.claims["sub"] as? String,
+            userId = userId,
             email = jwt.claims["email"] as? String,
             role = jwt.claims["role"] as? String
         )

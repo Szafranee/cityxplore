@@ -35,11 +35,11 @@ data class User(
     @field:NotBlank
     @field:Size(min = 3, max = 50)
     @Column(nullable = false, unique = true, length = 50)
-    val username: String,
+    var username: String,
 
     @field:URL
     @Column(name = "avatar_url", length = 2048)
-    val avatarUrl: String? = null,
+    var avatarUrl: String? = null,
 
     @CreatedDate
     @Column(name = "created_at", updatable = false)
