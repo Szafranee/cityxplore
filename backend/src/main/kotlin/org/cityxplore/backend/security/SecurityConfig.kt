@@ -3,11 +3,14 @@ package org.cityxplore.backend.security
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.convert.converter.Converter
 import org.springframework.http.HttpHeaders
 import org.springframework.http.client.ClientHttpRequestInterceptor
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
+import org.springframework.security.core.GrantedAuthority
+import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator
 import org.springframework.security.oauth2.core.OAuth2Error
 import org.springframework.security.oauth2.core.OAuth2TokenValidator
@@ -17,6 +20,7 @@ import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.oauth2.jwt.JwtValidators
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.web.client.RestTemplate
@@ -24,6 +28,16 @@ import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 
+/**
+ * Security configuration for the API.
+ *
+ * Key points:
+ * - Stateless resource server using JWT (Supabase ES256).
+ * - Public endpoints under /api/public, admin endpoints under /api/admin.
+ * - Custom audience and issuer validators.
+ * - Role mapping: claim "role" from JWT is mapped to Spring authorities (ROLE_*)
+ *   so that hasRole("ADMIN") works as expected.
+ */
 @Configuration
 @EnableWebSecurity
 class SecurityConfig {
@@ -37,6 +51,12 @@ class SecurityConfig {
     @Value("\${supabase.api-key}")
     private var supabaseApiKey: String = ""
 
+    /**
+     * Comma-separated list of allowed CORS origins. Use '*' for any origin (credentials disabled).
+     */
+    @Value("\${app.cors.allowed-origins:*}")
+    private var allowedOrigins: String = "*"
+
     @Bean
     fun filterChain(http: HttpSecurity): SecurityFilterChain {
         return http
@@ -45,6 +65,7 @@ class SecurityConfig {
             .authorizeHttpRequests { auth ->
                 auth
                     .requestMatchers("/api/public/**").permitAll()
+                    .requestMatchers("/api/admin/**").hasRole("ADMIN")
                     .anyRequest().authenticated()
             }
             .sessionManagement { session ->
@@ -53,12 +74,29 @@ class SecurityConfig {
             .oauth2ResourceServer { oauth2 ->
                 oauth2.jwt { jwt ->
                     jwt.decoder(jwtDecoder())
+                    jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())
                 }
             }
             .exceptionHandling { exceptions ->
                 exceptions.authenticationEntryPoint(BearerTokenAuthenticationEntryPoint())
             }
             .build()
+    }
+
+    /**
+     * Maps JWT claim "role" to Spring Security authorities.
+     * Example: role: "admin" -> authority: "ROLE_ADMIN".
+     */
+    @Bean
+    fun jwtAuthenticationConverter(): JwtAuthenticationConverter {
+        val converter = JwtAuthenticationConverter()
+        val authoritiesConverter = Converter<Jwt, Collection<GrantedAuthority>> { jwt ->
+            val role = jwt.claims["role"] as? String
+            if (role.isNullOrBlank()) emptyList()
+            else listOf<GrantedAuthority>(SimpleGrantedAuthority("ROLE_${role.uppercase()}"))
+        }
+        converter.setJwtGrantedAuthoritiesConverter(authoritiesConverter)
+        return converter
     }
 
     @Bean
@@ -102,10 +140,20 @@ class SecurityConfig {
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
         val configuration = CorsConfiguration()
-        configuration.allowedOriginPatterns = listOf("*")
+
+        // Compute allowed origins and credentials policy
+        val origins = allowedOrigins.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+        val anyOrigin = origins.size == 1 && origins[0] == "*"
+        if (anyOrigin) {
+            configuration.allowedOriginPatterns = listOf("*")
+            configuration.allowCredentials = false // wildcard + credentials is not allowed by browsers
+        } else {
+            configuration.allowedOrigins = origins
+            configuration.allowCredentials = true
+        }
+
         configuration.allowedMethods = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
         configuration.allowedHeaders = listOf("Authorization", "Cache-Control", "Content-Type")
-        configuration.allowCredentials = true
 
         val source = UrlBasedCorsConfigurationSource()
         source.registerCorsConfiguration("/**", configuration)
