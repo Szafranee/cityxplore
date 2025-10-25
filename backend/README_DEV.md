@@ -57,7 +57,7 @@ Example:
 ```
 poi/
 ├── entity/PointOfInterest.kt
-├── dto/PointOfInterestDto.kt
+├── dto/PoiAdminResponse.kt
 ├── repository/PointOfInterestRepository.kt
 ├── service/PoiService.kt
 └── controller/PoiController.kt

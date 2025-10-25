@@ -4,9 +4,9 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 /**
- * DTO for exposing Point of Interest data in API responses.
+ * Response DTO for exposing Point of Interest data in API responses.
  */
-data class PointOfInterestResponseDto(
+data class PoiResponse(
     val id: UUID?,
     val name: String,
     val description: String?,

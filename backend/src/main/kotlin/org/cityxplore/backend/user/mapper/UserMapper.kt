@@ -1,10 +1,10 @@
 package org.cityxplore.backend.user.mapper
 
 import org.cityxplore.backend.user.dto.UserCreateRequest
-import org.cityxplore.backend.user.dto.UserResponseDto
+import org.cityxplore.backend.user.dto.UserResponse
 import org.cityxplore.backend.user.entity.User
 
-fun User.toUserResponseDto(): UserResponseDto = UserResponseDto(
+fun User.toUserResponseDto(): UserResponse = UserResponse(
     id = this.id,
     email = this.email,
     username = this.username,
@@ -15,7 +15,7 @@ fun User.toUserResponseDto(): UserResponseDto = UserResponseDto(
     totalPoisDiscovered = this.totalPoisDiscovered
 )
 
-fun List<User>.toUserResponseDtoList(): List<UserResponseDto> = this.map { it.toUserResponseDto() }
+fun List<User>.toUserResponseDtoList(): List<UserResponse> = this.map { it.toUserResponseDto() }
 
 fun UserCreateRequest.toEntity(): User = User(
     email = this.email,

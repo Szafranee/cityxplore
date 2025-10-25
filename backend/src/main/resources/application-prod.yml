@@ -19,7 +19,6 @@ spring:
         prepareThreshold: 0
         autosave: conservative
 
-
   jpa:
     hibernate:
       ddl-auto: validate
@@ -35,7 +34,6 @@ spring:
     enabled: false
 
 supabase:
-  project-ref: ${SUPABASE_PROJECT_REF}
   api-key: ${SUPABASE_PUBLISHABLE_KEY}
   secret-key: ${SUPABASE_SECRET_KEY}
   storage:
@@ -62,3 +60,8 @@ management:
   health:
     diskspace:
       enabled: true
+
+
+app:
+  admin:
+    enable-reset: false

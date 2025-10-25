@@ -5,9 +5,9 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 /**
- * DTO for exposing User data in API responses.
+ * Response DTO for exposing User data in API responses.
  */
-data class UserResponseDto(
+data class UserResponse(
     val id: UUID?,
     val email: String,
     val username: String,

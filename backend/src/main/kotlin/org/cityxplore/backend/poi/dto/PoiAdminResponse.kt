@@ -6,7 +6,7 @@ import java.util.UUID
 /**
  * Admin-facing POI DTO including audit metadata.
  */
-data class PointOfInterestDto(
+data class PoiAdminResponse(
     val id: UUID?,
     val name: String,
     val description: String?,

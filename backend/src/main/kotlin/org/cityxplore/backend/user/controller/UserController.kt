@@ -2,7 +2,7 @@ package org.cityxplore.backend.user.controller
 
 import jakarta.validation.Valid
 import org.cityxplore.backend.user.dto.UserCreateRequest
-import org.cityxplore.backend.user.dto.UserResponseDto
+import org.cityxplore.backend.user.dto.UserResponse
 import org.cityxplore.backend.user.service.UserService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
@@ -30,7 +30,7 @@ class UserController(private val userService: UserService) {
      * @return a list of all users in the system.
      */
     @GetMapping
-    fun getAllUsers(): List<UserResponseDto> = userService.getAll()
+    fun getAllUsers(): List<UserResponse> = userService.getAll()
 
     /**
      * Retrieves a user by their unique identifier.
@@ -40,7 +40,7 @@ class UserController(private val userService: UserService) {
      * @throws java.util.NoSuchElementException if no user is found with the given identifier
      */
     @GetMapping("/{id}")
-    fun getUser(@PathVariable id: UUID): UserResponseDto = userService.getById(id)
+    fun getUser(@PathVariable id: UUID): UserResponse = userService.getById(id)
 
     /**
      * Creates a new user in the system.
@@ -49,7 +49,7 @@ class UserController(private val userService: UserService) {
      * @return the created user entity
      */
     @PostMapping
-    fun createUser(@Valid @RequestBody user: UserCreateRequest): ResponseEntity<UserResponseDto> {
+    fun createUser(@Valid @RequestBody user: UserCreateRequest): ResponseEntity<UserResponse> {
         val created = userService.create(user)
         val location = ServletUriComponentsBuilder
             .fromCurrentRequest()

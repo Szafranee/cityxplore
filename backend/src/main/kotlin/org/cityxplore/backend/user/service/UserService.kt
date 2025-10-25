@@ -1,7 +1,7 @@
 package org.cityxplore.backend.user.service
 
 import org.cityxplore.backend.user.dto.UserCreateRequest
-import org.cityxplore.backend.user.dto.UserResponseDto
+import org.cityxplore.backend.user.dto.UserResponse
 import org.cityxplore.backend.user.mapper.toEntity
 import org.cityxplore.backend.user.mapper.toUserResponseDto
 import org.cityxplore.backend.user.mapper.toUserResponseDtoList
@@ -27,10 +27,10 @@ class UserService(
     /**
      * Fetches all users from the repository and maps them to a list of response DTOs.
      *
-     * @return A list of `UserResponseDto` objects representing all users.
+     * @return A list of `UserResponse` objects representing all users.
      */
     @Transactional(readOnly = true)
-    fun getAll(): List<UserResponseDto> =
+    fun getAll(): List<UserResponse> =
         userRepository.findAll().toUserResponseDtoList()
 
     /**
@@ -38,10 +38,10 @@ class UserService(
      * Throws a `ResponseStatusException` with a 404 status if the user is not found.
      *
      * @param id The unique identifier of the user to retrieve.
-     * @return A `UserResponseDto` object representing the retrieved user.
+     * @return A `UserResponse` object representing the retrieved user.
      */
     @Transactional(readOnly = true)
-    fun getById(id: UUID): UserResponseDto =
+    fun getById(id: UUID): UserResponse =
         userRepository.findById(id)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
             .toUserResponseDto()
@@ -51,11 +51,11 @@ class UserService(
      *
      * @param userCreateRequest The user creation request containing the necessary details
      *                including email, username, and optional avatar URL.
-     * @return A `UserResponseDto` representing the created user, containing details
+     * @return A `UserResponse` representing the created user, containing details
      *         such as the user ID, email, username, avatar URL, creation timestamp,
      *         last active timestamp, total distance traveled, and total Points of Interest (POIs) discovered.
      */
     @Transactional
-    fun create(userCreateRequest: UserCreateRequest): UserResponseDto =
+    fun create(userCreateRequest: UserCreateRequest): UserResponse =
         userRepository.save(userCreateRequest.toEntity()).toUserResponseDto()
 }

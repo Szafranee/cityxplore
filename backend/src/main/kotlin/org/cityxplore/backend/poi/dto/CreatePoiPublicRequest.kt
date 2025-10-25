@@ -7,9 +7,11 @@ import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 
 /**
- * DTO for creating a new Point of Interest via API.
+ * Request DTO for creating a new Point of Interest via public API.
+ *
+ * Coordinates must be provided together (both present) or omitted together.
  */
-data class PointOfInterestCreateRequest(
+data class CreatePoiPublicRequest(
     @field:NotBlank
     @field:Size(max = 200)
     val name: String,

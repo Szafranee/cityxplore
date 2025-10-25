@@ -18,7 +18,7 @@ import java.util.UUID
  * @property totalPoisDiscovered Total number of Points of Interest (POIs) discovered by the user.
  * @property createdAt Timestamp representing when the user's profile was created.
  */
-data class UserProfileDto(
+data class UserProfileResponse(
     val id: UUID,
     val email: String,
     val username: String,

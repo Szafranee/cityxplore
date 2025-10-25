@@ -1,10 +1,12 @@
 package org.cityxplore.backend.poi.service
 
-import org.cityxplore.backend.poi.dto.CreatePoiDto
-import org.cityxplore.backend.poi.dto.PointOfInterestCreateRequest
-import org.cityxplore.backend.poi.dto.PointOfInterestDto
-import org.cityxplore.backend.poi.dto.PointOfInterestResponseDto
+import org.cityxplore.backend.poi.dto.CreatePoiPublicRequest
+import org.cityxplore.backend.poi.dto.CreatePoiRequest
+import org.cityxplore.backend.poi.dto.PoiAdminResponse
+import org.cityxplore.backend.poi.dto.PoiResponse
+import org.cityxplore.backend.poi.dto.UpdatePoiRequest
 import org.cityxplore.backend.poi.entity.PointOfInterest
+import org.cityxplore.backend.poi.mapper.toAdminDto
 import org.cityxplore.backend.poi.mapper.toEntity
 import org.cityxplore.backend.poi.mapper.toResponseDto
 import org.cityxplore.backend.poi.mapper.toResponseDtoList
@@ -34,10 +36,10 @@ class PointOfInterestService(
     /**
      * Retrieves all Points of Interest (POIs) from the repository and maps them to a list of response DTOs.
      *
-     * @return A list of `PointOfInterestResponseDto` objects representing all Points of Interest.
+     * @return A list of `PoiResponse` objects representing all Points of Interest.
      */
     @Transactional(readOnly = true)
-    fun getAll(): List<PointOfInterestResponseDto> =
+    fun getAll(): List<PoiResponse> =
         poiRepository.findAll().toResponseDtoList()
 
     /**
@@ -45,10 +47,10 @@ class PointOfInterestService(
      * Throws a `ResponseStatusException` with a 404 status if the POI is not found.
      *
      * @param id The unique identifier of the Point of Interest to retrieve.
-     * @return A `PointOfInterestResponseDto` object representing the retrieved Point of Interest.
+     * @return A `PoiResponse` object representing the retrieved Point of Interest.
      */
     @Transactional(readOnly = true)
-    fun getById(id: UUID): PointOfInterestResponseDto =
+    fun getById(id: UUID): PoiResponse =
         poiRepository.findById(id)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "POI not found") }
             .toResponseDto()
@@ -56,68 +58,59 @@ class PointOfInterestService(
     /**
      * Creates a new Point of Interest (POI) and saves it to the database.
      *
-     * @param request The details of the POI to be created, encapsulated in a `PointOfInterestCreateRequest` object.
-     * @return A `PointOfInterestResponseDto` object representing the created POI.
+     * @param request The details of the POI to be created, encapsulated in a `CreatePoiPublicRequest` object.
+     * @return A `PoiResponse` object representing the created POI.
      */
     @Transactional
-    fun create(request: PointOfInterestCreateRequest): PointOfInterestResponseDto =
+    fun create(request: CreatePoiPublicRequest): PoiResponse =
         poiRepository.save(request.toEntity()).toResponseDto()
 
     @Transactional(readOnly = true)
-    fun getAllPois(): List<PointOfInterestDto> =
+    fun getAllPois(): List<PoiAdminResponse> =
         poiRepository.findAll()
             .filter { it.isActive }
-            .map { it.toDto() }
+            .map { it.toAdminDto() }
 
     @Transactional(readOnly = true)
-    fun getPoiById(id: UUID): PointOfInterestDto =
+    fun getPoiById(id: UUID): PoiAdminResponse =
         poiRepository.findById(id)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "POI not found") }
-            .toDto()
+            .toAdminDto()
 
     @Transactional
-    fun createPoi(createPoiDto: CreatePoiDto): PointOfInterestDto {
-        val poi = poiRepository.save(
+    fun createPoi(createPoi: CreatePoiRequest): PoiAdminResponse {
+        val saved = poiRepository.save(
             PointOfInterest(
-                name = createPoiDto.name,
-                description = createPoiDto.description,
-                category = createPoiDto.category,
-                // PostGIS + latitude/longitude (x: lon, y: lat)
-                location = GeometryFactory().createPoint(
-                    Coordinate(
-                        createPoiDto.longitude,
-                        createPoiDto.latitude
-                    )
-                ),
-                metadata = createPoiDto.metadata,
+                name = createPoi.name,
+                description = createPoi.description,
+                category = createPoi.category,
+                location = GeometryFactory().createPoint(Coordinate(createPoi.longitude, createPoi.latitude)),
+                metadata = createPoi.metadata,
                 createdAt = LocalDateTime.now(),
                 isActive = true
             )
         )
-        return poi.toDto()
+
+        return saved.toAdminDto()
     }
 
     @Transactional
-    fun updatePoi(id: UUID, createPoiDto: CreatePoiDto): PointOfInterestDto {
+    fun updatePoi(id: UUID, updatePoi: UpdatePoiRequest): PoiAdminResponse {
         val existing = poiRepository.findById(id)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "POI not found") }
 
         val saved = poiRepository.save(
             existing.copy(
-                name = createPoiDto.name,
-                description = createPoiDto.description,
-                category = createPoiDto.category,
-                location = GeometryFactory().createPoint(
-                    Coordinate(
-                        createPoiDto.longitude,
-                        createPoiDto.latitude
-                    )
-                ),
+                name = updatePoi.name,
+                description = updatePoi.description,
+                category = updatePoi.category,
+                location = GeometryFactory().createPoint(Coordinate(updatePoi.longitude, updatePoi.latitude)),
                 updatedAt = LocalDateTime.now(),
-                metadata = createPoiDto.metadata
+                metadata = updatePoi.metadata
             )
         )
-        return saved.toDto()
+
+        return saved.toAdminDto()
     }
 
     @Transactional
@@ -127,17 +120,3 @@ class PointOfInterestService(
         poiRepository.deleteById(id)
     }
 }
-
-private fun PointOfInterest.toDto(): PointOfInterestDto =
-    PointOfInterestDto(
-        id = id,
-        name = name,
-        description = description,
-        category = category,
-        latitude = location?.y ?: 0.0,
-        longitude = location?.x ?: 0.0,
-        metadata = metadata?.let { mapOf("raw" to it) },
-        createdAt = createdAt,
-        updatedAt = updatedAt,
-        isActive = isActive
-    )

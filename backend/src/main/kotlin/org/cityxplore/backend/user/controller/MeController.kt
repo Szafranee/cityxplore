@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController
  * Public endpoint exposing basic information about the currently authenticated user.
  *
  * This controller simply reflects selected claims from the access token and returns
- * them in a lightweight DTO. It uses [JwtUtils] for consistent user id extraction
+ * them in a lightweight DTO. It uses [org.cityxplore.backend.shared.security.JwtUtils] for consistent user id extraction
  * across the application, matching conventions used in other controllers.
  */
 @RestController

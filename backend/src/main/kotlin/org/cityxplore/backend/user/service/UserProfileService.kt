@@ -1,7 +1,7 @@
 package org.cityxplore.backend.user.service
 
-import org.cityxplore.backend.user.dto.UpdateUserProfileDto
-import org.cityxplore.backend.user.dto.UserProfileDto
+import org.cityxplore.backend.user.dto.UpdateUserProfileRequest
+import org.cityxplore.backend.user.dto.UserProfileResponse
 import org.cityxplore.backend.user.entity.User
 import org.cityxplore.backend.user.repository.UserRepository
 import org.springframework.http.HttpStatus
@@ -27,12 +27,13 @@ class UserProfileService(
      * If the user does not exist, a `ResponseStatusException` is thrown with a 404 status.
      *
      * @param userId The unique identifier of the user whose profile is to be retrieved.
-     * @return A `UserProfileDto` containing the profile details of the specified user.
+     * @return A `UserProfileResponse` containing the profile details of the specified user.
      */
     @Transactional(readOnly = true)
-    fun getUserProfile(userId: UUID): UserProfileDto {
+    fun getUserProfile(userId: UUID): UserProfileResponse {
         val user = userRepository.findById(userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
+
         return user.toDto()
     }
 
@@ -44,11 +45,12 @@ class UserProfileService(
      * with a 404 Not Found status.
      *
      * @param userId The unique identifier of the user whose profile is to be updated.
-     * @param patch An instance of `UpdateUserProfileDto` containing the new profile details to update.
+     * @param patch An instance of `UpdateUserProfileRequest` containing the new profile details to update.
      *              Fields that are null in the DTO will not be updated.
-     * @return An updated `UserProfileDto` representing the user's profile after the changes*/
+     * @return An updated `UserProfileResponse` representing the user's profile after the changes
+     */
     @Transactional
-    fun updateUserProfile(userId: UUID, patch: UpdateUserProfileDto): UserProfileDto {
+    fun updateUserProfile(userId: UUID, patch: UpdateUserProfileRequest): UserProfileResponse {
         val user = userRepository.findById(userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
 
@@ -56,21 +58,22 @@ class UserProfileService(
         patch.avatarUrl?.let { user.avatarUrl = it }
 
         val saved = userRepository.save(user)
+
         return saved.toDto()
     }
 }
 
 /**
- * Converts a `User` entity to a `UserProfileDto`.
+ * Converts a `User` entity to a `UserProfileResponse`.
  *
  * This extension function maps the `User` entity's properties to the corresponding fields
- * in the `UserProfileDto` data transfer object. It is typically used for returning
+ * in the `UserProfileResponse` data transfer object. It is typically used for returning
  * user profile information in a format suitable for external consumers, such as APIs.
  *
  * @receiver The `User` entity instance to be converted.
- * @return A `UserProfileDto` object containing the mapped properties from the `User` entity.
+ * @return A `UserProfileResponse` object containing the mapped properties from the `User` entity.
  */
-private fun User.toDto() = UserProfileDto(
+private fun User.toDto() = UserProfileResponse(
     id = id!!,
     email = email,
     username = username,

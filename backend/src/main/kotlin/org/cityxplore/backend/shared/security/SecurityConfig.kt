@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.core.convert.converter.Converter
 import org.springframework.http.HttpHeaders
 import org.springframework.http.client.ClientHttpRequestInterceptor
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
@@ -40,6 +41,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
  */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 class SecurityConfig {
 
     @Value("\${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}")
@@ -93,7 +95,7 @@ class SecurityConfig {
         val authoritiesConverter = Converter<Jwt, Collection<GrantedAuthority>> { jwt ->
             val role = jwt.claims["role"] as? String
             if (role.isNullOrBlank()) emptyList()
-            else listOf<GrantedAuthority>(SimpleGrantedAuthority("ROLE_${role.uppercase()}"))
+            else listOf<GrantedAuthority>(SimpleGrantedAuthority("ROLE_${'$'}{role.uppercase()}"))
         }
         converter.setJwtGrantedAuthoritiesConverter(authoritiesConverter)
         return converter
@@ -111,7 +113,7 @@ class SecurityConfig {
             restTemplate.interceptors.add(ClientHttpRequestInterceptor { request, body, execution ->
                 request.headers.add("apikey", apiKey)
                 if (!request.headers.containsKey(HttpHeaders.AUTHORIZATION)) {
-                    request.headers.add(HttpHeaders.AUTHORIZATION, "Bearer $apiKey")
+                    request.headers.add(HttpHeaders.AUTHORIZATION, "Bearer ${'$'}apiKey")
                 }
                 execution.execute(request, body)
             })

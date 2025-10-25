@@ -3,25 +3,27 @@ package org.cityxplore.backend.achievements.dto
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.PositiveOrZero
 import jakarta.validation.constraints.Size
-import java.util.UUID
 
 /**
- * DTO representing an achievement definition.
+ * Request DTO used to update an existing achievement definition via admin API.
  *
- * Used both as input (admin create/update) and output (public listing).
+ * Same constraints as create; server selects the target by path variable id.
  */
-data class AchievementDto(
-    val id: UUID,
+data class UpdateAchievementRequest(
     @field:NotBlank
     @field:Size(max = 200)
     val name: String,
+
     @field:NotBlank
     @field:Size(max = 2000)
     val description: String,
+
     @field:Size(max = 100)
     val category: String?,
+
     @field:Size(max = 500)
     val iconUrl: String?,
+
     @field:PositiveOrZero
     val points: Int
 )

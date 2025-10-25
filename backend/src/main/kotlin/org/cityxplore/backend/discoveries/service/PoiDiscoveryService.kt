@@ -1,6 +1,6 @@
 package org.cityxplore.backend.discoveries.service
 
-import org.cityxplore.backend.discoveries.dto.UserPoiDiscoveryDto
+import org.cityxplore.backend.discoveries.dto.UserPoiDiscoveryResponse
 import org.cityxplore.backend.discoveries.entity.UserPoiDiscovery
 import org.cityxplore.backend.discoveries.mapper.toDto
 import org.cityxplore.backend.discoveries.mapper.toDtoList
@@ -34,11 +34,11 @@ class PoiDiscoveryService(
      *
      * @param userId The unique identifier of the user discovering the POI.
      * @param poiId The unique identifier of the Point of Interest to be discovered.
-     * @return A `UserPoiDiscoveryDto` object representing the details of the discovered POI.
+     * @return A `UserPoiDiscoveryResponse` object representing the details of the discovered POI.
      * @throws org.springframework.web.server.ResponseStatusException if the POI does not exist or has already been discovered by the user.
      */
     @Transactional
-    fun discoverPoi(userId: UUID, poiId: UUID): UserPoiDiscoveryDto {
+    fun discoverPoi(userId: UUID, poiId: UUID): UserPoiDiscoveryResponse {
         if (!poiRepository.existsById(poiId)) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "POI not found")
         }
@@ -62,9 +62,9 @@ class PoiDiscoveryService(
      * Retrieves all Points of Interest (POIs) discovered by a specific user.
      *
      * @param userId The unique identifier of the user whose POI discoveries are to be retrieved.
-     * @return A list of `UserPoiDiscoveryDto` objects representing the discovered POIs.
+     * @return A list of `UserPoiDiscoveryResponse` objects representing the discovered POIs.
      */
     @Transactional(readOnly = true)
-    fun getUserDiscoveries(userId: UUID): List<UserPoiDiscoveryDto> =
+    fun getUserDiscoveries(userId: UUID): List<UserPoiDiscoveryResponse> =
         userPoiRepository.findAllByUserId(userId).toDtoList()
 }

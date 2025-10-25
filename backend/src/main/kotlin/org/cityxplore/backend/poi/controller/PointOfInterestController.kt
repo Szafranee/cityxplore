@@ -1,8 +1,8 @@
 package org.cityxplore.backend.poi.controller
 
 import jakarta.validation.Valid
-import org.cityxplore.backend.poi.dto.PointOfInterestCreateRequest
-import org.cityxplore.backend.poi.dto.PointOfInterestResponseDto
+import org.cityxplore.backend.poi.dto.CreatePoiPublicRequest
+import org.cityxplore.backend.poi.dto.PoiResponse
 import org.cityxplore.backend.poi.service.PointOfInterestService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
@@ -29,10 +29,10 @@ class PointOfInterestController(
     /**
      * Retrieves all Points of Interest (POIs) from the service.
      *
-     * @return a list of all `PointOfInterestResponseDto` objects.
+     * @return a list of all `PoiResponse` objects.
      */
     @GetMapping
-    fun getAllPOIs(): List<PointOfInterestResponseDto> = poiService.getAll()
+    fun getAllPOIs(): List<PoiResponse> = poiService.getAll()
 
     /**
      * Retrieves a specific Point of Interest (POI) by its unique identifier.
@@ -42,7 +42,7 @@ class PointOfInterestController(
      * @throws java.util.NoSuchElementException If no `PointOfInterest` with the specified ID is found.
      */
     @GetMapping("/{id}")
-    fun getPOI(@PathVariable id: UUID): PointOfInterestResponseDto = poiService.getById(id)
+    fun getPOI(@PathVariable id: UUID): PoiResponse = poiService.getById(id)
 
     /**
      * Creates a new Point of Interest (POI) and saves it to the repository.
@@ -51,7 +51,7 @@ class PointOfInterestController(
      * @return The newly created Point of Interest as a response DTO after being persisted in the repository.
      */
     @PostMapping
-    fun createPOI(@Valid @RequestBody poiCreateRequest: PointOfInterestCreateRequest): ResponseEntity<PointOfInterestResponseDto> {
+    fun createPOI(@Valid @RequestBody poiCreateRequest: CreatePoiPublicRequest): ResponseEntity<PoiResponse> {
         val created = poiService.create(poiCreateRequest)
         val location = ServletUriComponentsBuilder
             .fromCurrentRequest()

@@ -6,3 +6,7 @@ spring:
 spring:
   application:
     name: cityxplore-backend
+
+app:
+  admin:
+    enable-reset: false

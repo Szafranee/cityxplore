@@ -1,9 +1,10 @@
 package org.cityxplore.backend.achievements.service
 
-import org.cityxplore.backend.achievements.dto.AchievementDto
-import org.cityxplore.backend.achievements.dto.UserAchievementDto
+import org.cityxplore.backend.achievements.dto.AchievementResponse
+import org.cityxplore.backend.achievements.dto.UserAchievementResponse
 import org.cityxplore.backend.achievements.entity.Achievement
 import org.cityxplore.backend.achievements.entity.UserAchievement
+import org.cityxplore.backend.achievements.mapper.toDto
 import org.cityxplore.backend.achievements.repository.AchievementRepository
 import org.cityxplore.backend.achievements.repository.UserAchievementRepository
 import org.springframework.data.repository.findByIdOrNull
@@ -21,22 +22,15 @@ class AchievementService(
 ) {
 
     data class AchievementGrantResult(
-        val dto: UserAchievementDto,
+        val dto: UserAchievementResponse,
         val created: Boolean
     )
 
-    // Centralized mapper to avoid duplication
-    private fun Achievement.toDto() = AchievementDto(
-        id = id!!,
-        name = name,
-        description = description,
-        category = category,
-        iconUrl = iconUrl,
-        points = points
-    )
-
-    private fun toDto(achievement: Achievement, userAchievement: UserAchievement): UserAchievementDto =
-        UserAchievementDto(
+    private fun toUserAchievementDto(
+        achievement: Achievement,
+        userAchievement: UserAchievement
+    ): UserAchievementResponse =
+        UserAchievementResponse(
             achievement = achievement.toDto(),
             achievedAt = userAchievement.achievedAt,
             progress = userAchievement.progressData
@@ -46,7 +40,7 @@ class AchievementService(
      * Retrieve all active achievements.
      */
     @Transactional(readOnly = true)
-    fun getAllAchievements(): List<AchievementDto> =
+    fun getAllAchievements(): List<AchievementResponse> =
         achievementRepository.findAll()
             .filter { it.isActive }
             .map { it.toDto() }
@@ -82,8 +76,10 @@ class AchievementService(
                     "UserAchievement not found after upsert"
                 )
 
+        val dto = toUserAchievementDto(achievement, userAchievement)
+
         return AchievementGrantResult(
-            dto = toDto(achievement, userAchievement),
+            dto = dto,
             created = inserted == 1
         )
     }
@@ -96,14 +92,16 @@ class AchievementService(
      * mapped under the "progress" key.
      */
     @Transactional(readOnly = true)
-    fun getUserAchievements(userId: UUID): List<UserAchievementDto> {
+    fun getUserAchievements(userId: UUID): List<UserAchievementResponse> {
         val userAchievements = userAchievementRepository.findAllByUserId(userId)
         val ids = userAchievements.map { it.achievementId }.toSet()
         val achievements = achievementRepository.findAllById(ids).associateBy { it.id }
 
-        return userAchievements.mapNotNull { ua ->
-            achievements[ua.achievementId]?.let { ach -> toDto(ach, ua) }
+        val result = userAchievements.mapNotNull { ua ->
+            achievements[ua.achievementId]?.let { ach -> toUserAchievementDto(ach, ua) }
         }
+
+        return result
     }
 
     /**
@@ -114,15 +112,17 @@ class AchievementService(
      *
      * @param userId The unique identifier of the user.
      * @param achievementId The unique identifier of the achievement.
-     * @return A `UserAchievementDto` representing the user's achievement details including the achievement metadata,
+     * @return A `UserAchievementResponse` representing the user's achievement details including the achievement metadata,
      *         time of achievement, and progress data, or null if the record doesn't exist.
      */
     @Transactional(readOnly = true)
-    fun getUserAchievement(userId: UUID, achievementId: UUID): UserAchievementDto? {
+    fun getUserAchievement(userId: UUID, achievementId: UUID): UserAchievementResponse? {
         val userAchievement = userAchievementRepository.findByUserIdAndAchievementId(userId, achievementId)
             ?: return null
         val achievement = achievementRepository.findByIdOrNull(userAchievement.achievementId)
             ?: return null
-        return toDto(achievement, userAchievement)
+        val dto = toUserAchievementDto(achievement, userAchievement)
+
+        return dto
     }
 }

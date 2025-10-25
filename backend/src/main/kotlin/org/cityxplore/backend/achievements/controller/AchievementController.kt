@@ -1,7 +1,7 @@
 package org.cityxplore.backend.achievements.controller
 
-import org.cityxplore.backend.achievements.dto.AchievementDto
-import org.cityxplore.backend.achievements.dto.UserAchievementDto
+import org.cityxplore.backend.achievements.dto.AchievementResponse
+import org.cityxplore.backend.achievements.dto.UserAchievementResponse
 import org.cityxplore.backend.achievements.service.AchievementService
 import org.cityxplore.backend.shared.security.JwtUtils
 import org.springframework.http.ResponseEntity
@@ -31,20 +31,20 @@ class AchievementController(
     /**
      * Retrieve all available achievements.
      *
-     * @return A list of AchievementDto representing every achievement defined in the system.
+     * @return A list of AchievementResponse representing every achievement defined in the system.
      */
     @GetMapping
-    fun getAllAchievements(): List<AchievementDto> =
+    fun getAllAchievements(): List<AchievementResponse> =
         achievementService.getAllAchievements()
 
     /**
      * Retrieves the achievements for the authenticated user.
      *
      * @param jwt The authenticated user's JWT from which the user ID is extracted.
-     * @return A list of UserAchievementDto belonging to the authenticated user.
+     * @return A list of UserAchievementResponse belonging to the authenticated user.
      */
     @GetMapping("/mine")
-    fun getUserAchievements(@AuthenticationPrincipal jwt: Jwt): List<UserAchievementDto> {
+    fun getUserAchievements(@AuthenticationPrincipal jwt: Jwt): List<UserAchievementResponse> {
         val userId = JwtUtils.extractUserId(jwt)
 
         return achievementService.getUserAchievements(userId)
@@ -56,14 +56,14 @@ class AchievementController(
      *
      * @param achievementId The UUID of the specific achievement to retrieve details for.
      * @param jwt The authenticated user's JWT from which the user ID is extracted.
-     * @return A ResponseEntity containing the UserAchievementDto if the achievement exists for the user,
+     * @return A ResponseEntity containing the UserAchievementResponse if the achievement exists for the user,
      *         or a ResponseEntity with a 404 status if the achievement is not found.
      */
     @GetMapping("/mine/{achievementId}")
     fun getUserAchievement(
         @PathVariable achievementId: UUID,
         @AuthenticationPrincipal jwt: Jwt
-    ): ResponseEntity<UserAchievementDto> {
+    ): ResponseEntity<UserAchievementResponse> {
         val userId = JwtUtils.extractUserId(jwt)
         val dto = achievementService.getUserAchievement(userId, achievementId)
 
@@ -75,13 +75,13 @@ class AchievementController(
      *
      * @param achievementId The UUID of the achievement to grant.
      * @param jwt The authenticated user's JWT (used to determine the target user).
-     * @return A ResponseEntity containing the created or existing UserAchievementDto for the user.
+     * @return A ResponseEntity containing the created or existing UserAchievementResponse for the user.
      */
     @PostMapping("/{achievementId}/grant")
     fun grantAchievement(
         @PathVariable achievementId: UUID,
         @AuthenticationPrincipal jwt: Jwt
-    ): ResponseEntity<UserAchievementDto> {
+    ): ResponseEntity<UserAchievementResponse> {
         val userId = JwtUtils.extractUserId(jwt)
         val result = achievementService.grantAchievement(userId, achievementId)
         val dto = result.dto

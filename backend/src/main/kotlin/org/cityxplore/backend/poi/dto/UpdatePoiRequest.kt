@@ -6,9 +6,9 @@ import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 
 /**
- * DTO for creating or updating a Point of Interest via admin endpoints.
+ * Admin request DTO for updating an existing Point of Interest.
  */
-data class CreatePoiDto(
+data class UpdatePoiRequest(
     @field:NotBlank
     @field:Size(max = 200)
     val name: String,

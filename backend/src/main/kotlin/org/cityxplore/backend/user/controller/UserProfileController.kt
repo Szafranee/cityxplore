@@ -1,12 +1,14 @@
 package org.cityxplore.backend.user.controller
 
+import jakarta.validation.Valid
 import org.cityxplore.backend.shared.security.JwtUtils
-import org.cityxplore.backend.user.dto.UpdateUserProfileDto
-import org.cityxplore.backend.user.dto.UserProfileDto
+import org.cityxplore.backend.user.dto.UpdateUserProfileRequest
+import org.cityxplore.backend.user.dto.UserProfileResponse
 import org.cityxplore.backend.user.service.UserProfileService
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
+import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController
  */
 @RestController
 @RequestMapping("/api/users")
+@Validated
 class UserProfileController(
     private val userProfileService: UserProfileService
 ) {
@@ -28,10 +31,10 @@ class UserProfileController(
      * Retrieves the profile of the currently authenticated user.
      *
      * @param jwt the JSON Web Token (JWT) containing authentication and user information
-     * @return the profile information of the authenticated user encapsulated in a UserProfileDto
+     * @return the profile information of the authenticated user encapsulated in a UserProfileResponse
      */
     @GetMapping("/me")
-    fun getMyProfile(@AuthenticationPrincipal jwt: Jwt): UserProfileDto {
+    fun getMyProfile(@AuthenticationPrincipal jwt: Jwt): UserProfileResponse {
         val userId = JwtUtils.extractUserId(jwt)
         return userProfileService.getUserProfile(userId)
     }
@@ -44,17 +47,18 @@ class UserProfileController(
      * identified by the JWT token provided in the request context.
      *
      * @param jwt the JSON Web Token (JWT) of the authenticated user, containing their user ID
-     * @param patch the profile updates encapsulated in an `UpdateUserProfileDto`, where only
+     * @param patch the profile updates encapsulated in an `UpdateUserProfileRequest`, where only
      *              non-null fields will be updated
-     * @return a `ResponseEntity` containing the updated user profile data as a `UserProfileDto`
+     * @return a `ResponseEntity` containing the updated user profile data as a `UserProfileResponse`
      */
     @PatchMapping("/me")
     fun updateMyProfile(
         @AuthenticationPrincipal jwt: Jwt,
-        @RequestBody patch: UpdateUserProfileDto
-    ): ResponseEntity<UserProfileDto> {
+        @Valid @RequestBody patch: UpdateUserProfileRequest
+    ): ResponseEntity<UserProfileResponse> {
         val userId = JwtUtils.extractUserId(jwt)
         val updated = userProfileService.updateUserProfile(userId, patch)
+
         return ResponseEntity.ok(updated)
     }
 }

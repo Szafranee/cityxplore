@@ -3,7 +3,7 @@ package org.cityxplore.backend.system.admin.dto
 /**
  * DTO holding platform-wide admin statistics (totals and active counts).
  */
-data class AdminStatsDto(
+data class AdminStatsResponse(
     val totalUsers: Long,
     val activeUsers: Long,
     val totalPois: Long,

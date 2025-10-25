@@ -1,6 +1,6 @@
 package org.cityxplore.backend.discoveries.controller
 
-import org.cityxplore.backend.discoveries.dto.UserPoiDiscoveryDto
+import org.cityxplore.backend.discoveries.dto.UserPoiDiscoveryResponse
 import org.cityxplore.backend.discoveries.service.PoiDiscoveryService
 import org.cityxplore.backend.shared.security.JwtUtils
 import org.springframework.http.ResponseEntity
@@ -43,7 +43,7 @@ class PoiDiscoveryController(
     fun discoverPoi(
         @PathVariable poiId: UUID,
         @AuthenticationPrincipal jwt: Jwt
-    ): ResponseEntity<UserPoiDiscoveryDto> {
+    ): ResponseEntity<UserPoiDiscoveryResponse> {
         val userId = JwtUtils.extractUserId(jwt)
         val dto = poiDiscoveryService.discoverPoi(userId, poiId)
 
@@ -54,10 +54,10 @@ class PoiDiscoveryController(
      * Retrieves the list of Points of Interest (POIs) discovered by the authenticated user.
      *
      * @param jwt the JSON Web Token (JWT) containing the authenticated user information
-     * @return a list of UserPoiDiscoveryDto objects associated with the authenticated user
+     * @return a list of UserPoiDiscoveryResponse objects associated with the authenticated user
      */
     @GetMapping("/discoveries")
-    fun getUserDiscoveries(@AuthenticationPrincipal jwt: Jwt): List<UserPoiDiscoveryDto> {
+    fun getUserDiscoveries(@AuthenticationPrincipal jwt: Jwt): List<UserPoiDiscoveryResponse> {
         val userId = JwtUtils.extractUserId(jwt)
 
         return poiDiscoveryService.getUserDiscoveries(userId)
