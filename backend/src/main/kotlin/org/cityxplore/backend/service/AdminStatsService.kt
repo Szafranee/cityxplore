@@ -8,6 +8,9 @@ import org.cityxplore.backend.repository.UserRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
+/**
+ * Service aggregating admin-level statistics for the platform.
+ */
 @Service
 class AdminStatsService(
     private val userRepository: UserRepository,
@@ -16,6 +19,9 @@ class AdminStatsService(
     private val userAchievementRepository: UserAchievementRepository
 ) {
 
+    /**
+     * Computes current totals and active counts using repository-level queries.
+     */
     @Transactional(readOnly = true)
     fun getStats(): AdminStatsDto {
         val totalUsers = userRepository.count()

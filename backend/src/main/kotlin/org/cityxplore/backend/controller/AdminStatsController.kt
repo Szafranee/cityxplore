@@ -20,9 +20,16 @@ class AdminStatsController(
     private val userAchievementRepository: UserAchievementRepository
 ) {
 
+    /**
+     * Returns current platform statistics (totals and active entities) for admins.
+     */
     @GetMapping
     fun getStats(): AdminStatsDto = adminStatsService.getStats()
 
+    /**
+     * Danger: destructive operation – resets selected datasets (discoveries & achievements).
+     * Intended for development/testing only.
+     */
     @PostMapping("/reset")
     fun resetData(): Map<String, String> {
         discoveryRepository.deleteAll()
