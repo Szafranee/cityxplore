@@ -1,0 +1,32 @@
+package org.cityxplore.backend.controller
+
+import org.cityxplore.backend.dto.AdminStatsDto
+import org.cityxplore.backend.repository.UserAchievementRepository
+import org.cityxplore.backend.repository.UserPoiDiscoveryRepository
+import org.cityxplore.backend.service.AdminStatsService
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
+
+/**
+ * Controller exposing general statistics for admins / developers.
+ */
+@RestController
+@RequestMapping("/api/admin/stats")
+class AdminStatsController(
+    private val adminStatsService: AdminStatsService,
+    private val discoveryRepository: UserPoiDiscoveryRepository,
+    private val userAchievementRepository: UserAchievementRepository
+) {
+
+    @GetMapping
+    fun getStats(): AdminStatsDto = adminStatsService.getStats()
+
+    @PostMapping("/reset")
+    fun resetData(): Map<String, String> {
+        discoveryRepository.deleteAll()
+        userAchievementRepository.deleteAll()
+        return mapOf("status" to "reset complete")
+    }
+}

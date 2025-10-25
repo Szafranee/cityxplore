@@ -52,7 +52,10 @@ data class User(
     val totalDistance: BigDecimal = BigDecimal.ZERO,
 
     @Column(name = "total_pois_discovered")
-    val totalPoisDiscovered: Int = 0
+    val totalPoisDiscovered: Int = 0,
+
+    @Column(name = "is_active", nullable = false)
+    var isActive: Boolean = true
 ) {
     final override fun equals(other: Any?): Boolean {
         if (this === other) return true
