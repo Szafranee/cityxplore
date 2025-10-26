@@ -30,7 +30,7 @@ data class UserAchievement(
     @Column(name = "achievement_id", nullable = false)
     val achievementId: UUID,
 
-    @Column(name = "achieved_at")
+    @Column(name = "achieved_at", updatable = false)
     @CreationTimestamp
     var achievedAt: LocalDateTime? = null,
 

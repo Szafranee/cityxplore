@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder
 import java.util.UUID
 
 /**
@@ -47,7 +48,11 @@ class PoiDiscoveryController(
         val userId = JwtUtils.extractUserId(jwt)
         val dto = poiDiscoveryService.discoverPoi(userId, poiId)
 
-        return ResponseEntity.ok(dto)
+        return ResponseEntity.created(
+            ServletUriComponentsBuilder.fromCurrentRequest()
+                .build()
+                .toUri()
+        ).body(dto)
     }
 
     /**

@@ -6,6 +6,7 @@ import org.cityxplore.backend.discoveries.mapper.toDto
 import org.cityxplore.backend.discoveries.mapper.toDtoList
 import org.cityxplore.backend.discoveries.repository.UserPoiDiscoveryRepository
 import org.cityxplore.backend.poi.repository.PointOfInterestRepository
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -24,6 +25,11 @@ class PoiDiscoveryService(
     private val poiRepository: PointOfInterestRepository,
     private val userPoiRepository: UserPoiDiscoveryRepository
 ) {
+
+    data class PoiDiscoveryResult(
+        val dto: UserPoiDiscoveryResponse,
+        val created: Boolean
+    )
 
     /**
      * Marks a Point of Interest (POI) as discovered for a specific user. The method ensures that the POI
@@ -48,15 +54,18 @@ class PoiDiscoveryService(
             throw ResponseStatusException(HttpStatus.CONFLICT, "Already discovered")
         }
 
-        val discovery = userPoiRepository.save(
-            UserPoiDiscovery(
-                userId = userId,
-                poiId = poiId
-            )
-        )
-
-        return discovery.toDto()
+        return try {
+            userPoiRepository.save(
+                UserPoiDiscovery(
+                    userId = userId,
+                    poiId = poiId
+                )
+            ).toDto()
+        } catch (e: DataIntegrityViolationException) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "Already discovered", e)
+        }
     }
+
 
     /**
      * Retrieves all Points of Interest (POIs) discovered by a specific user.

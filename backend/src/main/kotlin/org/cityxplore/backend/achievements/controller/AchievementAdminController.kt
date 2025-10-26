@@ -8,14 +8,15 @@ import org.cityxplore.backend.achievements.mapper.applyTo
 import org.cityxplore.backend.achievements.mapper.toDto
 import org.cityxplore.backend.achievements.mapper.toEntity
 import org.cityxplore.backend.achievements.repository.AchievementRepository
+import org.springframework.dao.EmptyResultDataAccessException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
@@ -53,7 +54,7 @@ class AchievementAdminController(
      * Updates an existing achievement definition.
      * Returns 200 OK with updated representation or 404 if not found.
      */
-    @PutMapping("/{id}")
+    @PatchMapping("/{id}")
     fun update(
         @PathVariable id: UUID,
         @Valid @RequestBody updateAchievement: UpdateAchievementRequest
@@ -71,21 +72,18 @@ class AchievementAdminController(
      * Lists available (distinct) achievement categories.
      */
     @GetMapping("/categories")
-    fun getCategories(): List<String> =
-        achievementRepository.findAll()
-            .mapNotNull { it.category }
-            .distinct()
+    fun getCategories(): List<String> = achievementRepository.findDistinctCategories()
 
     /**
      * Deletes an achievement definition by id. Returns 204 or 404 if not found.
      */
     @DeleteMapping("/{id}")
     fun delete(@PathVariable id: UUID): ResponseEntity<Void> {
-        if (!achievementRepository.existsById(id)) {
+        return try {
+            achievementRepository.deleteById(id)
+            ResponseEntity.noContent().build()
+        } catch (_: EmptyResultDataAccessException) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Achievement not found")
         }
-        achievementRepository.deleteById(id)
-
-        return ResponseEntity.noContent().build()
     }
 }

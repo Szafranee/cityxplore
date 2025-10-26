@@ -5,6 +5,7 @@ import jakarta.validation.constraints.DecimalMax
 import jakarta.validation.constraints.DecimalMin
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
+import org.hibernate.validator.constraints.URL
 
 /**
  * Request DTO for creating a new Point of Interest via public API.
@@ -27,7 +28,8 @@ data class CreatePoiPublicRequest(
     @field:DecimalMax(value = "180.0", inclusive = true, message = "longitude must be <= 180")
     val longitude: Double? = null,
     val metadata: Map<String, Any?>? = null,
-    val imageUrls: List<String>? = null
+    @field:Size(max = 5, message = "a maximum of 5 image URLs are allowed")
+    val imageUrls: List<@URL String>? = null
 ) {
     @AssertTrue(message = "latitude and longitude must be provided together or both omitted")
     fun areCoordinatesPaired(): Boolean =

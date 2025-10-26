@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
-import java.net.URI
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder
 import java.util.UUID
 
 /**
@@ -87,7 +87,13 @@ class AchievementController(
         val dto = result.dto
 
         return if (result.created) {
-            ResponseEntity.created(URI.create("/api/achievements/mine/${dto.achievement.id}")).body(dto)
+            ResponseEntity.created(
+                ServletUriComponentsBuilder
+                    .fromCurrentContextPath()
+                    .path("/api/achievements/mine/{achievementId}")
+                    .buildAndExpand(dto.achievement.id)
+                    .toUri()
+            ).body(dto)
         } else {
             ResponseEntity.ok(dto)
         }

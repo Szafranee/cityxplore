@@ -13,6 +13,8 @@ import org.cityxplore.backend.poi.mapper.toResponseDtoList
 import org.cityxplore.backend.poi.repository.PointOfInterestRepository
 import org.locationtech.jts.geom.Coordinate
 import org.locationtech.jts.geom.GeometryFactory
+import org.locationtech.jts.geom.PrecisionModel
+import org.springframework.dao.EmptyResultDataAccessException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -32,6 +34,7 @@ import java.util.UUID
 class PointOfInterestService(
     private val poiRepository: PointOfInterestRepository
 ) {
+    private val geometryFactory = GeometryFactory(PrecisionModel(), 4326)
 
     /**
      * Retrieves all Points of Interest (POIs) from the repository and maps them to a list of response DTOs.
@@ -40,7 +43,8 @@ class PointOfInterestService(
      */
     @Transactional(readOnly = true)
     fun getAll(): List<PoiResponse> =
-        poiRepository.findAll().toResponseDtoList()
+        poiRepository.findAllByIsActiveTrue()
+            .toResponseDtoList()
 
     /**
      * Retrieves a Point of Interest (POI) by its unique identifier.
@@ -51,9 +55,9 @@ class PointOfInterestService(
      */
     @Transactional(readOnly = true)
     fun getById(id: UUID): PoiResponse =
-        poiRepository.findById(id)
-            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "POI not found") }
-            .toResponseDto()
+        poiRepository.findByIdIsActiveTrue(id)
+            ?.toResponseDto()
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "POI not found")
 
     /**
      * Creates a new Point of Interest (POI) and saves it to the database.
@@ -79,12 +83,16 @@ class PointOfInterestService(
 
     @Transactional
     fun createPoi(createPoi: CreatePoiRequest): PoiAdminResponse {
+        require(createPoi.longitude in -180.0..180.0 && createPoi.latitude in -90.0..90.0) {
+            "Invalid coordinates"
+        }
+
         val saved = poiRepository.save(
             PointOfInterest(
                 name = createPoi.name,
                 description = createPoi.description,
                 category = createPoi.category,
-                location = GeometryFactory().createPoint(Coordinate(createPoi.longitude, createPoi.latitude)),
+                location = geometryFactory.createPoint(Coordinate(createPoi.longitude, createPoi.latitude)),
                 metadata = createPoi.metadata,
                 createdAt = LocalDateTime.now(),
                 isActive = true
@@ -99,12 +107,16 @@ class PointOfInterestService(
         val existing = poiRepository.findById(id)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "POI not found") }
 
+        require(updatePoi.longitude in -180.0..180.0 && updatePoi.latitude in -90.0..90.0) {
+            "Invalid coordinates"
+        }
+
         val saved = poiRepository.save(
             existing.copy(
                 name = updatePoi.name,
                 description = updatePoi.description,
                 category = updatePoi.category,
-                location = GeometryFactory().createPoint(Coordinate(updatePoi.longitude, updatePoi.latitude)),
+                location = geometryFactory.createPoint(Coordinate(updatePoi.longitude, updatePoi.latitude)),
                 updatedAt = LocalDateTime.now(),
                 metadata = updatePoi.metadata
             )
@@ -115,8 +127,10 @@ class PointOfInterestService(
 
     @Transactional
     fun deletePoi(id: UUID) {
-        if (!poiRepository.existsById(id))
+        try {
+            poiRepository.deleteById(id)
+        } catch (_: EmptyResultDataAccessException) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "POI not found")
-        poiRepository.deleteById(id)
+        }
     }
 }

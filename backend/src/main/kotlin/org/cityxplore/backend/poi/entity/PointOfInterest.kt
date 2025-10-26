@@ -46,13 +46,13 @@ data class PointOfInterest(
 
     @Column(name = "created_at", nullable = true, updatable = false)
     @CreatedDate
-    val createdAt: LocalDateTime? = null,
+    var createdAt: LocalDateTime? = null,
 
     @Column(name = "updated_at", nullable = true)
     @LastModifiedDate
     var updatedAt: LocalDateTime? = null,
 
-    @Column(name = "is_active")
+    @Column(name = "is_active", nullable = false)
     val isActive: Boolean = true
 ) {
     override fun equals(other: Any?): Boolean {

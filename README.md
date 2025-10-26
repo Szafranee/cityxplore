@@ -18,7 +18,7 @@ Key features include:
 
 ## 📂 Repository Structure
 
-```
+```text
 cityxplore/
 │── backend/             # Backend service (Spring Boot + Kotlin)
 │── client/              # Mobile client (Kotlin Multiplatform + Compose)

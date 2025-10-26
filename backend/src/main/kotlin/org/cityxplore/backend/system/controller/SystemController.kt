@@ -37,7 +37,7 @@ class SystemController(
     fun ping(): ResponseEntity<Map<String, Any>> =
         ResponseEntity.ok(
             mapOf(
-                "status" to "ok",
+                "status" to "OK",
                 "service" to appName,
                 "timestamp" to System.currentTimeMillis()
             )

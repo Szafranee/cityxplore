@@ -65,6 +65,8 @@ allOpen {
 }
 
 noArg {
+    annotation("jakarta.persistence.Entity")
+    annotation("jakarta.persistence.Embeddable")
     invokeInitializers = true
 }
 

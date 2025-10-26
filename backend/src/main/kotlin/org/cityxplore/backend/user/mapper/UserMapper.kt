@@ -4,7 +4,7 @@ import org.cityxplore.backend.user.dto.UserCreateRequest
 import org.cityxplore.backend.user.dto.UserResponse
 import org.cityxplore.backend.user.entity.User
 
-fun User.toUserResponseDto(): UserResponse = UserResponse(
+fun User.toUserResponse(): UserResponse = UserResponse(
     id = this.id,
     email = this.email,
     username = this.username,
@@ -15,7 +15,7 @@ fun User.toUserResponseDto(): UserResponse = UserResponse(
     totalPoisDiscovered = this.totalPoisDiscovered
 )
 
-fun List<User>.toUserResponseDtoList(): List<UserResponse> = this.map { it.toUserResponseDto() }
+fun List<User>.toUserResponseList(): List<UserResponse> = this.map { it.toUserResponse() }
 
 fun UserCreateRequest.toEntity(): User = User(
     email = this.email,

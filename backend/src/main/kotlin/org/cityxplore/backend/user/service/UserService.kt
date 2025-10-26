@@ -3,8 +3,8 @@ package org.cityxplore.backend.user.service
 import org.cityxplore.backend.user.dto.UserCreateRequest
 import org.cityxplore.backend.user.dto.UserResponse
 import org.cityxplore.backend.user.mapper.toEntity
-import org.cityxplore.backend.user.mapper.toUserResponseDto
-import org.cityxplore.backend.user.mapper.toUserResponseDtoList
+import org.cityxplore.backend.user.mapper.toUserResponse
+import org.cityxplore.backend.user.mapper.toUserResponseList
 import org.cityxplore.backend.user.repository.UserRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -31,7 +31,7 @@ class UserService(
      */
     @Transactional(readOnly = true)
     fun getAll(): List<UserResponse> =
-        userRepository.findAll().toUserResponseDtoList()
+        userRepository.findAll().toUserResponseList()
 
     /**
      * Retrieves a user by their unique identifier.
@@ -44,7 +44,7 @@ class UserService(
     fun getById(id: UUID): UserResponse =
         userRepository.findById(id)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
-            .toUserResponseDto()
+            .toUserResponse()
 
     /**
      * Creates a new user based on the provided request data.
@@ -57,5 +57,5 @@ class UserService(
      */
     @Transactional
     fun create(userCreateRequest: UserCreateRequest): UserResponse =
-        userRepository.save(userCreateRequest.toEntity()).toUserResponseDto()
+        userRepository.save(userCreateRequest.toEntity()).toUserResponse()
 }

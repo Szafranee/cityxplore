@@ -30,16 +30,17 @@ fun CreatePoiPublicRequest.toEntity(): PointOfInterest = PointOfInterest(
     name = this.name,
     description = this.description,
     category = this.category,
-    location = if (latitude != null && longitude != null) GEOMETRY_FACTORY.createPoint(
-        Coordinate(longitude, latitude)
-    ) else null,
+    location = if (latitude != null && longitude != null) {
+        require(latitude in -90.0..90.0 && longitude in -180.0..180.0) { "Invalid lat/lon" }
+        GEOMETRY_FACTORY.createPoint(Coordinate(longitude, latitude))
+    } else null,
     metadata = this.metadata,
     imageUrls = this.imageUrls
 )
 
 // Admin-facing mapping with explicit lat/lon and simplified metadata exposure
 fun PointOfInterest.toAdminDto(): PoiAdminResponse = PoiAdminResponse(
-    id = id,
+    id = id!!,
     name = name,
     description = description,
     category = category,

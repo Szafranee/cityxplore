@@ -1,9 +1,11 @@
 package org.cityxplore.backend.storage.controller
 
+import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import org.cityxplore.backend.storage.service.StorageService
 import org.springframework.http.ResponseEntity
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -31,7 +33,7 @@ class StorageController(
     fun getSignedUrl(
         @RequestParam @NotBlank bucket: String,
         @RequestParam @NotBlank path: String,
-        @RequestParam(required = false, defaultValue = "3600") @Min(60) expiresIn: Int
+        @RequestParam(required = false, defaultValue = "3600") @Min(60) @Max(86400) expiresIn: Int
     ): ResponseEntity<Map<String, String>> {
         val signed = storageService.createSignedUrl(bucket, path, expiresIn)
 
@@ -42,6 +44,7 @@ class StorageController(
      * Deletes a file in Supabase Storage.
      */
     @DeleteMapping
+    @PreAuthorize("hasAuthority('storage:write')")
     fun deleteFile(
         @RequestParam @NotBlank bucket: String,
         @RequestParam @NotBlank path: String

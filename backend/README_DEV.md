@@ -29,7 +29,7 @@ Its primary purposes:
 
 ## 3. Package structure
 
-```
+```text
 org.cityxplore.backend
  ├── common/           → utilities shared across modules (JwtUtils, exceptions, config)
  │
@@ -54,7 +54,7 @@ org.cityxplore.backend
 
 Example:
 
-```
+```text
 poi/
 ├── entity/PointOfInterest.kt
 ├── dto/PoiAdminResponse.kt
@@ -108,14 +108,14 @@ Public endpoints (`/api/public/**`, `/actuator/**`) are accessible without auth.
 
 ### User
 
-```
+```text
 GET   /api/users/me               → current profile
 PATCH /api/users/me               → update avatar / username
 ```
 
 ### POI & Discoveries
 
-```
+```text
 GET   /api/pois                   → all POIs (active)
 POST  /api/pois/{id}/discover     → discover point
 GET   /api/pois/discoveries       → list discoveries of user
@@ -123,7 +123,7 @@ GET   /api/pois/discoveries       → list discoveries of user
 
 ### Achievements
 
-```
+```text
 GET   /api/achievements             → all achievements
 GET   /api/achievements/mine        → user's achievements
 POST  /api/achievements/{id}/grant  → grant manually (debug)
@@ -131,7 +131,7 @@ POST  /api/achievements/{id}/grant  → grant manually (debug)
 
 ### Social
 
-```
+```text
 POST  /api/friends/{id}/invite
 POST  /api/friends/{id}/accept
 GET   /api/friends
@@ -141,14 +141,14 @@ GET   /api/shared
 
 ### Storage
 
-```
+```text
 GET    /api/storage/url?bucket=&path=
 DELETE /api/storage?bucket=&path=
 ```
 
 ### System / Admin
 
-```
+```text
 GET  /api/public/ping
 GET  /api/public/environment
 GET  /api/admin/stats
@@ -161,7 +161,7 @@ POST /api/admin/reset
 
 Using **Spring Boot Actuator**:
 
-```
+```text
 /actuator/health      → UP/DOWN state
 /actuator/info        → build & version info
 /actuator/metrics     → JVM, system metrics
@@ -190,7 +190,7 @@ management:
 
 `.env` file (local only, ignored in Git):
 
-```
+```text
 SUPABASE_DB_USER=xxxx
 SUPABASE_DB_PASSWORD=xxxx
 SUPABASE_PROJECT_REF=xxxx

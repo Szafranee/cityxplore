@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController
 /**
  * Utility / debug endpoints (available only on 'dev' profile).
  *
- * Exposes lightweight diagnostics without ujawniania sekretów/konfiguracji wprost.
+ * Exposes lightweight diagnostics without exposing secrets or raw configuration values.
  */
 @RestController
 @RequestMapping("/api/public/info")

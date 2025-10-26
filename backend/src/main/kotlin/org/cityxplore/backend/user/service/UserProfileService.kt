@@ -4,6 +4,7 @@ import org.cityxplore.backend.user.dto.UpdateUserProfileRequest
 import org.cityxplore.backend.user.dto.UserProfileResponse
 import org.cityxplore.backend.user.entity.User
 import org.cityxplore.backend.user.repository.UserRepository
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -54,10 +55,16 @@ class UserProfileService(
         val user = userRepository.findById(userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
 
-        patch.username?.let { user.username = it }
+        patch.username?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { user.username = it }
         patch.avatarUrl?.let { user.avatarUrl = it }
 
-        val saved = userRepository.save(user)
+        val saved = try {
+            userRepository.save(user)
+        } catch (_: DataIntegrityViolationException) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "Username already taken")
+        }
 
         return saved.toDto()
     }

@@ -1,9 +1,4 @@
 spring:
-  profiles:
-    active: dev
-
----
-spring:
   application:
     name: cityxplore-backend
 

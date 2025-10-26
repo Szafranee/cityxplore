@@ -95,7 +95,7 @@ class SecurityConfig {
         val authoritiesConverter = Converter<Jwt, Collection<GrantedAuthority>> { jwt ->
             val role = jwt.claims["role"] as? String
             if (role.isNullOrBlank()) emptyList()
-            else listOf<GrantedAuthority>(SimpleGrantedAuthority("ROLE_${'$'}{role.uppercase()}"))
+            else listOf<GrantedAuthority>(SimpleGrantedAuthority("ROLE_${role.uppercase()}"))
         }
         converter.setJwtGrantedAuthoritiesConverter(authoritiesConverter)
         return converter
@@ -113,7 +113,7 @@ class SecurityConfig {
             restTemplate.interceptors.add(ClientHttpRequestInterceptor { request, body, execution ->
                 request.headers.add("apikey", apiKey)
                 if (!request.headers.containsKey(HttpHeaders.AUTHORIZATION)) {
-                    request.headers.add(HttpHeaders.AUTHORIZATION, "Bearer ${'$'}apiKey")
+                    request.headers.add(HttpHeaders.AUTHORIZATION, "Bearer $apiKey")
                 }
                 execution.execute(request, body)
             })
@@ -148,14 +148,14 @@ class SecurityConfig {
         val anyOrigin = origins.size == 1 && origins[0] == "*"
         if (anyOrigin) {
             configuration.allowedOriginPatterns = listOf("*")
-            configuration.allowCredentials = false // wildcard + credentials is not allowed by browsers
+            configuration.allowCredentials = false // browsers do not allow wildcard + credentials
         } else {
             configuration.allowedOrigins = origins
             configuration.allowCredentials = true
         }
 
         configuration.allowedMethods = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-        configuration.allowedHeaders = listOf("Authorization", "Cache-Control", "Content-Type")
+        configuration.allowedHeaders = listOf("*")
 
         val source = UrlBasedCorsConfigurationSource()
         source.registerCorsConfiguration("/**", configuration)

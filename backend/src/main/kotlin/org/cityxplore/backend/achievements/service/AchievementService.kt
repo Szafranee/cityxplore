@@ -41,8 +41,7 @@ class AchievementService(
      */
     @Transactional(readOnly = true)
     fun getAllAchievements(): List<AchievementResponse> =
-        achievementRepository.findAll()
-            .filter { it.isActive }
+        achievementRepository.findAllByIsActiveTrue()
             .map { it.toDto() }
 
     /**

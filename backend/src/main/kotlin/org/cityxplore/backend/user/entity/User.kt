@@ -43,16 +43,16 @@ data class User(
 
     @CreatedDate
     @Column(name = "created_at", updatable = false)
-    val createdAt: LocalDateTime? = null,
+    var createdAt: LocalDateTime? = null,
 
     @Column(name = "last_active_at")
     var lastActiveAt: LocalDateTime? = null,
 
     @Column(name = "total_distance", precision = 10, scale = 2)
-    val totalDistance: BigDecimal = BigDecimal.ZERO,
+    var totalDistance: BigDecimal = BigDecimal.ZERO,
 
     @Column(name = "total_pois_discovered")
-    val totalPoisDiscovered: Int = 0,
+    var totalPoisDiscovered: Int = 0,
 
     @Column(name = "is_active", nullable = false)
     var isActive: Boolean = true

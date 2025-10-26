@@ -16,7 +16,7 @@ interface UserAchievementRepository : JpaRepository<UserAchievement, UUID> {
     fun findByUserIdAndAchievementId(userId: UUID, achievementId: UUID): UserAchievement?
 
     @Transactional
-    @Modifying
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(
         value = """
         INSERT INTO user_achievements (user_id, achievement_id, achieved_at, progress_data)

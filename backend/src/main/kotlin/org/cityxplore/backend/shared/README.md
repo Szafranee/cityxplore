@@ -15,5 +15,5 @@ Examples:
 
 Operational notes:
 
-- Keep endpoints that operate on domain data (e.g., admin stats, resets) OUT of shared (they belong to `system` or a
+- Keep endpoints that operate on domain data (e.g. admin stats, resets) OUT of shared (they belong to `system` or a
   specific domain).
