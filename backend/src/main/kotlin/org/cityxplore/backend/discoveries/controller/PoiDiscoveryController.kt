@@ -50,7 +50,7 @@ class PoiDiscoveryController(
 
         return ResponseEntity.created(
             ServletUriComponentsBuilder.fromCurrentContextPath()
-                .path("/api/pois/discoveries/{id}")
+                .path("/api/pois/discoveries/{poiId}")
                 .buildAndExpand(dto.poiId)
                 .toUri()
         ).body(dto)

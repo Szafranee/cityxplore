@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.core.convert.converter.Converter
 import org.springframework.http.HttpHeaders
 import org.springframework.http.client.ClientHttpRequestInterceptor
+import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
@@ -143,7 +144,12 @@ class SecurityConfig {
         // Attach apikey/Authorization headers when fetching JWKS from Supabase if provided
         val apiKey = supabaseApiKey.trim()
         if (apiKey.isNotEmpty()) {
-            val restTemplate = RestTemplate()
+            val factory = SimpleClientHttpRequestFactory().apply {
+                setConnectTimeout(5_000)
+                setReadTimeout(5_000)
+            }
+            val restTemplate = RestTemplate(factory)
+
             restTemplate.interceptors.add(ClientHttpRequestInterceptor { request, body, execution ->
                 request.headers.add("apikey", apiKey)
                 if (!request.headers.containsKey(HttpHeaders.AUTHORIZATION)) {
