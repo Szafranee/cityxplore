@@ -5,7 +5,6 @@ import org.cityxplore.backend.poi.dto.CreatePoiRequest
 import org.cityxplore.backend.poi.dto.PoiAdminResponse
 import org.cityxplore.backend.poi.dto.UpdatePoiRequest
 import org.cityxplore.backend.poi.service.PointOfInterestService
-import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -66,7 +65,7 @@ class PoiAdminController(
         val created = pointOfInterestService.createPoi(createPoi)
         val location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(created.id).toUri()
 
-        return ResponseEntity.status(HttpStatus.CREATED).location(location).body(created)
+        return ResponseEntity.created(location).body(created)
     }
 
     /**
