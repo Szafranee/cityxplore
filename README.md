@@ -1,21 +1,24 @@
 # CityXplore
 
 **CityXplore** is a mobile application designed for exploring cities enhanced with **gamification elements**.  
-This project is being developed as part of an **Engineering Thesis** at the Polish-Japanese Academy of Information Technology (PJATK).
+This project is being developed as part of an **Engineering Thesis** at the Polish-Japanese Academy of Information
+Technology (PJAIT).
 
 ## ✨ Project Overview
 
-CityXplore combines the functionality of a traditional tourist guide with game mechanics to motivate users to explore and discover new places.  
+CityXplore combines the functionality of a traditional tourist guide with game mechanics to motivate users to explore
+and discover new places.  
 Key features include:
+
 - interactive discovery of Points of Interest (POI),
 - *fog of war* mechanism hiding unexplored city areas,
 - achievements and progression system,
 - social features (friends, sharing POIs),
-- offline-first design with data synchronization when online.
+- offline-first design with data synchronisation when online.
 
 ## 📂 Repository Structure
 
-```
+```text
 cityxplore/
 │── backend/             # Backend service (Spring Boot + Kotlin)
 │── client/              # Mobile client (Kotlin Multiplatform + Compose)

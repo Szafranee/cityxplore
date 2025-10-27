@@ -35,6 +35,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
+          cache: 'gradle'
 
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
@@ -50,11 +51,18 @@ jobs:
         run: ./gradlew :client:composeApp:assemble --no-daemon
 
       # ---- MIGRATIONS ----
-      - name: Install Supabase CLI
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 'latest'
+
+      - name: Login and link Supabase project
         run: |
-          curl -fsSL https://cli.supabase.com/install.sh | sh
+          supabase login --token ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --password ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Validate SQL migrations syntax
         run: |
           echo "Checking Supabase migrations..."
-          supabase db lint || echo "Skipping Supabase lint if CLI not present"
+          supabase --version
+          supabase db lint --linked
