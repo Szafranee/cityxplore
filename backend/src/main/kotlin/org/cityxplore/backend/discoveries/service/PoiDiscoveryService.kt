@@ -77,6 +77,7 @@ class PoiDiscoveryService(
      * @return A `UserPoiDiscoveryResponse` object containing the details of the discovered POI.
      * @throws org.springframework.web.server.ResponseStatusException if the discovery is not found.
      */
+    @Transactional(readOnly = true)
     fun getUserDiscovery(userId: UUID, poiId: UUID): UserPoiDiscoveryResponse =
         userPoiRepository.findByUserIdAndPoiId(userId, poiId)
             ?.toDto()

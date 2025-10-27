@@ -59,6 +59,18 @@ class SecurityConfig {
     @Value("\${app.cors.allowed-origins:*}")
     private var allowedOrigins: String = "*"
 
+    /**
+     * Configures the security filter chain for the application by defining security policies
+     * such as CSRF protection, CORS handling, authorization rules, session management, and
+     * OAuth2 resource server integration.
+     *
+     * The method establishes role-based access control for specified API endpoints,
+     * enforces stateless session management, and configures token-based authentication
+     * with custom JWT decoding and role mapping.
+     *
+     * @param http the HttpSecurity object used to configure security settings for the application.
+     * @return a configured SecurityFilterChain instance that defines the application's security behavior.
+     */
     @Bean
     fun filterChain(http: HttpSecurity): SecurityFilterChain {
         return http
@@ -112,6 +124,17 @@ class SecurityConfig {
         return converter
     }
 
+    /**
+     * Creates and configures a `JwtDecoder` bean for decoding JSON Web Tokens (JWTs) using
+     * a Remote JSON Web Key Set (JWKS) from a specified URI.
+     *
+     * - Ensures that JWTs are validated against a specific issuer and audience.
+     * - Supports optional integration with Supabase by including custom headers (e.g., API key)
+     *   when fetching JWKS.
+     * - Enforces the presence of the "authenticated" audience as recommended by Supabase.
+     *
+     * @return a configured `JwtDecoder` instance for token validation.
+     */
     @Bean
     fun jwtDecoder(): JwtDecoder {
         val builder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri)
@@ -150,6 +173,16 @@ class SecurityConfig {
         return decoder
     }
 
+    /**
+     * Configures and creates a CorsConfigurationSource bean, which defines CORS settings
+     * for cross-origin requests in the application.
+     *
+     * The configuration determines allowed origins, methods, headers, and credentials
+     * behavior based on the provided allowed origins. If a wildcard "*" is used as the
+     * sole origin, credentials are disabled as per browser restrictions.
+     *
+     * @return a configured CorsConfigurationSource instance with the defined CORS policies.
+     */
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
         val configuration = CorsConfiguration()

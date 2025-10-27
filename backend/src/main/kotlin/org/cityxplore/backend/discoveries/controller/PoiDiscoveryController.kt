@@ -69,6 +69,15 @@ class PoiDiscoveryController(
         return poiDiscoveryService.getUserDiscoveries(userId)
     }
 
+    /**
+     * Retrieves a specific discovery of a Point of Interest (POI) for the authenticated user.
+     * Responds with the discovery data if found; otherwise, an error status is returned.
+     *
+     * @param jwt the JSON Web Token (JWT) containing the authenticated user's information
+     * @param poiId the unique identifier of the Point of Interest (POI) being retrieved
+     * @return a `ResponseEntity` containing the `UserPoiDiscoveryResponse` if the discovery is found,
+     * or an error response if the discovery does not exist
+     */
     @GetMapping("/discoveries/{poiId}")
     fun getUserDiscovery(
         @AuthenticationPrincipal jwt: Jwt,

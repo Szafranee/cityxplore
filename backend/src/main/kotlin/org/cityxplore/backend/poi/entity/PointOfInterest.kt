@@ -42,7 +42,7 @@ data class PointOfInterest(
 
     @Type(JsonType::class)
     @Column(name = "image_urls", columnDefinition = "jsonb")
-    val imageUrls: List<String>? = null,
+    var imageUrls: List<String>? = null,
 
     @Column(name = "created_at", nullable = true, updatable = false)
     @CreatedDate
@@ -53,7 +53,7 @@ data class PointOfInterest(
     var updatedAt: LocalDateTime? = null,
 
     @Column(name = "is_active", nullable = false)
-    val isActive: Boolean = true
+    var isActive: Boolean = true
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

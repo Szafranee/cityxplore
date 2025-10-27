@@ -2,9 +2,9 @@ package org.cityxplore.backend.achievements.service
 
 import org.cityxplore.backend.achievements.dto.AchievementResponse
 import org.cityxplore.backend.achievements.dto.UserAchievementResponse
-import org.cityxplore.backend.achievements.entity.Achievement
 import org.cityxplore.backend.achievements.entity.UserAchievement
 import org.cityxplore.backend.achievements.mapper.toDto
+import org.cityxplore.backend.achievements.mapper.toUserAchievementDto
 import org.cityxplore.backend.achievements.repository.AchievementRepository
 import org.cityxplore.backend.achievements.repository.UserAchievementRepository
 import org.springframework.data.repository.findByIdOrNull
@@ -25,16 +25,6 @@ class AchievementService(
         val dto: UserAchievementResponse,
         val created: Boolean
     )
-
-    private fun toUserAchievementDto(
-        achievement: Achievement,
-        userAchievement: UserAchievement
-    ): UserAchievementResponse =
-        UserAchievementResponse(
-            achievement = achievement.toDto(),
-            achievedAt = userAchievement.achievedAt,
-            progress = userAchievement.progressData
-        )
 
     /**
      * Retrieve all active achievements.

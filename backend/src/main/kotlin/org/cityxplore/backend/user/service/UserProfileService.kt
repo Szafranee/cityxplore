@@ -2,7 +2,7 @@ package org.cityxplore.backend.user.service
 
 import org.cityxplore.backend.user.dto.UpdateUserProfileRequest
 import org.cityxplore.backend.user.dto.UserProfileResponse
-import org.cityxplore.backend.user.entity.User
+import org.cityxplore.backend.user.mapper.toDto
 import org.cityxplore.backend.user.repository.UserRepository
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
@@ -62,30 +62,15 @@ class UserProfileService(
 
         val saved = try {
             userRepository.save(user)
-        } catch (_: DataIntegrityViolationException) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "Username already taken")
+        } catch (e: DataIntegrityViolationException) {
+            val message = if (e.message?.contains("username", ignoreCase = true) == true) {
+                "Username already taken"
+            } else {
+                "Constraint violation occurred"
+            }
+            throw ResponseStatusException(HttpStatus.CONFLICT, message)
         }
 
         return saved.toDto()
     }
 }
-
-/**
- * Converts a `User` entity to a `UserProfileResponse`.
- *
- * This extension function maps the `User` entity's properties to the corresponding fields
- * in the `UserProfileResponse` data transfer object. It is typically used for returning
- * user profile information in a format suitable for external consumers, such as APIs.
- *
- * @receiver The `User` entity instance to be converted.
- * @return A `UserProfileResponse` object containing the mapped properties from the `User` entity.
- */
-private fun User.toDto() = UserProfileResponse(
-    id = requireNotNull(id) { "Cannot map transient User entity to DTO" },
-    email = email,
-    username = username,
-    avatarUrl = avatarUrl,
-    totalDistance = totalDistance,
-    totalPoisDiscovered = totalPoisDiscovered,
-    createdAt = createdAt
-)

@@ -31,10 +31,22 @@ class StorageService(
         }
     }
 
+    /**
+     * Generates a signed URL for accessing a file in Supabase Storage.
+     *
+     * The generated URL can be used to access the specified file in the given bucket,
+     * with an optional expiration time in seconds.
+     *
+     * @param bucket The name of the storage bucket containing the file.
+     * @param path The relative path to the file within the storage bucket.
+     * @param expiresIn Optional duration in seconds for which the signed URL is valid. Default is 3600 seconds (1 hour).
+     * @return A string representing the signed URL for accessing the file.
+     * @throws ResponseStatusException if the response does not contain a valid signed URL or an error occurs during the request.
+     */
     fun createSignedUrl(bucket: String, path: String, expiresIn: Int = 3600): String {
         val url = UriComponentsBuilder.fromUriString(storageUrl)
             .pathSegment("object", "sign", bucket)
-            .pathSegment(*path.trimStart('/').split('/').toTypedArray())
+            .pathSegment(*path.trimStart('/').split('/').filter { it.isNotEmpty() }.toTypedArray())
             .build()
             .toUriString()
 
@@ -64,6 +76,15 @@ class StorageService(
         return absolute
     }
 
+    /**
+     * Deletes a file from the specified bucket and path in Supabase Storage.
+     *
+     * This method interacts with Supabase Storage through its REST API to delete
+     * the specified file. If the file is not found, it treats the operation as successful.
+     *
+     * @param bucket The name of the storage bucket from which the file will be deleted.
+     * @param path The relative path of the file within the bucket to be deleted.
+     */
     fun deleteFile(bucket: String, path: String) {
         val url = UriComponentsBuilder.fromUriString(storageUrl)
             .pathSegment("object", bucket)
@@ -76,13 +97,10 @@ class StorageService(
         }
         val entity = HttpEntity<Void>(headers)
         try {
-            val response = restTemplate.exchange(
+            restTemplate.exchange(
                 url, HttpMethod.DELETE, entity, String::class.java
             )
 
-            if (!response.statusCode.is2xxSuccessful) {
-                throw ResponseStatusException(response.statusCode, "Failed to delete file")
-            }
         } catch (_: HttpClientErrorException.NotFound) {
             // treat as success
             return

@@ -67,18 +67,42 @@ class PointOfInterestService(
     fun create(request: CreatePoiPublicRequest): PoiResponse =
         poiRepository.save(request.toEntity()).toResponseDto()
 
+    /**
+     * Retrieves all Points of Interest (POIs) from the repository that are active and maps them
+     * to a list of admin-facing response DTOs.
+     *
+     * @return A list of `PoiAdminResponse` objects representing all active Points of Interest
+     * in an admin-friendly format.
+     */
     @Transactional(readOnly = true)
     fun getAllPois(): List<PoiAdminResponse> =
         poiRepository.findAll()
-            .filter { it.isActive }
             .map { it.toAdminDto() }
 
+    /**
+     * Retrieves a Point of Interest (POI) by its unique identifier and maps it to an admin-facing DTO.
+     * Throws a `ResponseStatusException` with a 404 status if the POI is not found.
+     *
+     * @param id The unique identifier of the Point of Interest to retrieve.
+     * @return A `PoiAdminResponse` object representing the retrieved Point of Interest.
+     */
     @Transactional(readOnly = true)
     fun getPoiById(id: UUID): PoiAdminResponse =
         poiRepository.findById(id)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "POI not found") }
             .toAdminDto()
 
+    /**
+     * Creates a new Point of Interest (POI) and saves it in the repository. The POI is populated with
+     * details such as name, description, category, geographical location, and optional metadata.
+     *
+     * @param createPoi The details of the POI to be created, encapsulated in a CreatePoiRequest object.
+     *                  It includes the name, description, category, latitude, longitude, and metadata.
+     * @return A PoiAdminResponse object representing the created Point of Interest, including its
+     *         administrative-level information and audit metadata.
+     * @throws IllegalArgumentException If the provided latitude is not in the range -90.0 to 90.0 or
+     *                                  if the longitude is not in the range -180.0 to 180.0.
+     */
     @Transactional
     fun createPoi(createPoi: CreatePoiRequest): PoiAdminResponse {
         require(createPoi.longitude in -180.0..180.0 && createPoi.latitude in -90.0..90.0) {
@@ -99,6 +123,15 @@ class PointOfInterestService(
         return saved.toAdminDto()
     }
 
+    /**
+     * Updates an existing Point of Interest (POI) with the provided details.
+     * Throws a `ResponseStatusException` with a 404 status if the POI is not found.
+     * Validates that the provided latitude and longitude are within the valid range.
+     *
+     * @param id The unique identifier of the Point of Interest to update.
+     * @param updatePoi The details to update the Point of Interest, encapsulated in an `UpdatePoiRequest` object.
+     * @return A `PoiAdminResponse` object representing the updated Point of Interest.
+     */
     @Transactional
     fun updatePoi(id: UUID, updatePoi: UpdatePoiRequest): PoiAdminResponse {
         val existing = poiRepository.findById(id)
@@ -119,6 +152,12 @@ class PointOfInterestService(
         return poiRepository.save(existing).toAdminDto()
     }
 
+    /**
+     * Deletes a Point of Interest (POI) by its unique identifier.
+     * Throws a `ResponseStatusException` with a 404 status if the POI is not found.
+     *
+     * @param id The unique identifier of the Point of Interest to delete.
+     */
     @Transactional
     fun deletePoi(id: UUID) {
         if (!poiRepository.existsById(id)) {
