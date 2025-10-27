@@ -108,14 +108,14 @@ Public endpoints (`/api/public/**`, `/actuator/**`) are accessible without auth.
 
 ### User
 
-```text
+```http
 GET   /api/users/me               → current profile
 PATCH /api/users/me               → update avatar / username
 ```
 
 ### POI & Discoveries
 
-```text
+```http
 GET   /api/pois                   → all POIs (active)
 POST  /api/pois/{id}/discover     → discover point
 GET   /api/pois/discoveries       → list discoveries of user
@@ -123,7 +123,7 @@ GET   /api/pois/discoveries       → list discoveries of user
 
 ### Achievements
 
-```text
+```http
 GET   /api/achievements             → all achievements
 GET   /api/achievements/mine        → user's achievements
 POST  /api/achievements/{id}/grant  → grant manually (debug)
@@ -131,7 +131,7 @@ POST  /api/achievements/{id}/grant  → grant manually (debug)
 
 ### Social
 
-```text
+```http
 POST  /api/friends/{id}/invite
 POST  /api/friends/{id}/accept
 GET   /api/friends
@@ -141,14 +141,14 @@ GET   /api/shared
 
 ### Storage
 
-```text
+```http
 GET    /api/storage/url?bucket=&path=
 DELETE /api/storage?bucket=&path=
 ```
 
 ### System / Admin
 
-```text
+```http
 GET  /api/public/ping
 GET  /api/public/environment
 GET  /api/admin/stats
@@ -161,7 +161,7 @@ POST /api/admin/reset
 
 Using **Spring Boot Actuator**:
 
-```text
+```http
 /actuator/health      → UP/DOWN state
 /actuator/info        → build & version info
 /actuator/metrics     → JVM, system metrics
@@ -190,7 +190,7 @@ management:
 
 `.env` file (local only, ignored in Git):
 
-```text
+```shell
 SUPABASE_DB_USER=xxxx
 SUPABASE_DB_PASSWORD=xxxx
 SUPABASE_PROJECT_REF=xxxx
@@ -218,9 +218,11 @@ SUPABASE_SECRET_KEY=xxxx
 
 ### Local build
 
-`./gradlew bootRun --args='--spring.profiles.active=dev'`
+```shell
+./gradlew bootRun --args='--spring.profiles.active=dev'
+```
 
---- 
+---
 
 ## 12. Security summary
 
@@ -245,8 +247,7 @@ SUPABASE_SECRET_KEY=xxxx
 ## 14. Adding a new feature module
 
 1. Create a new package under org.cityxplore.backend.<feature>
-2. Add:
-    - entity, dto, repository, service, controller
+2. Add: `entity`, `dto`, `repository`, `service`, `controller`
 3. Add Flyway migration (SQL in resources/db/migration/).
 4. Register RLS policies in Supabase.
 5. Secure endpoints by role or JWT

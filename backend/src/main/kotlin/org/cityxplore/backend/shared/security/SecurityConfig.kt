@@ -86,16 +86,27 @@ class SecurityConfig {
     }
 
     /**
-     * Maps JWT claim "role" to Spring Security authorities.
-     * Example: role: "admin" -> authority: "ROLE_ADMIN".
+     * Creates and configures a JwtAuthenticationConverter bean for converting JWT claims
+     * into a collection of GrantedAuthority objects with role-based prefixes.
+     *
+     * The converter extracts the "roles" or "role" claim from the JWT, processes it into a
+     * list of strings, and maps them to authorities prefixed with "ROLE_". Empty or blank
+     * roles are excluded, and all roles are converted to uppercase.
+     *
+     * @return a configured JwtAuthenticationConverter instance that maps JWT claims to granted authorities.
      */
     @Bean
     fun jwtAuthenticationConverter(): JwtAuthenticationConverter {
         val converter = JwtAuthenticationConverter()
         val authoritiesConverter = Converter<Jwt, Collection<GrantedAuthority>> { jwt ->
-            val role = jwt.claims["role"] as? String
-            if (role.isNullOrBlank()) emptyList()
-            else listOf<GrantedAuthority>(SimpleGrantedAuthority("ROLE_${role.uppercase()}"))
+            val claim = jwt.claims["roles"] ?: jwt.claims["role"]
+            val roles: List<String> = when (claim) {
+                is Collection<*> -> claim.filterIsInstance<String>()
+                is String -> listOf(claim)
+                else -> emptyList()
+            }
+            roles.filter { it.isNotBlank() }
+                .map { SimpleGrantedAuthority("ROLE_${it.uppercase()}") }
         }
         converter.setJwtGrantedAuthoritiesConverter(authoritiesConverter)
         return converter

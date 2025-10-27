@@ -13,7 +13,7 @@ data class PoiAdminResponse(
     val category: String,
     val latitude: Double,
     val longitude: Double,
-    val metadata: Map<String, Any>?,
+    val metadata: Map<String, Any?>?,
     val createdAt: LocalDateTime?,
     val updatedAt: LocalDateTime?,
     val isActive: Boolean

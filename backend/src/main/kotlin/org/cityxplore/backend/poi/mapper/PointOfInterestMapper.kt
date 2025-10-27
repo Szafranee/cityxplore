@@ -40,13 +40,13 @@ fun CreatePoiPublicRequest.toEntity(): PointOfInterest = PointOfInterest(
 
 // Admin-facing mapping with explicit lat/lon and simplified metadata exposure
 fun PointOfInterest.toAdminDto(): PoiAdminResponse = PoiAdminResponse(
-    id = id!!,
+    id = id ?: error("POI must have an ID for admin response"),
     name = name,
     description = description,
     category = category,
-    latitude = location?.y ?: 0.0,
-    longitude = location?.x ?: 0.0,
-    metadata = metadata?.let { mapOf("raw" to it) },
+    latitude = location?.y ?: throw IllegalStateException("POI missing location"),
+    longitude = location?.x ?: throw IllegalStateException("POI missing location"),
+    metadata = metadata,
     createdAt = createdAt,
     updatedAt = updatedAt,
     isActive = isActive

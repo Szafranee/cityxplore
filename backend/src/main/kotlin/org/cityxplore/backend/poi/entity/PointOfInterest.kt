@@ -26,19 +26,19 @@ data class PointOfInterest(
     var id: UUID? = null,
 
     @Column(nullable = false, length = 200)
-    val name: String,
+    var name: String,
 
-    val description: String? = null,
+    var description: String? = null,
 
     @Column(nullable = false)
-    val category: String,
+    var category: String,
 
     @Column(columnDefinition = "GEOGRAPHY(POINT, 4326)")
-    val location: Point? = null,
+    var location: Point? = null,
 
     @Type(JsonType::class)
     @Column(columnDefinition = "jsonb")
-    val metadata: Map<String, Any?>? = null,
+    var metadata: Map<String, Any?>? = null,
 
     @Type(JsonType::class)
     @Column(name = "image_urls", columnDefinition = "jsonb")

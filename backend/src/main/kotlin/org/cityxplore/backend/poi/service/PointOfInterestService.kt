@@ -14,12 +14,10 @@ import org.cityxplore.backend.poi.repository.PointOfInterestRepository
 import org.locationtech.jts.geom.Coordinate
 import org.locationtech.jts.geom.GeometryFactory
 import org.locationtech.jts.geom.PrecisionModel
-import org.springframework.dao.EmptyResultDataAccessException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import java.time.LocalDateTime
 import java.util.UUID
 
 /**
@@ -94,7 +92,6 @@ class PointOfInterestService(
                 category = createPoi.category,
                 location = geometryFactory.createPoint(Coordinate(createPoi.longitude, createPoi.latitude)),
                 metadata = createPoi.metadata,
-                createdAt = LocalDateTime.now(),
                 isActive = true
             )
         )
@@ -111,26 +108,23 @@ class PointOfInterestService(
             "Invalid coordinates"
         }
 
-        val saved = poiRepository.save(
-            existing.copy(
-                name = updatePoi.name,
-                description = updatePoi.description,
-                category = updatePoi.category,
-                location = geometryFactory.createPoint(Coordinate(updatePoi.longitude, updatePoi.latitude)),
-                updatedAt = LocalDateTime.now(),
-                metadata = updatePoi.metadata
-            )
-        )
+        existing.apply {
+            name = updatePoi.name
+            description = updatePoi.description
+            category = updatePoi.category
+            location = geometryFactory.createPoint(Coordinate(updatePoi.longitude, updatePoi.latitude))
+            metadata = updatePoi.metadata
+        }
 
-        return saved.toAdminDto()
+        return poiRepository.save(existing).toAdminDto()
     }
 
     @Transactional
     fun deletePoi(id: UUID) {
-        try {
-            poiRepository.deleteById(id)
-        } catch (_: EmptyResultDataAccessException) {
+        if (!poiRepository.existsById(id)) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "POI not found")
         }
+
+        poiRepository.deleteById(id)
     }
 }

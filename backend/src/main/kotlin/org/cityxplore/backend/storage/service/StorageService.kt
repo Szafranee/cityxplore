@@ -1,5 +1,6 @@
 package org.cityxplore.backend.storage.service
 
+import org.cityxplore.backend.storage.dto.SignedUrlResponse
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
@@ -36,16 +37,18 @@ class StorageService(
             .pathSegment(*path.trimStart('/').split('/').toTypedArray())
             .build()
             .toUriString()
+
         val headers = HttpHeaders().apply {
             contentType = MediaType.APPLICATION_JSON
             set(HttpHeaders.AUTHORIZATION, "Bearer $serviceKey")
             set("apikey", serviceKey)
         }
+
         val body = mapOf("expiresIn" to expiresIn)
         val entity = HttpEntity(body, headers)
-        val response = restTemplate.postForEntity(url, entity, Map::class.java)
+        val response = restTemplate.postForEntity(url, entity, SignedUrlResponse::class.java)
 
-        val signedFragment = response.body?.get("signedURL")?.toString()
+        val signedFragment = response.body?.signedURL
             ?: throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Missing signedURL in response")
 
         // Supabase returns a path fragment; compose absolute URL
@@ -53,7 +56,7 @@ class StorageService(
             signedFragment
         } else {
             UriComponentsBuilder.fromUriString(storageUrl)
-                .path(signedFragment)
+                .replacePath(signedFragment)
                 .build()
                 .toUriString()
         }

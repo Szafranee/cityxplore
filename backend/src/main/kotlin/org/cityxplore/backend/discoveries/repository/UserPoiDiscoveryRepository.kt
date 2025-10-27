@@ -7,4 +7,5 @@ import java.util.UUID
 interface UserPoiDiscoveryRepository : JpaRepository<UserPoiDiscovery, UUID> {
     fun findAllByUserId(userId: UUID): List<UserPoiDiscovery>
     fun existsByUserIdAndPoiId(userId: UUID, poiId: UUID): Boolean
+    fun findByUserIdAndPoiId(userId: UUID, poiId: UUID): UserPoiDiscovery?
 }

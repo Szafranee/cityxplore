@@ -36,7 +36,7 @@ data class UserAchievement(
 
     @Type(JsonType::class)
     @Column(name = "progress_data", columnDefinition = "jsonb")
-    var progressData: MutableMap<String, Any?>? = null
+    var progressData: Map<String, Any?>? = null
 ) {
     final override fun equals(other: Any?): Boolean {
         if (this === other) return true

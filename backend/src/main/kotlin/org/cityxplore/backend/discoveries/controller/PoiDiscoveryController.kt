@@ -36,7 +36,7 @@ class PoiDiscoveryController(
      * @param poiId the unique identifier of the Point of Interest to be discovered
      * @param jwt the JSON Web Token (JWT) containing authenticated user information
      * @return a `ResponseEntity` containing the result of the operation:
-     * - 200 OK with the saved discovery DTO if successful
+     * - 201 CREATED with the saved discovery DTO and Location header if successful
      * - 404 NOT FOUND if the POI does not exist
      * - 409 CONFLICT if the user has already discovered the POI
      */
@@ -49,8 +49,9 @@ class PoiDiscoveryController(
         val dto = poiDiscoveryService.discoverPoi(userId, poiId)
 
         return ResponseEntity.created(
-            ServletUriComponentsBuilder.fromCurrentRequest()
-                .build()
+            ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/api/pois/discoveries/{id}")
+                .buildAndExpand(dto.poiId)
                 .toUri()
         ).body(dto)
     }
@@ -66,5 +67,16 @@ class PoiDiscoveryController(
         val userId = JwtUtils.extractUserId(jwt)
 
         return poiDiscoveryService.getUserDiscoveries(userId)
+    }
+
+    @GetMapping("/discoveries/{poiId}")
+    fun getUserDiscovery(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable poiId: UUID
+    ): ResponseEntity<UserPoiDiscoveryResponse> {
+        val userId = JwtUtils.extractUserId(jwt)
+        val dto = poiDiscoveryService.getUserDiscovery(userId, poiId)
+
+        return ResponseEntity.ok(dto)
     }
 }

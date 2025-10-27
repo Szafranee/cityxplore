@@ -81,7 +81,7 @@ class UserProfileService(
  * @return A `UserProfileResponse` object containing the mapped properties from the `User` entity.
  */
 private fun User.toDto() = UserProfileResponse(
-    id = id!!,
+    id = requireNotNull(id) { "Cannot map transient User entity to DTO" },
     email = email,
     username = username,
     avatarUrl = avatarUrl,

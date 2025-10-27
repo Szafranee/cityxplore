@@ -26,11 +26,6 @@ class PoiDiscoveryService(
     private val userPoiRepository: UserPoiDiscoveryRepository
 ) {
 
-    data class PoiDiscoveryResult(
-        val dto: UserPoiDiscoveryResponse,
-        val created: Boolean
-    )
-
     /**
      * Marks a Point of Interest (POI) as discovered for a specific user. The method ensures that the POI
      * exists and has not yet been discovered by the user before adding the discovery.
@@ -47,11 +42,6 @@ class PoiDiscoveryService(
     fun discoverPoi(userId: UUID, poiId: UUID): UserPoiDiscoveryResponse {
         if (!poiRepository.existsById(poiId)) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "POI not found")
-        }
-
-        val isPoiAlreadyDiscovered = userPoiRepository.existsByUserIdAndPoiId(userId, poiId)
-        if (isPoiAlreadyDiscovered) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "Already discovered")
         }
 
         return try {
@@ -76,4 +66,19 @@ class PoiDiscoveryService(
     @Transactional(readOnly = true)
     fun getUserDiscoveries(userId: UUID): List<UserPoiDiscoveryResponse> =
         userPoiRepository.findAllByUserId(userId).toDtoList()
+
+
+    /**
+     * Retrieves a specific Point of Interest (POI) discovery for a given user.
+     * If the discovery is not found, a `ResponseStatusException` with a 404 status is thrown.
+     *
+     * @param userId The unique identifier of the user whose POI discovery is being retrieved.
+     * @param poiId The unique identifier of the POI being retrieved.
+     * @return A `UserPoiDiscoveryResponse` object containing the details of the discovered POI.
+     * @throws org.springframework.web.server.ResponseStatusException if the discovery is not found.
+     */
+    fun getUserDiscovery(userId: UUID, poiId: UUID): UserPoiDiscoveryResponse =
+        userPoiRepository.findByUserIdAndPoiId(userId, poiId)
+            ?.toDto()
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Discovery not found")
 }
