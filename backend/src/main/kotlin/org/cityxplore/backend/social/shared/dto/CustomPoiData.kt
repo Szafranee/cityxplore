@@ -21,6 +21,7 @@ data class CustomPoiData(
     @field:Size(max = 200, message = "POI name cannot exceed 200 characters")
     val name: String,
 
+    @field:NotBlank
     @field:Size(max = 1000, message = "POI description cannot exceed 1000 characters")
     val description: String? = null,
 
