@@ -36,5 +36,6 @@ data class CustomPoiData(
     @field:DecimalMax(value = "180.0", message = "Longitude must be between -180 and 180")
     val longitude: Double,
 
+    @field:Size(max = 3, message = "Cannot exceed 3 image URLs")
     val imageUrls: List<String>? = null
 )
