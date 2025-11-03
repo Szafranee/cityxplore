@@ -114,19 +114,19 @@ CREATE TABLE shared_pois
 
 ### 1. Tourist recommending an official attraction
 
-```
+```text
 User A → shares existing POI (Eiffel Tower) → User B
 ```
 
 ### 2. Local sharing a hidden gem
 
-```
+```text
 User A → creates custom POI (secret beach) → shares with User B
 ```
 
 ### 3. Friend sharing their favorite spot
 
-```
+```text
 User A → creates custom POI with photos and description → shares with multiple friends
 ```
 
