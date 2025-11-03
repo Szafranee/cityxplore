@@ -56,7 +56,19 @@ class FriendshipService(
                     "You are already friends with this user"
                 )
 
-                else -> throw ResponseStatusException(HttpStatus.CONFLICT, "Friendship already exists")
+                FriendshipStatus.DECLINED -> {
+                    // Allow re-invite by updating the existing record
+                    existingFriendship.status = FriendshipStatus.PENDING
+                    existingFriendship.updatedAt = LocalDateTime.now()
+                    val updated = friendshipRepository.save(existingFriendship)
+
+                    return FriendshipMapper.toResponse(updated)
+                }
+
+                FriendshipStatus.BLOCKED -> throw ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Cannot send invitation to this user"
+                )
             }
         }
 
@@ -125,6 +137,29 @@ class FriendshipService(
         val saved = friendshipRepository.save(friendship)
 
         return FriendshipMapper.toResponse(saved)
+    }
+
+    /**
+     * Retrieves details of a specific friendship by its ID.
+     *
+     * This method ensures that the requesting user is either the requester or addressee
+     * of the friendship relation.
+     *
+     * @param currentUserId the ID of the user requesting the friendship details
+     * @param friendshipId the unique identifier of the friendship to retrieve
+     * @return a FriendshipResponse containing the friendship details
+     * @throws ResponseStatusException if the friendship does not exist or user has no access
+     */
+    @Transactional(readOnly = true)
+    fun getFriendshipById(currentUserId: UUID, friendshipId: UUID): FriendshipResponse {
+        val friendship = friendshipRepository.findById(friendshipId)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Friendship not found") }
+
+        if (friendship.requesterId != currentUserId && friendship.addresseeId != currentUserId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this friendship")
+        }
+
+        return FriendshipMapper.toResponse(friendship)
     }
 
     /**

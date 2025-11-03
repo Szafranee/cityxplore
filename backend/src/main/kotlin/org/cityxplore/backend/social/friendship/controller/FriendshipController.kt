@@ -50,8 +50,8 @@ class FriendshipController(
         val userId = JwtUtils.extractUserId(jwt)
         val created = friendshipService.sendInvite(userId, friendshipRequest)
         val location = ServletUriComponentsBuilder
-            .fromCurrentRequest()
-            .path("/{id}")
+            .fromCurrentContextPath()
+            .path("/api/friends/{id}")
             .buildAndExpand(created.id)
             .toUri()
 
@@ -96,7 +96,34 @@ class FriendshipController(
     }
 
     /**
+     * Retrieves details of a specific friendship by its ID.
      *
+     * This endpoint allows an authenticated user to retrieve details of a friendship
+     * where they are either the requester or addressee.
+     *
+     * @param jwt the JSON Web Token (JWT) of the authenticated user
+     * @param friendshipId the unique identifier of the friendship to retrieve
+     * @return a ResponseEntity containing the FriendshipResponse with friendship details
+     */
+    @GetMapping("/{friendshipId}")
+    fun getFriendship(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable friendshipId: UUID
+    ): ResponseEntity<FriendshipResponse> {
+        val userId = JwtUtils.extractUserId(jwt)
+        val result = friendshipService.getFriendshipById(userId, friendshipId)
+
+        return ResponseEntity.ok(result)
+    }
+
+    /**
+     * Retrieves the list of friends for the authenticated user.
+     *
+     * This method uses the user ID extracted from the provided JSON Web Token (JWT)
+     * to fetch the list of friends associated with that user.
+     *
+     * @param jwt the JSON Web Token (JWT) containing authentication information for the current user
+     * @return a list of `FriendshipResponse` objects representing the user's current friends
      */
     @GetMapping
     fun getMyFriends(
