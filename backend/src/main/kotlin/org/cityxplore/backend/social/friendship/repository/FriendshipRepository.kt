@@ -46,4 +46,22 @@ interface FriendshipRepository : JpaRepository<Friendship, UUID> {
      */
     @Query("SELECT f FROM Friendship f WHERE f.addresseeId = :addresseeId AND f.status = 'PENDING'")
     fun findAllPendingByAddresseeId(addresseeId: UUID): List<Friendship>
+
+    /**
+     * Checks if two users have an accepted friendship.
+     *
+     * @param userA the UUID of the first user
+     * @param userB the UUID of the second user
+     * @return true if an accepted friendship exists between the two users, false otherwise
+     */
+    @Query(
+        """
+        SELECT CASE WHEN COUNT(f) > 0 THEN true ELSE false END
+        FROM Friendship f
+        WHERE ((f.requesterId = :userA AND f.addresseeId = :userB)
+           OR (f.requesterId = :userB AND f.addresseeId = :userA))
+           AND f.status = 'ACCEPTED'
+        """
+    )
+    fun areFriends(userA: UUID, userB: UUID): Boolean
 }
