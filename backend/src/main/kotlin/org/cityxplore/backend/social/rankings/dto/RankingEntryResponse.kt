@@ -18,7 +18,7 @@ data class RankingEntryResponse(
     val userId: UUID,
     val username: String,
     val avatarUrl: String?,
-    val score: Long,
+    val score: Double,
     val totalPoisDiscovered: Int,
     val totalDistance: Double,
     val totalAchievementPoints: Int,

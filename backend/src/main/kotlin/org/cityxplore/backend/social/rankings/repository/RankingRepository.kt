@@ -73,7 +73,7 @@ class RankingRepository(
                     totalPoisDiscovered = rs.getInt("total_pois_discovered"),
                     totalDistance = rs.getDouble("total_distance"),
                     totalAchievementPoints = rs.getInt("total_achievement_points"),
-                    score = rs.getLong("score"),
+                    score = rs.getDouble("score"),
                     rank = rs.getInt("rank")
                 )
             },
@@ -157,7 +157,7 @@ class RankingRepository(
                     totalPoisDiscovered = rs.getInt("total_pois_discovered"),
                     totalDistance = rs.getDouble("total_distance"),
                     totalAchievementPoints = rs.getInt("total_achievement_points"),
-                    score = rs.getLong("score"),
+                    score = rs.getDouble("score"),
                     rank = rs.getInt("rank")
                 )
             },
@@ -165,6 +165,97 @@ class RankingRepository(
             poiWeight, distanceWeight, achievementWeight,
             poiWeight, distanceWeight, achievementWeight
         )
+    }
+
+    /**
+     * Calculates the global rank for a specific user without materialising the entire leaderboard.
+     *
+     * This is optimised to compute only the rank and stats for the requested user,
+     * avoiding the need to load all users into memory.
+     *
+     * @param userId the UUID of the user to find
+     * @param poiWeight weight multiplier for discovered POIs
+     * @param distanceWeight weight multiplier for travelled distance
+     * @param achievementWeight weight multiplier for achievement points
+     * @return the ranking entry for the user, or null if user not found or inactive
+     */
+    fun findGlobalRankForUser(
+        userId: UUID,
+        poiWeight: Int,
+        distanceWeight: Double,
+        achievementWeight: Int
+    ): RankingEntry? {
+        val sql = """
+            WITH user_stats AS (
+                SELECT 
+                    u.id AS user_id,
+                    u.username,
+                    u.avatar_url,
+                    COALESCE(u.total_pois_discovered, 0) AS total_pois_discovered,
+                    COALESCE(u.total_distance, 0) AS total_distance,
+                    COALESCE(SUM(a.points), 0) AS total_achievement_points
+                FROM users u
+                LEFT JOIN user_achievements ua ON u.id = ua.user_id
+                LEFT JOIN achievements a ON ua.achievement_id = a.id
+                WHERE u.is_active = true
+                GROUP BY u.id, u.username, u.avatar_url, u.total_pois_discovered, u.total_distance
+            ),
+            all_scores AS (
+                SELECT 
+                    user_id,
+                    (total_pois_discovered * ?) + 
+                    (total_distance * ?) + 
+                    (total_achievement_points * ?) AS score
+                FROM user_stats
+            ),
+            target_user AS (
+                SELECT 
+                    us.user_id,
+                    us.username,
+                    us.avatar_url,
+                    us.total_pois_discovered,
+                    us.total_distance,
+                    us.total_achievement_points,
+                    (us.total_pois_discovered * ?) + 
+                    (us.total_distance * ?) + 
+                    (us.total_achievement_points * ?) AS score
+                FROM user_stats us
+                WHERE us.user_id = ?::uuid
+            )
+            SELECT 
+                tu.user_id,
+                tu.username,
+                tu.avatar_url,
+                tu.total_pois_discovered,
+                tu.total_distance,
+                tu.total_achievement_points,
+                tu.score,
+                (SELECT COUNT(*) + 1 
+                 FROM all_scores 
+                 WHERE score > tu.score) AS rank
+            FROM target_user tu
+        """.trimIndent()
+
+        val results = jdbcTemplate.query(
+            sql,
+            { rs, _ ->
+                RankingEntry(
+                    userId = UUID.fromString(rs.getString("user_id")),
+                    username = rs.getString("username"),
+                    avatarUrl = rs.getString("avatar_url"),
+                    totalPoisDiscovered = rs.getInt("total_pois_discovered"),
+                    totalDistance = rs.getDouble("total_distance"),
+                    totalAchievementPoints = rs.getInt("total_achievement_points"),
+                    score = rs.getDouble("score"),
+                    rank = rs.getInt("rank")
+                )
+            },
+            poiWeight, distanceWeight, achievementWeight,
+            poiWeight, distanceWeight, achievementWeight,
+            userId
+        )
+
+        return results.firstOrNull()
     }
 
     /**
@@ -177,7 +268,7 @@ class RankingRepository(
         val totalPoisDiscovered: Int,
         val totalDistance: Double,
         val totalAchievementPoints: Int,
-        val score: Long,
+        val score: Double,
         val rank: Int
     )
 }

@@ -65,20 +65,21 @@ class RankingService(
     /**
      * Retrieves the user's position in the global ranking.
      *
-     * This is useful for showing the user their global rank without
-     * fetching the entire ranking list.
+     * This method is optimised to calculate only the rank for the requested user
+     * without materialising the entire leaderboard.
      *
      * @param userId the UUID of the user
-     * @return the user's ranking entry, or null if user not found in ranking
+     * @return the user's ranking entry, or null if user not found or inactive
      */
     @Transactional(readOnly = true)
     fun getUserGlobalRank(userId: UUID): RankingEntryResponse? {
-        val entries = rankingRepository.calculateGlobalRanking(
+        val entry = rankingRepository.findGlobalRankForUser(
+            userId = userId,
             poiWeight = rankingConfig.poiWeight,
             distanceWeight = rankingConfig.distanceWeight,
             achievementWeight = rankingConfig.achievementWeight
         )
 
-        return entries.find { it.userId == userId }?.let { RankingMapper.toResponse(it) }
+        return entry?.let { RankingMapper.toResponse(it) }
     }
 }
