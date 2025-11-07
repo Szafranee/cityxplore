@@ -55,7 +55,10 @@ data class User(
     var totalPoisDiscovered: Int = 0,
 
     @Column(name = "is_active", nullable = false)
-    var isActive: Boolean = true
+    var isActive: Boolean = true,
+
+    @Column(name = "total_achievement_points", nullable = false)
+    var totalAchievementPoints: Int = 0
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

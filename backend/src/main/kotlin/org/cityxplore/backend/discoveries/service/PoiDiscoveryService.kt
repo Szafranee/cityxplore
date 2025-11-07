@@ -6,6 +6,7 @@ import org.cityxplore.backend.discoveries.mapper.toDto
 import org.cityxplore.backend.discoveries.mapper.toDtoList
 import org.cityxplore.backend.discoveries.repository.UserPoiDiscoveryRepository
 import org.cityxplore.backend.poi.repository.PointOfInterestRepository
+import org.cityxplore.backend.user.repository.UserRepository
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -23,12 +24,14 @@ import java.util.UUID
 @Service
 class PoiDiscoveryService(
     private val poiRepository: PointOfInterestRepository,
-    private val userPoiRepository: UserPoiDiscoveryRepository
+    private val userPoiRepository: UserPoiDiscoveryRepository,
+    private val userRepository: UserRepository
 ) {
 
     /**
      * Marks a Point of Interest (POI) as discovered for a specific user. The method ensures that the POI
      * exists and has not yet been discovered by the user before adding the discovery.
+     * After a successful discovery, increments the user's totalPoisDiscovered counter.
      * If the POI does not exist, a `ResponseStatusException` with a 404 status is thrown.
      * If the user has already discovered the POI, a `ResponseStatusException`
      * with a 409 status is thrown.
@@ -44,16 +47,24 @@ class PoiDiscoveryService(
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "POI not found")
         }
 
-        return try {
+        val discovery = try {
             userPoiRepository.save(
                 UserPoiDiscovery(
                     userId = userId,
                     poiId = poiId
                 )
-            ).toDto()
+            )
         } catch (e: DataIntegrityViolationException) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "Already discovered", e)
         }
+
+        // Increment user's total POIs discovered counter
+        val user = userRepository.findById(userId)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
+        user.totalPoisDiscovered = user.totalPoisDiscovered + 1
+        userRepository.save(user)
+
+        return discovery.toDto()
     }
 
 
