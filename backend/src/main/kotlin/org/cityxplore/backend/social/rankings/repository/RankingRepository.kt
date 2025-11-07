@@ -1,0 +1,274 @@
+package org.cityxplore.backend.social.rankings.repository
+
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.stereotype.Repository
+import java.util.UUID
+
+/**
+ * Repository for executing ranking-related queries.
+ * Uses native SQL queries to calculate rankings based on user statistics.
+ */
+@Repository
+class RankingRepository(
+    private val jdbcTemplate: JdbcTemplate
+) {
+
+    /**
+     * Calculates global ranking for all users.
+     *
+     * @param poiWeight weight multiplier for discovered POIs
+     * @param distanceWeight weight multiplier for travelled distance
+     * @param achievementWeight weight multiplier for achievement points
+     * @return list of ranking entries with calculated scores and ranks
+     */
+    fun calculateGlobalRanking(
+        poiWeight: Int,
+        distanceWeight: Double,
+        achievementWeight: Int
+    ): List<RankingEntry> {
+        val sql = """
+            WITH user_stats AS (
+                SELECT 
+                    u.id AS user_id,
+                    u.username,
+                    u.avatar_url,
+                    COALESCE(u.total_pois_discovered, 0) AS total_pois_discovered,
+                    COALESCE(u.total_distance, 0) AS total_distance,
+                    COALESCE(SUM(a.points), 0) AS total_achievement_points
+                FROM users u
+                LEFT JOIN user_achievements ua ON u.id = ua.user_id
+                LEFT JOIN achievements a ON ua.achievement_id = a.id
+                WHERE u.is_active = true
+                GROUP BY u.id, u.username, u.avatar_url, u.total_pois_discovered, u.total_distance
+            ),
+            ranked_users AS (
+                SELECT 
+                    user_id,
+                    username,
+                    avatar_url,
+                    total_pois_discovered,
+                    total_distance,
+                    total_achievement_points,
+                    (total_pois_discovered * ?) + 
+                    (total_distance * ?) + 
+                    (total_achievement_points * ?) AS score,
+                    ROW_NUMBER() OVER (ORDER BY 
+                        (total_pois_discovered * ?) + 
+                        (total_distance * ?) + 
+                        (total_achievement_points * ?) DESC
+                    ) AS rank
+                FROM user_stats
+            )
+            SELECT * FROM ranked_users
+            ORDER BY rank
+        """.trimIndent()
+
+        return jdbcTemplate.query(
+            sql,
+            { rs, _ ->
+                RankingEntry(
+                    userId = UUID.fromString(rs.getString("user_id")),
+                    username = rs.getString("username"),
+                    avatarUrl = rs.getString("avatar_url"),
+                    totalPoisDiscovered = rs.getInt("total_pois_discovered"),
+                    totalDistance = rs.getDouble("total_distance"),
+                    totalAchievementPoints = rs.getInt("total_achievement_points"),
+                    score = rs.getDouble("score"),
+                    rank = rs.getInt("rank")
+                )
+            },
+            poiWeight, distanceWeight, achievementWeight,
+            poiWeight, distanceWeight, achievementWeight
+        )
+    }
+
+    /**
+     * Calculates ranking for a user and their accepted friends.
+     *
+     * @param userId ID of the current user
+     * @param poiWeight weight multiplier for discovered POIs
+     * @param distanceWeight weight multiplier for travelled distance
+     * @param achievementWeight weight multiplier for achievement points
+     * @return list of ranking entries for the user and their friends
+     */
+    fun calculateFriendsRanking(
+        userId: UUID,
+        poiWeight: Int,
+        distanceWeight: Double,
+        achievementWeight: Int
+    ): List<RankingEntry> {
+        val sql = """
+            WITH friends AS (
+                SELECT 
+                    CASE 
+                        WHEN f.requester_id = ?::uuid THEN f.addressee_id
+                        ELSE f.requester_id
+                    END AS friend_id
+                FROM friendships f
+                WHERE (f.requester_id = ?::uuid OR f.addressee_id = ?::uuid)
+                  AND f.status = 'ACCEPTED'
+                UNION
+                SELECT ?::uuid AS friend_id
+            ),
+            user_stats AS (
+                SELECT 
+                    u.id AS user_id,
+                    u.username,
+                    u.avatar_url,
+                    COALESCE(u.total_pois_discovered, 0) AS total_pois_discovered,
+                    COALESCE(u.total_distance, 0) AS total_distance,
+                    COALESCE(SUM(a.points), 0) AS total_achievement_points
+                FROM users u
+                INNER JOIN friends f ON u.id = f.friend_id
+                LEFT JOIN user_achievements ua ON u.id = ua.user_id
+                LEFT JOIN achievements a ON ua.achievement_id = a.id
+                WHERE u.is_active = true
+                GROUP BY u.id, u.username, u.avatar_url, u.total_pois_discovered, u.total_distance
+            ),
+            ranked_users AS (
+                SELECT 
+                    user_id,
+                    username,
+                    avatar_url,
+                    total_pois_discovered,
+                    total_distance,
+                    total_achievement_points,
+                    (total_pois_discovered * ?) + 
+                    (total_distance * ?) + 
+                    (total_achievement_points * ?) AS score,
+                    ROW_NUMBER() OVER (ORDER BY 
+                        (total_pois_discovered * ?) + 
+                        (total_distance * ?) + 
+                        (total_achievement_points * ?) DESC
+                    ) AS rank
+                FROM user_stats
+            )
+            SELECT * FROM ranked_users
+            ORDER BY rank
+        """.trimIndent()
+
+        return jdbcTemplate.query(
+            sql,
+            { rs, _ ->
+                RankingEntry(
+                    userId = UUID.fromString(rs.getString("user_id")),
+                    username = rs.getString("username"),
+                    avatarUrl = rs.getString("avatar_url"),
+                    totalPoisDiscovered = rs.getInt("total_pois_discovered"),
+                    totalDistance = rs.getDouble("total_distance"),
+                    totalAchievementPoints = rs.getInt("total_achievement_points"),
+                    score = rs.getDouble("score"),
+                    rank = rs.getInt("rank")
+                )
+            },
+            userId, userId, userId, userId,
+            poiWeight, distanceWeight, achievementWeight,
+            poiWeight, distanceWeight, achievementWeight
+        )
+    }
+
+    /**
+     * Calculates the global rank for a specific user without materialising the entire leaderboard.
+     *
+     * This is optimised to compute only the rank and stats for the requested user,
+     * avoiding the need to load all users into memory.
+     *
+     * @param userId the UUID of the user to find
+     * @param poiWeight weight multiplier for discovered POIs
+     * @param distanceWeight weight multiplier for travelled distance
+     * @param achievementWeight weight multiplier for achievement points
+     * @return the ranking entry for the user, or null if user not found or inactive
+     */
+    fun findGlobalRankForUser(
+        userId: UUID,
+        poiWeight: Int,
+        distanceWeight: Double,
+        achievementWeight: Int
+    ): RankingEntry? {
+        val sql = """
+            WITH user_stats AS (
+                SELECT 
+                    u.id AS user_id,
+                    u.username,
+                    u.avatar_url,
+                    COALESCE(u.total_pois_discovered, 0) AS total_pois_discovered,
+                    COALESCE(u.total_distance, 0) AS total_distance,
+                    COALESCE(SUM(a.points), 0) AS total_achievement_points
+                FROM users u
+                LEFT JOIN user_achievements ua ON u.id = ua.user_id
+                LEFT JOIN achievements a ON ua.achievement_id = a.id
+                WHERE u.is_active = true
+                GROUP BY u.id, u.username, u.avatar_url, u.total_pois_discovered, u.total_distance
+            ),
+            all_scores AS (
+                SELECT 
+                    user_id,
+                    (total_pois_discovered * ?) + 
+                    (total_distance * ?) + 
+                    (total_achievement_points * ?) AS score
+                FROM user_stats
+            ),
+            target_user AS (
+                SELECT 
+                    us.user_id,
+                    us.username,
+                    us.avatar_url,
+                    us.total_pois_discovered,
+                    us.total_distance,
+                    us.total_achievement_points,
+                    (us.total_pois_discovered * ?) + 
+                    (us.total_distance * ?) + 
+                    (us.total_achievement_points * ?) AS score
+                FROM user_stats us
+                WHERE us.user_id = ?::uuid
+            )
+            SELECT 
+                tu.user_id,
+                tu.username,
+                tu.avatar_url,
+                tu.total_pois_discovered,
+                tu.total_distance,
+                tu.total_achievement_points,
+                tu.score,
+                (SELECT COUNT(*) + 1 
+                 FROM all_scores 
+                 WHERE score > tu.score) AS rank
+            FROM target_user tu
+        """.trimIndent()
+
+        val results = jdbcTemplate.query(
+            sql,
+            { rs, _ ->
+                RankingEntry(
+                    userId = UUID.fromString(rs.getString("user_id")),
+                    username = rs.getString("username"),
+                    avatarUrl = rs.getString("avatar_url"),
+                    totalPoisDiscovered = rs.getInt("total_pois_discovered"),
+                    totalDistance = rs.getDouble("total_distance"),
+                    totalAchievementPoints = rs.getInt("total_achievement_points"),
+                    score = rs.getDouble("score"),
+                    rank = rs.getInt("rank")
+                )
+            },
+            poiWeight, distanceWeight, achievementWeight,
+            poiWeight, distanceWeight, achievementWeight,
+            userId
+        )
+
+        return results.firstOrNull()
+    }
+
+    /**
+     * Data class representing a single ranking entry from the database.
+     */
+    data class RankingEntry(
+        val userId: UUID,
+        val username: String,
+        val avatarUrl: String?,
+        val totalPoisDiscovered: Int,
+        val totalDistance: Double,
+        val totalAchievementPoints: Int,
+        val score: Double,
+        val rank: Int
+    )
+}
