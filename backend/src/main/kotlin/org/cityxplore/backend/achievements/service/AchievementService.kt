@@ -72,10 +72,10 @@ class AchievementService(
 
         // Increment user's total achievement points ONLY if this is a new achievement
         if (inserted == 1) {
-            val user = userRepository.findById(userId)
-                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
-            user.totalAchievementPoints = user.totalAchievementPoints + achievement.points
-            userRepository.save(user)
+            val updated = userRepository.incrementAchievementPoints(userId, achievement.points)
+            if (updated == 0) {
+                throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+            }
         }
 
         return AchievementGrantResult(

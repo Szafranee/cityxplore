@@ -18,6 +18,27 @@ import java.math.BigDecimal
 import java.time.LocalDateTime
 import java.util.UUID
 
+/**
+ * Represents a user entity in the system.
+ *
+ * This class is mapped to the `users` database table and includes fields that store
+ * the user's email, username, avatar URL, creation time, last activity time,
+ * total distance travelled, points of interest discovered, achievement points,
+ * and their active status.
+ *
+ * Equality and hash codes are based on the id property.
+ *
+ * @property id The unique identifier of the user. Auto-generated using UUID.
+ * @property email The email address of the user. Must be unique and follow the email format.
+ * @property username The username of the user. Must be unique and between 3 and 50 characters.
+ * @property avatarUrl The URL of the user's avatar image. Optional field.
+ * @property createdAt The timestamp when the user was created. Auto-generated and non-updatable.
+ * @property lastActiveAt The timestamp when the user was last active. Nullable field.
+ * @property totalDistance The cumulative distance travelled by the user. Defaults to 0.
+ * @property totalPoisDiscovered The total number of points of interest discovered by the user. Defaults to 0.
+ * @property isActive Indicates whether the user is active in the system. Defaults to true.
+ * @property totalAchievementPoints The total achievement points accumulated by the user. Defaults to 0.
+ */
 @Entity
 @EntityListeners(AuditingEntityListener::class)
 @Table(name = "users")
@@ -78,5 +99,6 @@ data class User(
 
     override fun toString(): String =
         "${this::class.simpleName}(id=$id, avatarUrl=$avatarUrl, createdAt=$createdAt, " +
-                "lastActiveAt=$lastActiveAt, totalDistance=$totalDistance, totalPoisDiscovered=$totalPoisDiscovered)"
+                "lastActiveAt=$lastActiveAt, totalDistance=$totalDistance, totalPoisDiscovered=$totalPoisDiscovered," +
+                "totalAchievementPoints=$totalAchievementPoints, isActive=$isActive)"
 }

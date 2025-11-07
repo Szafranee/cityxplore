@@ -87,8 +87,9 @@ for VERSION in "${VERSIONS_TO_PROCESS[@]}"; do
   supabase migration new "$DESC" > /dev/null
 
   # Find the newly created migration file (it will be the latest one)
-  LATEST_MIGRATION=$(find "$REPO_ROOT/supabase/migrations" -maxdepth 1 -type f -printf '%T@ %p\n' | sort -n | tail -n 1 | cut -d' ' -f2-)
-  DEST_FILE="$REPO_ROOT/supabase/migrations/$(basename "$LATEST_MIGRATION")"
+  # shellcheck disable=SC2012
+  LATEST_MIGRATION=$(ls -t "$REPO_ROOT/supabase/migrations"/*.sql 2>/dev/null | head -n 1)
+  DEST_FILE="$LATEST_MIGRATION"
 
   # Copy the content from Flyway migration to Supabase migration
   cp "$FILE" "$DEST_FILE"

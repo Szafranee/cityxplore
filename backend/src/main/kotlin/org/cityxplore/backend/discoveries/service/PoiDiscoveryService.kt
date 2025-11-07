@@ -59,10 +59,10 @@ class PoiDiscoveryService(
         }
 
         // Increment user's total POIs discovered counter
-        val user = userRepository.findById(userId)
-            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
-        user.totalPoisDiscovered = user.totalPoisDiscovered + 1
-        userRepository.save(user)
+        val updated = userRepository.incrementPoisDiscovered(userId)
+        if (updated == 0) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+        }
 
         return discovery.toDto()
     }
