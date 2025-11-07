@@ -7,6 +7,7 @@ import org.cityxplore.backend.achievements.mapper.toDto
 import org.cityxplore.backend.achievements.mapper.toUserAchievementDto
 import org.cityxplore.backend.achievements.repository.AchievementRepository
 import org.cityxplore.backend.achievements.repository.UserAchievementRepository
+import org.cityxplore.backend.user.repository.UserRepository
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -18,7 +19,8 @@ import java.util.UUID
 @Service
 class AchievementService(
     private val achievementRepository: AchievementRepository,
-    private val userAchievementRepository: UserAchievementRepository
+    private val userAchievementRepository: UserAchievementRepository,
+    private val userRepository: UserRepository
 ) {
 
     data class AchievementGrantResult(
@@ -39,6 +41,7 @@ class AchievementService(
      *
      * If the user already has the achievement, returns the existing record with created=false.
      * Otherwise, creates it and returns created=true.
+     * After a successful grant (new achievement), increments the user's totalAchievementPoints counter.
      */
     @Transactional
     fun grantAchievement(userId: UUID, achievementId: UUID): AchievementGrantResult {
@@ -66,6 +69,14 @@ class AchievementService(
                 )
 
         val dto = toUserAchievementDto(achievement, userAchievement)
+
+        // Increment user's total achievement points ONLY if this is a new achievement
+        if (inserted == 1) {
+            val updated = userRepository.incrementAchievementPoints(userId, achievement.points)
+            if (updated == 0) {
+                throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+            }
+        }
 
         return AchievementGrantResult(
             dto = dto,
