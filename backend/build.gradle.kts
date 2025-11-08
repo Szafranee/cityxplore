@@ -49,6 +49,8 @@ dependencies {
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.kotlin.test.junit5)
     testImplementation(libs.spring.security.test)
+    testImplementation(libs.mockk)
+    testImplementation(libs.springmockk)
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 
