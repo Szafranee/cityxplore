@@ -19,7 +19,7 @@ import org.springframework.context.annotation.Configuration
 @Configuration
 @ConfigurationProperties(prefix = "app.rankings")
 data class RankingConfig(
-    var poiWeight: Int = 100,
+    var poiWeight: Double = 100.0,
     var distanceWeight: Double = 0.01,
-    var achievementWeight: Int = 1
+    var achievementWeight: Double = 1.0
 )

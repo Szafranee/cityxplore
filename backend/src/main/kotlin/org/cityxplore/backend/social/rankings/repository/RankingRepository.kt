@@ -22,9 +22,9 @@ class RankingRepository(
      * @return list of ranking entries with calculated scores and ranks
      */
     fun calculateGlobalRanking(
-        poiWeight: Int,
+        poiWeight: Double,
         distanceWeight: Double,
-        achievementWeight: Int
+        achievementWeight: Double
     ): List<RankingEntry> {
         val sql = """
             WITH user_stats AS (
@@ -93,9 +93,9 @@ class RankingRepository(
      */
     fun calculateFriendsRanking(
         userId: UUID,
-        poiWeight: Int,
+        poiWeight: Double,
         distanceWeight: Double,
-        achievementWeight: Int
+        achievementWeight: Double
     ): List<RankingEntry> {
         val sql = """
             WITH friends AS (
@@ -181,9 +181,9 @@ class RankingRepository(
      */
     fun findGlobalRankForUser(
         userId: UUID,
-        poiWeight: Int,
+        poiWeight: Double,
         distanceWeight: Double,
-        achievementWeight: Int
+        achievementWeight: Double
     ): RankingEntry? {
         val sql = """
             WITH user_stats AS (

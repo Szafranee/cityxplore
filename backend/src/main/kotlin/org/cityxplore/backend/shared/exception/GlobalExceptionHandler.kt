@@ -4,6 +4,7 @@ import jakarta.validation.ConstraintViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.HttpStatusCode
 import org.springframework.http.ResponseEntity
+import org.springframework.security.authorization.AuthorizationDeniedException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
@@ -101,6 +102,18 @@ class GlobalExceptionHandler {
             error = status.reasonPhrase,
             message = "Validation failed",
             fieldErrors = fieldErrors
+        )
+
+        return ResponseEntity.status(status).body(body)
+    }
+
+    @ExceptionHandler(AuthorizationDeniedException::class)
+    fun handleAuthorizationDenied(ex: AuthorizationDeniedException): ResponseEntity<ApiError> {
+        val status = HttpStatus.FORBIDDEN
+        val body = ApiError(
+            status = status.value(),
+            error = status.reasonPhrase,
+            message = "Access Denied"
         )
 
         return ResponseEntity.status(status).body(body)
