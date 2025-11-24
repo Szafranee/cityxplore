@@ -5,3 +5,9 @@ spring:
 app:
   admin:
     enable-reset: false
+  rankings:
+    # Weights for ranking score calculation
+    # Score = (totalPoisDiscovered * poiWeight) + (totalDistance * distanceWeight) + (totalAchievementPoints * achievementWeight)
+    poi-weight: 100          # 100 points per discovered POI
+    distance-weight: 0.01    # 0.01 points per meter = 10 points per km
+    achievement-weight: 1    # 1 point per achievement point

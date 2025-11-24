@@ -10,6 +10,8 @@ android-minSdk = "24"
 android-targetSdk = "34"
 androidx-activity = "1.9.2"
 androidx-lifecycle = "2.8.6"
+mockk = "1.14.6"
+springmockk = "4.0.2"
 
 [libraries]
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "androidx-activity" }
@@ -25,6 +27,7 @@ flyway-core = { module = "org.flywaydb:flyway-core" }
 jackson-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
 kotlin-test = { group = "org.jetbrains.kotlin", name = "kotlin-test", version.ref = "kotlin" }
 kotlin-test-junit5 = { module = "org.jetbrains.kotlin:kotlin-test-junit5" }
+mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 postgresql = { module = "org.postgresql:postgresql" }
 projectlombok-lombok = { module = "org.projectlombok:lombok" }
 lombok = { module = "org.projectlombok:lombok" }
@@ -38,6 +41,7 @@ spring-boot-starter-validation = { module = "org.springframework.boot:spring-boo
 spring-boot-starter-security = { module = "org.springframework.boot:spring-boot-starter-security" }
 spring-security-oauth2-jose = { module = "org.springframework.security:spring-security-oauth2-jose" }
 spring-security-test = { module = "org.springframework.security:spring-security-test" }
+springmockk = { module = "com.ninja-squad:springmockk", version.ref = "springmockk" }
 
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
