@@ -4,14 +4,6 @@ import java.io.FileInputStream
 import java.util.Properties
 
 
-repositories {
-    google()
-    mavenCentral()
-    maven {
-        url = uri("https://api.mapbox.com/downloads/v2/releases/maven")
-    }
-}
-
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidApplication)
@@ -33,6 +25,7 @@ buildConfig {
 
     buildConfigField("String", "SUPABASE_URL", "\"${localProperties.getProperty("SUPABASE_URL")}\"")
     buildConfigField("String", "SUPABASE_KEY", "\"${localProperties.getProperty("SUPABASE_KEY")}\"")
+    buildConfigField("String", "MAPBOX_PUBLIC_TOKEN", "\"${localProperties.getProperty("MAPBOX_PUBLIC_TOKEN")}\"")
 }
 
 kotlin {
@@ -69,6 +62,7 @@ kotlin {
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
+            implementation(compose.materialIconsExtended)
             implementation(compose.ui)
             implementation(compose.components.resources)
             implementation(compose.components.uiToolingPreview)
@@ -108,8 +102,14 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
-        manifestPlaceholders["MAPBOX_ACCESS_TOKEN"] =
-            "pk.eyJ1Ijoic3phZnJhbjAwIiwiYSI6ImNtZHVseHZleTFkZzYyd3F2MzJtb3o3aDcifQ.DK5csP9I08TVwCsvaDeWDQ"
+
+        val localProperties = Properties()
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            localProperties.load(FileInputStream(localPropertiesFile))
+        }
+        val mapboxToken = localProperties.getProperty("MAPBOX_PUBLIC_TOKEN") ?: ""
+        manifestPlaceholders["MAPBOX_ACCESS_TOKEN"] = mapboxToken
     }
     packaging {
         resources {

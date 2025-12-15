@@ -20,7 +20,11 @@ fun networkModule(): Module = module {
         val supabase = get<SupabaseClient>()
         HttpClient(get<HttpClientEngine>()) {
             install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true })
+                json(Json {
+                    ignoreUnknownKeys = true
+                    coerceInputValues = true
+                    explicitNulls = false
+                })
             }
             install(Logging) {
                 level = LogLevel.BODY

@@ -1,12 +1,17 @@
 package app.cityxplore.presentation
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Map
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.cityxplore.auth.presentation.AuthState
 import app.cityxplore.auth.presentation.AuthViewModel
@@ -116,7 +122,27 @@ fun MainAppContent(onSignOut: () -> Unit) {
                 )
 
                 CityXploreDestination.Friends -> CityXplorePlaceholderScreen("Friends")
-                CityXploreDestination.Profile -> CityXplorePlaceholderScreen("Profile")
+                CityXploreDestination.Profile -> ProfileScreen(onSignOut)
+            }
+        }
+    }
+}
+
+@Composable
+fun ProfileScreen(onSignOut: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "Profile",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = onSignOut,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Sign Out")
             }
         }
     }

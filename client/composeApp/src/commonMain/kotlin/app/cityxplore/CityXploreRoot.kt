@@ -6,6 +6,7 @@ import app.cityxplore.di.locationModule
 import app.cityxplore.di.mapModule
 import app.cityxplore.di.networkModule
 import app.cityxplore.di.providePlatformEngine
+import app.cityxplore.platform.HandleDeepLinks
 import app.cityxplore.presentation.CityXploreApp
 import org.koin.compose.KoinApplication
 import org.koin.core.KoinApplication
@@ -24,6 +25,7 @@ fun CityXploreRoot(
             locationModule
         )
     }) {
+        HandleDeepLinks()
         CityXploreApp()
     }
 }

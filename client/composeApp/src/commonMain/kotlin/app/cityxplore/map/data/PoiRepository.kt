@@ -19,8 +19,9 @@ class NetworkPoiRepository(
     private val client: HttpClient
 ) : PoiRepository {
     override suspend fun fetchPois(): Result<List<PoiModel>> = runCatching {
-        client.get("https://api.cityxplore.app/api/pois").body<List<PoiDto>>().map(PoiDto::toDomain)
+        client.get("https://api.cityxplore.app/api/pois").body<List<PoiDto>>().mapNotNull(PoiDto::toDomain)
     }
+// ...existing code...
 
     override suspend fun discoverPoi(id: String): Result<Unit> = runCatching {
         client.post("https://api.cityxplore.app/api/pois/$id/discover") {

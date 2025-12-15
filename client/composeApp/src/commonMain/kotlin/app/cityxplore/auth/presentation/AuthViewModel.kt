@@ -21,15 +21,18 @@ class AuthViewModel(
     val state = _state.asStateFlow()
 
     init {
-        checkSession()
+        observeAuthState()
     }
 
-    private fun checkSession() {
+    private fun observeAuthState() {
         scope.launch {
-            if (repository.isAuthenticated()) {
-                _state.value = AuthState.Authenticated
-            } else {
-                _state.value = AuthState.Unauthenticated
+            repository.authState.collect { isAuthenticated ->
+                if (isAuthenticated) {
+                    println("AuthViewModel: User is authenticated, navigating to Map.")
+                    _state.value = AuthState.Authenticated
+                } else {
+                    _state.value = AuthState.Unauthenticated
+                }
             }
         }
     }
@@ -39,7 +42,10 @@ class AuthViewModel(
             _state.value = AuthState.Loading
             repository.signIn(email, pass)
                 .onSuccess { _state.value = AuthState.Authenticated }
-                .onFailure { _state.value = AuthState.Error(it.message ?: "Login failed") }
+                .onFailure { error ->
+                    val message = parseAuthError(error)
+                    _state.value = AuthState.Error(message)
+                }
         }
     }
 
@@ -53,7 +59,10 @@ class AuthViewModel(
                     // Supabase default is confirm email.
                     _state.value = AuthState.Error("Check your email to confirm account")
                 }
-                .onFailure { _state.value = AuthState.Error(it.message ?: "Registration failed") }
+                .onFailure { error ->
+                    val message = parseAuthError(error)
+                    _state.value = AuthState.Error(message)
+                }
         }
     }
 
@@ -61,8 +70,37 @@ class AuthViewModel(
         scope.launch {
             _state.value = AuthState.Loading
             repository.signInWith(provider)
-                .onSuccess { _state.value = AuthState.Authenticated }
-                .onFailure { _state.value = AuthState.Error(it.message ?: "Social login failed") }
+                .onSuccess {
+                    // Do not set Authenticated here. OAuth flow continues in browser.
+                    // The app will receive a deep link, which Supabase handles.
+                    // We should listen to session changes to detect when login completes.
+                    println("Social login initiated for $provider")
+                }
+                .onFailure { error ->
+                    val message = parseAuthError(error)
+                    _state.value = AuthState.Error(message)
+                }
+        }
+    }
+
+    private fun parseAuthError(error: Throwable): String {
+        val msg = error.message ?: return "An unknown error occurred"
+        println("Auth Error: $msg") // Log error for debugging
+        return when {
+            msg.contains("invalid_grant", ignoreCase = true) || msg.contains(
+                "Invalid login credentials",
+                ignoreCase = true
+            ) -> "Invalid email or password."
+
+            msg.contains("user_already_exists", ignoreCase = true) -> "User already exists."
+            msg.contains("placeholder.supabase.co", ignoreCase = true) -> "Invalid Supabase URL configuration."
+            msg.contains("hostname", ignoreCase = true) || msg.contains(
+                "ConnectException",
+                ignoreCase = true
+            ) -> "Network error. Check your connection."
+
+            msg.contains("timeout", ignoreCase = true) -> "Request timed out. Please try again."
+            else -> "Authentication failed: $msg"
         }
     }
 

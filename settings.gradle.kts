@@ -26,6 +26,7 @@ dependencyResolutionManagement {
                 includeGroupAndSubgroups("androidx")
                 includeGroupAndSubgroups("com.android")
                 includeGroupAndSubgroups("com.google")
+                includeGroup("org.chromium.net")
             }
         }
         mavenCentral()
@@ -36,7 +37,17 @@ dependencyResolutionManagement {
                 username = "mapbox"
                 // Fetch token: first from ENV, then from Gradle properties (set in ~/.gradle/gradle.properties or local.properties), never store real token in repo.
                 password = System.getenv("MAPBOX_DOWNLOADS_TOKEN")
-                    ?: (providers.gradleProperty("MAPBOX_DOWNLOADS_TOKEN").orNull ?: "")
+                    ?: (providers.gradleProperty("MAPBOX_DOWNLOADS_TOKEN").orNull)
+                            ?: run {
+                        val localProps = java.util.Properties()
+                        val localFile = rootDir.resolve("local.properties")
+                        if (localFile.exists()) {
+                            localProps.load(java.io.FileInputStream(localFile))
+                            localProps.getProperty("MAPBOX_DOWNLOADS_TOKEN")
+                        } else {
+                            null
+                        }
+                    } ?: ""
             }
         }
     }

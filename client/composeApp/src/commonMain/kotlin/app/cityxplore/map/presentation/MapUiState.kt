@@ -17,4 +17,5 @@ sealed interface MapAction {
     data object Refresh : MapAction
     data object ToggleFollowUser : MapAction
     data class SelectPoi(val poiId: String) : MapAction
+    data object PermissionGranted : MapAction
 }

@@ -22,7 +22,6 @@ class MapViewModel(
 
     init {
         refreshPois()
-        observeLocation()
     }
 
     private fun observeLocation() {
@@ -67,22 +66,29 @@ class MapViewModel(
             MapAction.Refresh -> refreshPois()
             is MapAction.SelectPoi -> selectPoi(action.poiId)
             MapAction.ToggleFollowUser -> toggleFollowState()
+            MapAction.PermissionGranted -> observeLocation()
         }
     }
 
     private fun refreshPois() {
         scope.launch(cityXploreDispatchers.io) {
+            println("MapViewModel: Refreshing POIs...")
             _state.value = MapUiState.Loading
             val result = repository.fetchPois()
             _state.value = result.fold(
                 onSuccess = { pois ->
+                    println("MapViewModel: POIs fetched successfully: ${pois.size}")
                     MapUiState.Ready(
                         pois = pois.map(PoiModel::toMapPoi),
                         isFollowingUser = true,
                         selectedPoi = null
                     )
                 },
-                onFailure = { MapUiState.Error(it.message ?: "Unable to load POIs") }
+                onFailure = {
+                    println("MapViewModel: Failed to fetch POIs: ${it.message}")
+                    it.printStackTrace()
+                    MapUiState.Error(it.message ?: "Unable to load POIs")
+                }
             )
         }
     }

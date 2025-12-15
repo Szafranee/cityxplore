@@ -8,11 +8,31 @@ import io.github.jan.supabase.auth.providers.Discord
 import io.github.jan.supabase.auth.providers.Facebook
 import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.auth.status.SessionStatus
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 class AuthRepositoryImpl(
     client: SupabaseClient
 ) : AuthRepository {
     private val auth = client.auth
+
+    override val authState: Flow<Boolean> = auth.sessionStatus.map {
+        it is SessionStatus.Authenticated
+    }
+
+    override suspend fun signInWith(provider: SocialProvider): Result<Unit> {
+        return try {
+            when (provider) {
+                SocialProvider.GOOGLE -> auth.signInWith(Google)
+                SocialProvider.FACEBOOK -> auth.signInWith(Facebook)
+                SocialProvider.DISCORD -> auth.signInWith(Discord)
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
     override suspend fun signUp(email: String, password: String): Result<Unit> {
         return try {
@@ -32,20 +52,6 @@ class AuthRepositoryImpl(
                 this.email = email
                 this.password = password
             }
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    override suspend fun signInWith(provider: SocialProvider): Result<Unit> {
-        return try {
-            val supabaseProvider = when (provider) {
-                SocialProvider.GOOGLE -> Google
-                SocialProvider.FACEBOOK -> Facebook
-                SocialProvider.DISCORD -> Discord
-            }
-            auth.signInWith(supabaseProvider)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

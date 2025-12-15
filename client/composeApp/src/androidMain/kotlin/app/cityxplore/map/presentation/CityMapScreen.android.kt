@@ -1,10 +1,13 @@
 package app.cityxplore.map.presentation
 
 import android.annotation.SuppressLint
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -15,6 +18,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -86,7 +90,41 @@ private fun ReadyMap(
     onProfileClick: () -> Unit,
 ) {
     val context = LocalContext.current
+
+    // Check for Mapbox token
+    val appInfo = remember {
+        context.packageManager.getApplicationInfo(context.packageName, PackageManager.GET_META_DATA)
+    }
+    val mapboxToken = remember {
+        appInfo.metaData?.getString("com.mapbox.token")
+    }
+
+    if (mapboxToken.isNullOrBlank() || mapboxToken == "null") {
+        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Mapbox Token is missing! Check local.properties.")
+        }
+        return
+    }
+
     rememberCoroutineScope()
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val isGranted = permissions.values.all { it }
+        if (isGranted) {
+            onAction(MapAction.PermissionGranted)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        permissionLauncher.launch(
+            arrayOf(
+                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
+    }
 
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
     val lastLocation = remember { mutableStateOf<Point?>(null) }
@@ -180,35 +218,44 @@ private fun ReadyMap(
     Box(modifier = modifier.fillMaxSize()) {
         AndroidView(
             factory = { context ->
-                MapView(context).apply {
-                    mapViewRef.value = this
-                    // Load style - using standard street style for now
-                    mapboxMap.loadStyle("mapbox://styles/mapbox/streets-v12")
+                try {
+                    MapView(context).apply {
+                        mapViewRef.value = this
+                        // Load style - using custom style
+                        mapboxMap.loadStyle("mapbox://styles/szafran00/cmdusan3600d001pj4eri2fl1")
 
-                    location.addOnIndicatorPositionChangedListener(positionListener)
+                        location.addOnIndicatorPositionChangedListener(positionListener)
 
-                    mapboxMap.addOnMapClickListener {
-                        if (isFollowingUser.value) {
-                            isFollowingUser.value = false
-                            onAction(MapAction.ToggleFollowUser)
+                        mapboxMap.addOnMapClickListener {
+                            if (isFollowingUser.value) {
+                                isFollowingUser.value = false
+                                onAction(MapAction.ToggleFollowUser)
+                            }
+                            true
                         }
-                        true
+
+                        gestures.addOnMoveListener(onMoveListener)
+
+                        compass.updateSettings { enabled = true }
+                        scalebar.updateSettings { enabled = true }
+                        gestures.updateSettings {
+                            scrollEnabled = true
+                            rotateEnabled = true
+                            pitchEnabled = true
+                            pinchScrollEnabled = true
+                        }
+
+                        location.updateSettings {
+                            enabled = true
+                            pulsingEnabled = true
+                        }
                     }
-
-                    gestures.addOnMoveListener(onMoveListener)
-
-                    compass.updateSettings { enabled = true }
-                    scalebar.updateSettings { enabled = true }
-                    gestures.updateSettings {
-                        scrollEnabled = true
-                        rotateEnabled = true
-                        pitchEnabled = true
-                        pinchScrollEnabled = true
-                    }
-
-                    location.updateSettings {
-                        enabled = true
-                        pulsingEnabled = true
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    android.widget.TextView(context).apply {
+                        text = "Error initializing map: ${e.message}"
+                        setTextColor(android.graphics.Color.RED)
+                        gravity = android.view.Gravity.CENTER
                     }
                 }
             },
@@ -230,6 +277,7 @@ private fun ReadyMap(
                     }
                 }
             },
+            containerColor = AppColors.green,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
