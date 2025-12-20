@@ -120,6 +120,8 @@ class UserServiceTest {
             username = request.username,
             avatarUrl = request.avatarUrl
         )
+        every { userRepository.findByEmail(request.email) } returns null
+        every { userRepository.findByUsername(request.username) } returns null
         every { userRepository.save(any()) } returns savedUser
 
         // when
@@ -147,6 +149,8 @@ class UserServiceTest {
             username = request.username,
             avatarUrl = null
         )
+        every { userRepository.findByEmail(request.email) } returns null
+        every { userRepository.findByUsername(request.username) } returns null
         every { userRepository.save(any()) } returns savedUser
 
         // when
@@ -170,6 +174,8 @@ class UserServiceTest {
             email = request.email,
             username = request.username
         )
+        every { userRepository.findByEmail(request.email) } returns null
+        every { userRepository.findByUsername(request.username) } returns null
         every { userRepository.save(any()) } returns savedUser
 
         // when

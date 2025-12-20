@@ -20,6 +20,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.security.test.context.support.WithMockUser
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
@@ -131,7 +132,6 @@ class UserControllerTest {
     }
 
     @Test
-    @WithMockUser
     fun `createUser should create user and return 201 with Location header`() {
         // given
         val request = UserCreateRequest(
@@ -146,11 +146,12 @@ class UserControllerTest {
             username = request.username,
             avatarUrl = request.avatarUrl
         )
-        every { userService.create(any()) } returns createdUser
+        every { userService.create(any(), any()) } returns createdUser
 
         // when & then
         mockMvc.perform(
             post("/api/users")
+                .with(jwt().jwt { it.claim("sub", UUID.randomUUID().toString()) })
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
@@ -162,11 +163,10 @@ class UserControllerTest {
             .andExpect(jsonPath("$.email").value("new@example.com"))
             .andExpect(jsonPath("$.username").value("newuser"))
 
-        verify(exactly = 1) { userService.create(any()) }
+        verify(exactly = 1) { userService.create(any(), any()) }
     }
 
     @Test
-    @WithMockUser
     fun `createUser should return 400 when email is invalid`() {
         // given
         val request = mapOf(
@@ -177,17 +177,17 @@ class UserControllerTest {
         // when & then
         mockMvc.perform(
             post("/api/users")
+                .with(jwt().jwt { it.claim("sub", UUID.randomUUID().toString()) })
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )
             .andExpect(status().isBadRequest)
 
-        verify(exactly = 0) { userService.create(any()) }
+        verify(exactly = 0) { userService.create(any(), any()) }
     }
 
     @Test
-    @WithMockUser
     fun `createUser should return 400 when email is blank`() {
         // given
         val request = mapOf(
@@ -198,17 +198,17 @@ class UserControllerTest {
         // when & then
         mockMvc.perform(
             post("/api/users")
+                .with(jwt().jwt { it.claim("sub", UUID.randomUUID().toString()) })
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )
             .andExpect(status().isBadRequest)
 
-        verify(exactly = 0) { userService.create(any()) }
+        verify(exactly = 0) { userService.create(any(), any()) }
     }
 
     @Test
-    @WithMockUser
     fun `createUser should return 400 when username is blank`() {
         // given
         val request = mapOf(
@@ -219,17 +219,17 @@ class UserControllerTest {
         // when & then
         mockMvc.perform(
             post("/api/users")
+                .with(jwt().jwt { it.claim("sub", UUID.randomUUID().toString()) })
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )
             .andExpect(status().isBadRequest)
 
-        verify(exactly = 0) { userService.create(any()) }
+        verify(exactly = 0) { userService.create(any(), any()) }
     }
 
     @Test
-    @WithMockUser
     fun `createUser should accept null avatarUrl`() {
         // given
         val request = UserCreateRequest(
@@ -244,11 +244,12 @@ class UserControllerTest {
             username = request.username,
             avatarUrl = null
         )
-        every { userService.create(any()) } returns createdUser
+        every { userService.create(any(), any()) } returns createdUser
 
         // when & then
         mockMvc.perform(
             post("/api/users")
+                .with(jwt().jwt { it.claim("sub", UUID.randomUUID().toString()) })
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
@@ -256,11 +257,10 @@ class UserControllerTest {
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.avatarUrl").doesNotExist())
 
-        verify(exactly = 1) { userService.create(any()) }
+        verify(exactly = 1) { userService.create(any(), any()) }
     }
 
     @Test
-    @WithMockUser
     fun `createUser should return 400 when email exceeds max length`() {
         // given
         val longEmail = "a".repeat(300) + "@example.com"
@@ -272,17 +272,17 @@ class UserControllerTest {
         // when & then
         mockMvc.perform(
             post("/api/users")
+                .with(jwt().jwt { it.claim("sub", UUID.randomUUID().toString()) })
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )
             .andExpect(status().isBadRequest)
 
-        verify(exactly = 0) { userService.create(any()) }
+        verify(exactly = 0) { userService.create(any(), any()) }
     }
 
     @Test
-    @WithMockUser
     fun `createUser should return 400 when username exceeds max length`() {
         // given
         val longUsername = "a".repeat(201)
@@ -294,13 +294,14 @@ class UserControllerTest {
         // when & then
         mockMvc.perform(
             post("/api/users")
+                .with(jwt().jwt { it.claim("sub", UUID.randomUUID().toString()) })
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )
             .andExpect(status().isBadRequest)
 
-        verify(exactly = 0) { userService.create(any()) }
+        verify(exactly = 0) { userService.create(any(), any()) }
     }
 
     private fun createUserResponse(
