@@ -8,10 +8,11 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.createSupabaseClient
+import io.github.jan.supabase.postgrest.Postgrest
 import org.koin.dsl.module
 
 val authModule = module {
-    single<AuthRepository> { AuthRepositoryImpl(get()) }
+    single<AuthRepository> { AuthRepositoryImpl(get(), get()) }
     factory { AuthViewModel(get()) }
     single {
         val url = BuildConfig.SUPABASE_URL
@@ -25,7 +26,11 @@ val authModule = module {
             supabaseUrl = url,
             supabaseKey = key
         ) {
-            install(Auth)
+            install(Auth) {
+                scheme = "app.cityxplore"
+                host = "login"
+            }
+            install(Postgrest)
         }
     }
     single { get<SupabaseClient>().auth }

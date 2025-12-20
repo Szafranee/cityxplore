@@ -19,6 +19,7 @@ fun networkModule(): Module = module {
     single {
         val supabase = get<SupabaseClient>()
         HttpClient(get<HttpClientEngine>()) {
+            expectSuccess = true
             install(ContentNegotiation) {
                 json(Json {
                     ignoreUnknownKeys = true

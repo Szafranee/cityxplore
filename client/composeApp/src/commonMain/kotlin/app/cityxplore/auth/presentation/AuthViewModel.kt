@@ -11,6 +11,7 @@ sealed interface AuthState {
     data object Loading : AuthState
     data object Authenticated : AuthState
     data object Unauthenticated : AuthState
+    data object Onboarding : AuthState
     data class Error(val message: String) : AuthState
 }
 
@@ -28,8 +29,14 @@ class AuthViewModel(
         scope.launch {
             repository.authState.collect { isAuthenticated ->
                 if (isAuthenticated) {
-                    println("AuthViewModel: User is authenticated, navigating to Map.")
-                    _state.value = AuthState.Authenticated
+                    println("AuthViewModel: User is authenticated, checking profile...")
+                    if (repository.hasProfile()) {
+                        println("AuthViewModel: Profile found, navigating to Map.")
+                        _state.value = AuthState.Authenticated
+                    } else {
+                        println("AuthViewModel: No profile found, navigating to Onboarding.")
+                        _state.value = AuthState.Onboarding
+                    }
                 } else {
                     _state.value = AuthState.Unauthenticated
                 }
@@ -37,11 +44,18 @@ class AuthViewModel(
         }
     }
 
-    fun signIn(email: String, pass: String) {
+    fun signIn(login: String, pass: String) {
         scope.launch {
             _state.value = AuthState.Loading
+            val email = repository.resolveEmail(login)
+            if (email == null) {
+                _state.value = AuthState.Error("Could not find account with that username.")
+                return@launch
+            }
             repository.signIn(email, pass)
-                .onSuccess { _state.value = AuthState.Authenticated }
+                .onSuccess {
+                    // State update handled by observeAuthState
+                }
                 .onFailure { error ->
                     val message = parseAuthError(error)
                     _state.value = AuthState.Error(message)
@@ -54,10 +68,14 @@ class AuthViewModel(
             _state.value = AuthState.Loading
             repository.signUp(email, pass)
                 .onSuccess {
-                    // Usually sign up logs you in, or requires email verification.
-                    // For now assume it logs in or we ask to log in.
-                    // Supabase default is confirm email.
-                    _state.value = AuthState.Error("Check your email to confirm account")
+                    // If "Allow Unverified Logins" is on, we might be logged in.
+                    // If not, we need to tell user to check email.
+                    // We can check if we are authenticated.
+                    if (repository.isAuthenticated()) {
+                        // observeAuthState will handle it
+                    } else {
+                        _state.value = AuthState.Error("Check your email to confirm account")
+                    }
                 }
                 .onFailure { error ->
                     val message = parseAuthError(error)
@@ -108,6 +126,18 @@ class AuthViewModel(
         scope.launch {
             repository.signOut()
             _state.value = AuthState.Unauthenticated
+        }
+    }
+
+    fun refreshProfileCheck() {
+        scope.launch {
+            if (repository.isAuthenticated()) {
+                if (repository.hasProfile()) {
+                    _state.value = AuthState.Authenticated
+                } else {
+                    _state.value = AuthState.Onboarding
+                }
+            }
         }
     }
 

@@ -79,9 +79,11 @@ kotlin {
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.supabase.gotrue)
+            implementation(libs.supabase.postgrest)
             implementation(libs.supabase.compose.auth)
             implementation(libs.supabase.compose.auth.ui)
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kamel.image)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

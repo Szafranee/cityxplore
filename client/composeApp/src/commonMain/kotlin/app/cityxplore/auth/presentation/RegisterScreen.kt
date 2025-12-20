@@ -120,7 +120,6 @@ fun RegisterScreen(
                 label = { Text("Email") },
                 leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
                 isError = emailError,
-                supportingText = { if (emailError) Text("Invalid email") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(

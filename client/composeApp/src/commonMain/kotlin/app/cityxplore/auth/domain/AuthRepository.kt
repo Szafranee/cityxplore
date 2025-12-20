@@ -11,4 +11,6 @@ interface AuthRepository {
     suspend fun signInWith(provider: SocialProvider): Result<Unit>
     suspend fun signOut(): Result<Unit>
     suspend fun isAuthenticated(): Boolean
+    suspend fun resolveEmail(login: String): String?
+    suspend fun hasProfile(): Boolean
 }

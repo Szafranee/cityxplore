@@ -55,7 +55,7 @@ fun LoginScreen(
     var passwordError by remember { mutableStateOf(false) }
 
     fun validateAndLogin() {
-        val isEmailValid = email.isNotBlank() && email.contains("@")
+        val isEmailValid = email.isNotBlank() // Allow username login, so just check not blank
         val isPasswordValid = password.length >= 6
 
         emailError = !isEmailValid
@@ -116,19 +116,16 @@ fun LoginScreen(
                 value = email,
                 onValueChange = {
                     email = it
-                    if (emailError) emailError = false
+                    emailError = false
+                    onClearError()
                 },
-                label = { Text("Email") },
+                label = { Text("Email or Username") },
                 leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
                 isError = emailError,
-                supportingText = { if (emailError) Text("Invalid email") },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                    focusedLabelColor = MaterialTheme.colorScheme.primary,
-                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
                 )
             )
 

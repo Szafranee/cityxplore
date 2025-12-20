@@ -5,6 +5,7 @@ import app.cityxplore.di.authModule
 import app.cityxplore.di.locationModule
 import app.cityxplore.di.mapModule
 import app.cityxplore.di.networkModule
+import app.cityxplore.di.profileModule
 import app.cityxplore.di.providePlatformEngine
 import app.cityxplore.platform.HandleDeepLinks
 import app.cityxplore.presentation.CityXploreApp
@@ -22,7 +23,8 @@ fun CityXploreRoot(
             authModule,
             networkModule(),
             mapModule,
-            locationModule
+            locationModule,
+            profileModule
         )
     }) {
         HandleDeepLinks()

@@ -38,6 +38,7 @@ import app.cityxplore.auth.presentation.LoginScreen
 import app.cityxplore.auth.presentation.RegisterScreen
 import app.cityxplore.map.presentation.CityXploreMapScreen
 import app.cityxplore.map.presentation.MapViewModel
+import app.cityxplore.profile.presentation.OnboardingScreen
 import app.cityxplore.theme.AppColors
 import app.cityxplore.theme.CityXplorePalette
 import app.cityxplore.theme.CityXploreTheme
@@ -48,6 +49,7 @@ private enum class AuthScreen { Login, Register }
 
 @Composable
 fun CityXploreApp() {
+
     CityXploreTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
@@ -63,6 +65,13 @@ fun CityXploreApp() {
                 ) { CircularProgressIndicator() }
 
                 AuthState.Authenticated -> MainAppContent(onSignOut = authViewModel::signOut)
+                AuthState.Onboarding -> OnboardingScreen(
+                    onProfileCreated = {
+                        authViewModel.refreshProfileCheck()
+                    },
+                    onSignOut = authViewModel::signOut
+                )
+
                 AuthState.Unauthenticated, is AuthState.Error -> AuthFlow(state, authViewModel)
             }
         }

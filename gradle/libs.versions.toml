@@ -3,12 +3,12 @@ hibernateCoreVersion = "6.6.29.Final"
 hibernateSpatialVersion = "6.6.29.Final"
 hypersistenceUtilsHibernateX3 = "3.13.3"
 kotlin = "2.2.21"
-agp = "8.10.1"
+agp = "8.12.3"
 compose = "1.9.3"
 android-compileSdk = "36"
 android-minSdk = "24"
 android-targetSdk = "36"
-androidx-activity = "1.12.1"
+androidx-activity = "1.12.2"
 kotlinxCoroutines = "1.10.2"
 kotlinxDatetime = "0.7.1"
 kotlinxSerializationJson = "1.9.0"
@@ -30,8 +30,10 @@ ktorSerializationJson = "3.3.3"
 supabase = "3.2.6"
 playServicesLocation = "21.3.0"
 mapboxMaps = "11.14.0"
+kamel = "1.0.8"
 
 [libraries]
+kamel-image = { module = "media.kamel:kamel-image", version.ref = "kamel" }
 mapbox-maps-android = { module = "com.mapbox.maps:android", version.ref = "mapboxMaps" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "androidx-activity" }
 androidx-lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycleViewmodel" }
@@ -78,6 +80,7 @@ koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
 koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
 koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
 supabase-gotrue = { module = "io.github.jan-tennert.supabase:auth-kt", version.ref = "supabase" }
+supabase-postgrest = { module = "io.github.jan-tennert.supabase:postgrest-kt", version.ref = "supabase" }
 supabase-compose-auth = { module = "io.github.jan-tennert.supabase:compose-auth", version.ref = "supabase" }
 supabase-compose-auth-ui = { module = "io.github.jan-tennert.supabase:compose-auth-ui", version.ref = "supabase" }
 play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "playServicesLocation" }
