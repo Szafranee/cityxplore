@@ -18,7 +18,8 @@ fun User.toUserResponse(): UserResponse = UserResponse(
 
 fun List<User>.toUserResponseList(): List<UserResponse> = this.map { it.toUserResponse() }
 
-fun UserCreateRequest.toEntity(): User = User(
+fun UserCreateRequest.toEntity(id: java.util.UUID? = null): User = User(
+    id = id,
     email = this.email,
     username = this.username,
     avatarUrl = this.avatarUrl

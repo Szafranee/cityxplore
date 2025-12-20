@@ -6,6 +6,7 @@ import org.cityxplore.backend.user.mapper.toEntity
 import org.cityxplore.backend.user.mapper.toUserResponse
 import org.cityxplore.backend.user.mapper.toUserResponseList
 import org.cityxplore.backend.user.repository.UserRepository
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -56,6 +57,11 @@ class UserService(
      *         last active timestamp, total distance traveled, and total Points of Interest (POIs) discovered.
      */
     @Transactional
-    fun create(userCreateRequest: UserCreateRequest): UserResponse =
-        userRepository.save(userCreateRequest.toEntity()).toUserResponse()
+    fun create(userCreateRequest: UserCreateRequest, id: UUID? = null): UserResponse {
+        return try {
+            userRepository.save(userCreateRequest.toEntity(id)).toUserResponse()
+        } catch (_: DataIntegrityViolationException) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "User already exists or username taken")
+        }
+    }
 }
