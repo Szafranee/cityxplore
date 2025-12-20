@@ -20,6 +20,14 @@ interface UserRepository : JpaRepository<User, UUID> {
     fun findByUsername(username: String): User?
 
     /**
+     * Retrieves a User entity by its email.
+     *
+     * @param email the email of the user to be retrieved
+     * @return the User entity if found, or null if no user exists with the given email
+     */
+    fun findByEmail(email: String): User?
+
+    /**
      * Counts the number of users with an active status in the system.
      *
      * @return the number of users where the isActive field is true

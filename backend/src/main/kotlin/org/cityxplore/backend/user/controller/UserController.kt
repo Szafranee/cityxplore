@@ -1,10 +1,13 @@
 package org.cityxplore.backend.user.controller
 
 import jakarta.validation.Valid
+import org.cityxplore.backend.shared.security.JwtUtils
 import org.cityxplore.backend.user.dto.UserCreateRequest
 import org.cityxplore.backend.user.dto.UserResponse
 import org.cityxplore.backend.user.service.UserService
 import org.springframework.http.ResponseEntity
+import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -49,8 +52,12 @@ class UserController(private val userService: UserService) {
      * @return the created user entity
      */
     @PostMapping
-    fun createUser(@Valid @RequestBody user: UserCreateRequest): ResponseEntity<UserResponse> {
-        val created = userService.create(user)
+    fun createUser(
+        @AuthenticationPrincipal jwt: Jwt,
+        @Valid @RequestBody user: UserCreateRequest
+    ): ResponseEntity<UserResponse> {
+        val userId = JwtUtils.extractUserId(jwt)
+        val created = userService.create(user, userId)
         val location = ServletUriComponentsBuilder
             .fromCurrentRequest()
             .path("/{id}")
