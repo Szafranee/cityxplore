@@ -54,10 +54,24 @@ class UserService(
      *                including email, username, and optional avatar URL.
      * @return A `UserResponse` representing the created user, containing details
      *         such as the user ID, email, username, avatar URL, creation timestamp,
-     *         last active timestamp, total distance traveled, and total Points of Interest (POIs) discovered.
+     *         last active timestamp, total distance travelled, and total Points of Interest (POIs) discovered.
      */
     @Transactional
     fun create(userCreateRequest: UserCreateRequest, id: UUID? = null): UserResponse {
+        val existing = userRepository.findByEmail(userCreateRequest.email)
+        if (existing != null) {
+            if (id != null && existing.id != id) {
+                userRepository.delete(existing)
+                userRepository.flush()
+            } else {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "User with this email already exists")
+            }
+        }
+
+        if (userRepository.findByUsername(userCreateRequest.username) != null) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "Username is already taken")
+        }
+
         return try {
             userRepository.save(userCreateRequest.toEntity(id)).toUserResponse()
         } catch (_: DataIntegrityViolationException) {
