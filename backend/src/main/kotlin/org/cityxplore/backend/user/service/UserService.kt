@@ -58,12 +58,6 @@ class UserService(
      */
     @Transactional
     fun create(userCreateRequest: UserCreateRequest, id: UUID? = null): UserResponse {
-        if (userRepository.findByEmail(userCreateRequest.email) != null) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "User with this email already exists")
-        }
-        if (userRepository.findByUsername(userCreateRequest.username) != null) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "Username is already taken")
-        }
         return try {
             userRepository.save(userCreateRequest.toEntity(id)).toUserResponse()
         } catch (_: DataIntegrityViolationException) {
