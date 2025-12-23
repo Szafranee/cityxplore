@@ -1,9 +1,11 @@
 package app.cityxplore.profile.data
 
 import app.cityxplore.profile.domain.ProfileRepository
+import app.cityxplore.profile.domain.UserProfile
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.ktor.client.HttpClient
+import io.ktor.client.call.body
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.ServerResponseException
 import io.ktor.client.request.get
@@ -63,9 +65,19 @@ class ProfileRepositoryImpl(
                             username = username,
                             avatarUrl = avatarUrl
                         )
-                        client.patch("https://api.cityxplore.app/api/users/me") {
-                            header(HttpHeaders.ContentType, ContentType.Application.Json)
-                            setBody(updateRequest)
+                        try {
+                            client.patch("https://api.cityxplore.app/api/users/me") {
+                                header(HttpHeaders.ContentType, ContentType.Application.Json)
+                                setBody(updateRequest)
+                            }
+                        } catch (patchError: ClientRequestException) {
+                            if (patchError.response.status == HttpStatusCode.NotFound) {
+                                throw IllegalStateException(
+                                    "Account conflict: Email exists but ID mismatch. Please contact support to reset your account.",
+                                    patchError
+                                )
+                            }
+                            throw patchError
                         }
                     } else {
                         throw e
@@ -80,9 +92,19 @@ class ProfileRepositoryImpl(
                             username = username,
                             avatarUrl = avatarUrl
                         )
-                        client.patch("https://api.cityxplore.app/api/users/me") {
-                            header(HttpHeaders.ContentType, ContentType.Application.Json)
-                            setBody(updateRequest)
+                        try {
+                            client.patch("https://api.cityxplore.app/api/users/me") {
+                                header(HttpHeaders.ContentType, ContentType.Application.Json)
+                                setBody(updateRequest)
+                            }
+                        } catch (patchError: ClientRequestException) {
+                            if (patchError.response.status == HttpStatusCode.NotFound) {
+                                throw IllegalStateException(
+                                    "Account conflict: Email exists but ID mismatch. Please contact support to reset your account.",
+                                    patchError
+                                )
+                            }
+                            throw patchError
                         }
                     } else {
                         throw e
@@ -90,6 +112,12 @@ class ProfileRepositoryImpl(
                 }
             }
         }.map { }
+    }
+
+    override suspend fun getProfile(): Result<UserProfile> {
+        return runCatching {
+            client.get("https://api.cityxplore.app/api/users/me").body()
+        }
     }
 }
 

@@ -3,6 +3,7 @@ package app.cityxplore.auth.presentation
 import app.cityxplore.auth.domain.AuthRepository
 import app.cityxplore.auth.domain.SocialProvider
 import app.cityxplore.platform.CityXploreBaseViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -29,6 +30,8 @@ class AuthViewModel(
         scope.launch {
             repository.authState.collect { isAuthenticated ->
                 if (isAuthenticated) {
+                    // Small delay to ensure session is fully established and token is available for HttpClient
+                    delay(500)
                     println("AuthViewModel: User is authenticated, checking profile...")
                     if (repository.hasProfile()) {
                         println("AuthViewModel: Profile found, navigating to Map.")

@@ -13,11 +13,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -35,8 +32,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import io.kamel.image.KamelImage
-import io.kamel.image.asyncPainterResource
+import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import org.koin.compose.koinInject
 
 @Composable
@@ -116,13 +115,18 @@ fun OnboardingScreen(
                         .clickable { selectedAvatar = avatar },
                     contentAlignment = Alignment.Center
                 ) {
-                    KamelImage(
-                        resource = { asyncPainterResource(avatar) },
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalPlatformContext.current)
+                            .data(avatar)
+                            .crossfade(true)
+                            .build(),
                         contentDescription = "Avatar",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop,
-                        onLoading = { CircularProgressIndicator(modifier = Modifier.size(20.dp)) },
-                        onFailure = { Icon(Icons.Default.Error, "Error") }
+                        onError = { state ->
+                            println("Coil Error loading $avatar: ${state.result.throwable.message}")
+                            state.result.throwable.printStackTrace()
+                        }
                     )
                 }
             }

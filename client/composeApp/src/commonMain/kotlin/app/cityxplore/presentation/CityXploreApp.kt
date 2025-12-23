@@ -1,17 +1,12 @@
 package app.cityxplore.presentation
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Map
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -30,7 +25,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.cityxplore.auth.presentation.AuthState
 import app.cityxplore.auth.presentation.AuthViewModel
@@ -39,9 +33,11 @@ import app.cityxplore.auth.presentation.RegisterScreen
 import app.cityxplore.map.presentation.CityXploreMapScreen
 import app.cityxplore.map.presentation.MapViewModel
 import app.cityxplore.profile.presentation.OnboardingScreen
+import app.cityxplore.profile.presentation.ProfileScreen
 import app.cityxplore.theme.AppColors
 import app.cityxplore.theme.CityXplorePalette
 import app.cityxplore.theme.CityXploreTheme
+import coil3.compose.setSingletonImageLoaderFactory
 import org.koin.compose.koinInject
 
 private enum class CityXploreDestination { Map, Friends, Profile }
@@ -49,6 +45,9 @@ private enum class AuthScreen { Login, Register }
 
 @Composable
 fun CityXploreApp() {
+    setSingletonImageLoaderFactory { context ->
+        getImageLoader(context)
+    }
 
     CityXploreTheme {
         Surface(
@@ -86,7 +85,7 @@ fun AuthFlow(state: AuthState, viewModel: AuthViewModel) {
         AuthScreen.Login -> LoginScreen(
             state = state,
             onLogin = viewModel::signIn,
-            onSocialLogin = viewModel::onSocialLogin,
+            onSocialLogin = { viewModel.onSocialLogin(it) },
             onRegisterClick = { currentScreen = AuthScreen.Register },
             onClearError = viewModel::clearError
         )
@@ -94,7 +93,7 @@ fun AuthFlow(state: AuthState, viewModel: AuthViewModel) {
         AuthScreen.Register -> RegisterScreen(
             state = state,
             onRegister = viewModel::signUp,
-            onSocialLogin = viewModel::onSocialLogin,
+            onSocialLogin = { viewModel.onSocialLogin(it) },
             onLoginClick = { currentScreen = AuthScreen.Login },
             onClearError = viewModel::clearError
         )
@@ -131,27 +130,7 @@ fun MainAppContent(onSignOut: () -> Unit) {
                 )
 
                 CityXploreDestination.Friends -> CityXplorePlaceholderScreen("Friends")
-                CityXploreDestination.Profile -> ProfileScreen(onSignOut)
-            }
-        }
-    }
-}
-
-@Composable
-fun ProfileScreen(onSignOut: () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = "Profile",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = onSignOut,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text("Sign Out")
+                CityXploreDestination.Profile -> ProfileScreen(onSignOut = onSignOut)
             }
         }
     }

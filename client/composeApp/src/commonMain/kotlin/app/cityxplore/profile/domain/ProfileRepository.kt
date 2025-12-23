@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 
 interface ProfileRepository {
     suspend fun createProfile(username: String, avatarUrl: String?): Result<Unit>
+    suspend fun getProfile(): Result<UserProfile>
 }
 
 @Serializable

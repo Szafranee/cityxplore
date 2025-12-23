@@ -83,7 +83,8 @@ kotlin {
             implementation(libs.supabase.compose.auth)
             implementation(libs.supabase.compose.auth.ui)
             implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.kamel.image)
+            implementation(libs.coil.compose)
+            implementation(libs.coil.network.ktor)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

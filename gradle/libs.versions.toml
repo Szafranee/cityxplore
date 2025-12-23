@@ -1,8 +1,8 @@
 [versions]
 hibernateCoreVersion = "6.6.29.Final"
 hibernateSpatialVersion = "6.6.29.Final"
-hypersistenceUtilsHibernateX3 = "3.13.3"
-kotlin = "2.2.21"
+hypersistenceUtilsHibernateX3 = "3.14.1"
+kotlin = "2.3.0"
 agp = "8.12.3"
 compose = "1.9.3"
 android-compileSdk = "36"
@@ -30,10 +30,12 @@ ktorSerializationJson = "3.3.3"
 supabase = "3.2.6"
 playServicesLocation = "21.3.0"
 mapboxMaps = "11.14.0"
-kamel = "1.0.8"
+coil = "3.3.0"
 
 [libraries]
-kamel-image = { module = "media.kamel:kamel-image", version.ref = "kamel" }
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
+coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
 mapbox-maps-android = { module = "com.mapbox.maps:android", version.ref = "mapboxMaps" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "androidx-activity" }
 androidx-lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycleViewmodel" }
