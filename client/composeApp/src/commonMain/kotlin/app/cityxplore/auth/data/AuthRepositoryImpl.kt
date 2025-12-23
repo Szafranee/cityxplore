@@ -3,6 +3,7 @@ package app.cityxplore.auth.data
 import app.cityxplore.auth.domain.AuthRepository
 import app.cityxplore.auth.domain.SocialProvider
 import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.OtpType
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.Discord
 import io.github.jan.supabase.auth.providers.Facebook
@@ -85,7 +86,7 @@ class AuthRepositoryImpl(
                     }
                 }.decodeSingleOrNull<UserEmailDto>()
             user?.email
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
@@ -95,8 +96,17 @@ class AuthRepositoryImpl(
         return try {
             val response = client.get("https://api.cityxplore.app/api/users/me")
             response.status == HttpStatusCode.OK
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
+        }
+    }
+
+    override suspend fun resendVerificationEmail(email: String): Result<Unit> {
+        return try {
+            auth.resendEmail(OtpType.Email.SIGNUP, email)
+            Result.success(Unit)
+        } catch (_: Exception) {
+            Result.failure(Exception("Failed to resend verification email"))
         }
     }
 }

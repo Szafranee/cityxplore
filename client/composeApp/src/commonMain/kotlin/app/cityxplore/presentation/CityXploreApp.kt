@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import app.cityxplore.auth.presentation.AuthState
 import app.cityxplore.auth.presentation.AuthViewModel
+import app.cityxplore.auth.presentation.EmailVerificationScreen
 import app.cityxplore.auth.presentation.LoginScreen
 import app.cityxplore.auth.presentation.RegisterScreen
 import app.cityxplore.map.presentation.CityXploreMapScreen
@@ -64,11 +65,18 @@ fun CityXploreApp() {
                 ) { CircularProgressIndicator() }
 
                 AuthState.Authenticated -> MainAppContent(onSignOut = authViewModel::signOut)
+
                 AuthState.Onboarding -> OnboardingScreen(
                     onProfileCreated = {
                         authViewModel.refreshProfileCheck()
                     },
                     onSignOut = authViewModel::signOut
+                )
+
+                is AuthState.EmailVerification -> EmailVerificationScreen(
+                    email = state.email,
+                    onResendEmail = { authViewModel.resendVerificationEmail(state.email) },
+                    onBackToLogin = { authViewModel.cancelVerification() }
                 )
 
                 AuthState.Unauthenticated, is AuthState.Error -> AuthFlow(state, authViewModel)

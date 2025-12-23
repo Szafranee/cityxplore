@@ -13,6 +13,7 @@ sealed interface AuthState {
     data object Authenticated : AuthState
     data object Unauthenticated : AuthState
     data object Onboarding : AuthState
+    data class EmailVerification(val email: String) : AuthState
     data class Error(val message: String) : AuthState
 }
 
@@ -68,8 +69,11 @@ class AuthViewModel(
             _state.value = AuthState.Loading
             repository.signUp(email, pass)
                 .onSuccess {
-                    if (!repository.isAuthenticated()) {
-                        _state.value = AuthState.Error("Check your email to confirm account")
+                    if (repository.isAuthenticated()) {
+                        // observeAuthState will handle navigation
+                    } else {
+                        _state.value = AuthState.EmailVerification(email)
+                        startVerificationPolling()
                     }
                 }
                 .onFailure { error ->
@@ -77,6 +81,28 @@ class AuthViewModel(
                     _state.value = AuthState.Error(message)
                 }
         }
+    }
+
+    // Poll for email verification status to support verification on different devices
+    private fun startVerificationPolling() {
+        scope.launch {
+            while (_state.value is AuthState.EmailVerification) {
+                delay(3000)
+                if (repository.isAuthenticated()) {
+                    break
+                }
+            }
+        }
+    }
+
+    fun resendVerificationEmail(email: String) {
+        scope.launch {
+            repository.resendVerificationEmail(email)
+        }
+    }
+
+    fun cancelVerification() {
+        _state.value = AuthState.Unauthenticated
     }
 
     fun onSocialLogin(provider: SocialProvider) {
