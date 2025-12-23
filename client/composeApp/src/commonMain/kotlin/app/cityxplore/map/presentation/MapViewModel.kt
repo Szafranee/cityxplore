@@ -35,7 +35,7 @@ class MapViewModel(
                 locationService.observeLocation().collect { location ->
                     checkDiscovery(location)
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 // Location service error - could be permissions or hardware issue
             }
         }

@@ -261,7 +261,7 @@ private fun ReadyMap(
         // Re-center button
         FloatingActionButton(
             onClick = {
-                mapViewRef.value?.let { mapView ->
+                mapViewRef.value?.let { _ ->
                     isFollowingUser.value = true
                     onAction(MapAction.ToggleFollowUser)
 
