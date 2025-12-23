@@ -14,4 +14,5 @@ interface AuthRepository {
     suspend fun resolveEmail(login: String): String?
     suspend fun hasProfile(): Boolean
     suspend fun resendVerificationEmail(email: String): Result<Unit>
+    suspend fun getCurrentUserId(): String?
 }

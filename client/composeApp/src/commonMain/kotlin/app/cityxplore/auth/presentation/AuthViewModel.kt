@@ -23,8 +23,24 @@ class AuthViewModel(
     private val _state = MutableStateFlow<AuthState>(AuthState.Loading)
     val state = _state.asStateFlow()
 
+    private val _userId = MutableStateFlow<String?>(null)
+    val userId = _userId.asStateFlow()
+
     init {
         observeAuthState()
+        observeUserId()
+    }
+
+    private fun observeUserId() {
+        scope.launch {
+            repository.authState.collect { isAuthenticated ->
+                _userId.value = if (isAuthenticated) {
+                    repository.getCurrentUserId()
+                } else {
+                    null
+                }
+            }
+        }
     }
 
     private fun observeAuthState() {

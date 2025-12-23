@@ -109,6 +109,10 @@ class AuthRepositoryImpl(
             Result.failure(Exception("Failed to resend verification email"))
         }
     }
+
+    override suspend fun getCurrentUserId(): String? {
+        return auth.currentUserOrNull()?.id
+    }
 }
 
 @Serializable
