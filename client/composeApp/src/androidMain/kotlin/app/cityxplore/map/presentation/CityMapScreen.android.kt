@@ -156,21 +156,17 @@ private fun ReadyMap(
         )
     }
 
-    // Update markers when POIs change
-    // Note: In a real app, we should use a more efficient way to update markers
-    // instead of clearing and adding all of them every time.
+    // Update POI markers when state changes
     if (mapViewRef.value != null) {
         val mapView = mapViewRef.value!!
         val annotationManager = remember(mapView) {
             mapView.annotations.createPointAnnotationManager()
         }
 
-        // Simple diffing or just clear and add for now
         annotationManager.deleteAll()
         mapState.pois.forEach { poi ->
             val point = Point.fromLngLat(poi.longitude, poi.latitude)
             val icon = if (poi.discovered) {
-                // Use a different icon for discovered
                 createMarkerWithArrow(android.graphics.Color.BLUE, 100)
             } else {
                 createMarkerWithArrow(android.graphics.Color.RED, 100)
@@ -185,6 +181,7 @@ private fun ReadyMap(
     }
 
 
+    // Track user location and auto-centre on the first fix
     val positionListener = remember {
         OnIndicatorPositionChangedListener { point ->
             lastLocation.value = point
@@ -199,6 +196,7 @@ private fun ReadyMap(
         }
     }
 
+    // Disable follow mode when user manually moves the map
     val onMoveListener = remember {
         object : OnMoveListener {
             override fun onMove(detector: MoveGestureDetector): Boolean {
@@ -221,7 +219,6 @@ private fun ReadyMap(
                 try {
                     MapView(context).apply {
                         mapViewRef.value = this
-                        // Load style - using custom style
                         mapboxMap.loadStyle("mapbox://styles/szafran00/cmdusan3600d001pj4eri2fl1")
 
                         location.addOnIndicatorPositionChangedListener(positionListener)
@@ -251,7 +248,6 @@ private fun ReadyMap(
                         }
                     }
                 } catch (e: Exception) {
-                    e.printStackTrace()
                     android.widget.TextView(context).apply {
                         text = "Error initializing map: ${e.message}"
                         setTextColor(android.graphics.Color.RED)
@@ -262,7 +258,7 @@ private fun ReadyMap(
             modifier = Modifier.fillMaxSize()
         )
 
-        // User profile banner placeholder
+        // Re-center button
         FloatingActionButton(
             onClick = {
                 mapViewRef.value?.let { mapView ->

@@ -20,6 +20,11 @@ class MapViewModel(
     private val _state = MutableStateFlow<MapUiState>(MapUiState.Loading)
     val state: StateFlow<MapUiState> = _state.asStateFlow()
 
+    // Distance in meters within which a POI is considered discovered
+    companion object {
+        private const val DISCOVERY_THRESHOLD_METERS = 100.0
+    }
+
     init {
         refreshPois()
     }
@@ -31,7 +36,7 @@ class MapViewModel(
                     checkDiscovery(location)
                 }
             } catch (e: Exception) {
-                println("Location observation failed: ${e.message}")
+                // Location service error - could be permissions or hardware issue
             }
         }
     }
@@ -45,7 +50,7 @@ class MapViewModel(
                         userLocation.latitude, userLocation.longitude,
                         poi.latitude, poi.longitude
                     )
-                    if (distance < 50.0) { // 50 meters
+                    if (distance < DISCOVERY_THRESHOLD_METERS) {
                         discoverPoi(poi.id)
                     }
                 }
@@ -72,12 +77,10 @@ class MapViewModel(
 
     private fun refreshPois() {
         scope.launch(cityXploreDispatchers.io) {
-            println("MapViewModel: Refreshing POIs...")
             _state.value = MapUiState.Loading
             val result = repository.fetchPois()
             _state.value = result.fold(
                 onSuccess = { pois ->
-                    println("MapViewModel: POIs fetched successfully: ${pois.size}")
                     MapUiState.Ready(
                         pois = pois.map(PoiModel::toMapPoi),
                         isFollowingUser = true,
@@ -85,8 +88,6 @@ class MapViewModel(
                     )
                 },
                 onFailure = {
-                    println("MapViewModel: Failed to fetch POIs: ${it.message}")
-                    it.printStackTrace()
                     MapUiState.Error(it.message ?: "Unable to load POIs")
                 }
             )

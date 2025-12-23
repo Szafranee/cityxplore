@@ -48,15 +48,10 @@ fun OnboardingScreen(
     var username by remember { mutableStateOf("") }
     var selectedAvatar by remember { mutableStateOf<String?>(null) }
 
-    // Pre-fill username from metadata if available
     LaunchedEffect(Unit) {
         viewModel.fetchUserMetadata()
     }
 
-    // Observe username from ViewModel if we add it there, or just let ViewModel update a state flow for initial data
-    // For now, let's assume ViewModel exposes it or we fetch it here.
-    // But ViewModel is better.
-    // Let's update ViewModel to expose initial username.
     val initialUsername by viewModel.initialUsername.collectAsState()
     LaunchedEffect(initialUsername) {
         if (initialUsername != null && username.isBlank()) {
@@ -122,11 +117,7 @@ fun OnboardingScreen(
                             .build(),
                         contentDescription = "Avatar",
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                        onError = { state ->
-                            println("Coil Error loading $avatar: ${state.result.throwable.message}")
-                            state.result.throwable.printStackTrace()
-                        }
+                        contentScale = ContentScale.Crop
                     )
                 }
             }

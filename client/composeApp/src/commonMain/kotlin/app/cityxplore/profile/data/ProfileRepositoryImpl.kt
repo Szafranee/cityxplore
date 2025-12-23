@@ -29,7 +29,6 @@ class ProfileRepositoryImpl(
             val user = supabase.auth.currentUserOrNull() ?: throw IllegalStateException("Not authenticated")
             val email = user.email ?: throw IllegalStateException("Email not found")
 
-            // Check if profile already exists
             val exists = try {
                 client.get("https://api.cityxplore.app/api/users/me").status == HttpStatusCode.OK
             } catch (_: Exception) {
@@ -37,7 +36,6 @@ class ProfileRepositoryImpl(
             }
 
             if (exists) {
-                // Update existing profile
                 val updateRequest = UserUpdateRequest(
                     username = username,
                     avatarUrl = avatarUrl
@@ -47,7 +45,6 @@ class ProfileRepositoryImpl(
                     setBody(updateRequest)
                 }
             } else {
-                // Create new profile
                 val request = UserCreateRequest(
                     email = email,
                     username = username,
@@ -59,8 +56,8 @@ class ProfileRepositoryImpl(
                         setBody(request)
                     }
                 } catch (e: ClientRequestException) {
+                    // Handle race condition: profile created concurrently by another request
                     if (e.response.status == HttpStatusCode.Conflict) {
-                        // Fallback: if created concurrently, update
                         val updateRequest = UserUpdateRequest(
                             username = username,
                             avatarUrl = avatarUrl
@@ -83,11 +80,11 @@ class ProfileRepositoryImpl(
                         throw e
                     }
                 } catch (e: ServerResponseException) {
+                    // Handle backend returning 500 instead of proper 409 on duplicate
                     val errorBody = e.response.bodyAsText()
                     if (e.response.status == HttpStatusCode.InternalServerError &&
                         errorBody.contains("duplicate key value violates unique constraint")
                     ) {
-                        // User already exists but server returned 500 instead of 409
                         val updateRequest = UserUpdateRequest(
                             username = username,
                             avatarUrl = avatarUrl

@@ -30,14 +30,11 @@ class AuthViewModel(
         scope.launch {
             repository.authState.collect { isAuthenticated ->
                 if (isAuthenticated) {
-                    // Small delay to ensure session is fully established and token is available for HttpClient
+                    // Allow session and JWT token to be fully initialised before making API calls
                     delay(500)
-                    println("AuthViewModel: User is authenticated, checking profile...")
                     if (repository.hasProfile()) {
-                        println("AuthViewModel: Profile found, navigating to Map.")
                         _state.value = AuthState.Authenticated
                     } else {
-                        println("AuthViewModel: No profile found, navigating to Onboarding.")
                         _state.value = AuthState.Onboarding
                     }
                 } else {
@@ -71,12 +68,7 @@ class AuthViewModel(
             _state.value = AuthState.Loading
             repository.signUp(email, pass)
                 .onSuccess {
-                    // If "Allow Unverified Logins" is on, we might be logged in.
-                    // If not, we need to tell user to check email.
-                    // We can check if we are authenticated.
-                    if (repository.isAuthenticated()) {
-                        // observeAuthState will handle it
-                    } else {
+                    if (!repository.isAuthenticated()) {
                         _state.value = AuthState.Error("Check your email to confirm account")
                     }
                 }
@@ -91,12 +83,6 @@ class AuthViewModel(
         scope.launch {
             _state.value = AuthState.Loading
             repository.signInWith(provider)
-                .onSuccess {
-                    // Do not set Authenticated here. OAuth flow continues in browser.
-                    // The app will receive a deep link, which Supabase handles.
-                    // We should listen to session changes to detect when login completes.
-                    println("Social login initiated for $provider")
-                }
                 .onFailure { error ->
                     val message = parseAuthError(error)
                     _state.value = AuthState.Error(message)
@@ -106,7 +92,6 @@ class AuthViewModel(
 
     private fun parseAuthError(error: Throwable): String {
         val msg = error.message ?: return "An unknown error occurred"
-        println("Auth Error: $msg") // Log error for debugging
         return when {
             msg.contains("invalid_grant", ignoreCase = true) || msg.contains(
                 "Invalid login credentials",

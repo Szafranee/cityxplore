@@ -76,15 +76,11 @@ fun ProfileScreen(
                             modifier = Modifier
                                 .size(120.dp)
                                 .clip(CircleShape),
-                            contentScale = ContentScale.Crop,
-                            onError = { state ->
-                                println("Coil Error loading profile avatar: ${state.result.throwable.message}")
-                                state.result.throwable.printStackTrace()
-                            }
+                            contentScale = ContentScale.Crop
                         )
                     } else {
                         Icon(
-                            imageVector = Icons.Default.Error, // Or a default avatar icon
+                            imageVector = Icons.Default.Error,
                             contentDescription = "No Avatar",
                             modifier = Modifier.size(120.dp)
                         )

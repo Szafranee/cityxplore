@@ -18,6 +18,7 @@ import org.koin.dsl.module
 fun networkModule(): Module = module {
     single {
         val supabase = get<SupabaseClient>()
+        // Configure HttpClient with JWT token from Supabase Auth for backend API calls
         HttpClient(get<HttpClientEngine>()) {
             expectSuccess = true
             install(ContentNegotiation) {

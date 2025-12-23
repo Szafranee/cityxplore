@@ -74,12 +74,9 @@ class AuthRepositoryImpl(
     }
 
     override suspend fun resolveEmail(login: String): String? {
-        // If it looks like an email, return it
         if (login.contains("@")) return login
 
-        // Otherwise, try to find email by username
-        // Note: This requires public.users to be readable and contain email, or a specific RPC function.
-        // Assuming we can query users table for now.
+        // Query users table to find email by username
         return try {
             val user = supabase.postgrest.from("users")
                 .select {
@@ -89,7 +86,6 @@ class AuthRepositoryImpl(
                 }.decodeSingleOrNull<UserEmailDto>()
             user?.email
         } catch (e: Exception) {
-            e.printStackTrace()
             null
         }
     }
@@ -100,8 +96,6 @@ class AuthRepositoryImpl(
             val response = client.get("https://api.cityxplore.app/api/users/me")
             response.status == HttpStatusCode.OK
         } catch (e: Exception) {
-            println("AuthRepositoryImpl: hasProfile failed: ${e.message}")
-            e.printStackTrace()
             false
         }
     }
