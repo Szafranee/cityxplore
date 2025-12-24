@@ -6,7 +6,6 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.OtpType
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.Discord
-import io.github.jan.supabase.auth.providers.Facebook
 import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.status.SessionStatus
@@ -24,16 +23,21 @@ class AuthRepositoryImpl(
 ) : AuthRepository {
     private val auth = supabase.auth
 
-    override val authState: Flow<Boolean> = auth.sessionStatus.map {
-        it is SessionStatus.Authenticated
-    }
+    override val authState: Flow<Boolean> = auth.sessionStatus
+        .map { status ->
+            when (status) {
+                is SessionStatus.Authenticated -> true
+                is SessionStatus.Initializing -> false
+                else -> false
+            }
+        }
 
     override suspend fun signInWith(provider: SocialProvider): Result<Unit> {
         return try {
             val redirectUrl = "app.cityxplore://login"
             when (provider) {
                 SocialProvider.GOOGLE -> auth.signInWith(Google, redirectUrl)
-                SocialProvider.FACEBOOK -> auth.signInWith(Facebook, redirectUrl)
+                // SocialProvider.FACEBOOK -> auth.signInWith(Facebook, redirectUrl)
                 SocialProvider.DISCORD -> auth.signInWith(Discord, redirectUrl)
             }
             Result.success(Unit)

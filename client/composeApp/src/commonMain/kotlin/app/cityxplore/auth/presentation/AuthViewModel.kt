@@ -47,7 +47,7 @@ class AuthViewModel(
         scope.launch {
             repository.authState.collect { isAuthenticated ->
                 if (isAuthenticated) {
-                    // Allow session and JWT token to be fully initialised before making API calls
+                    // Allow session and JWT token to be fully initialized before making API calls
                     delay(500)
                     if (repository.hasProfile()) {
                         _state.value = AuthState.Authenticated

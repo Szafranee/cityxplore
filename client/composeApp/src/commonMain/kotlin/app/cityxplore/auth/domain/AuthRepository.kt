@@ -2,7 +2,7 @@ package app.cityxplore.auth.domain
 
 import kotlinx.coroutines.flow.Flow
 
-enum class SocialProvider { GOOGLE, FACEBOOK, DISCORD }
+enum class SocialProvider { GOOGLE, /* FACEBOOK, */ DISCORD }
 
 interface AuthRepository {
     val authState: Flow<Boolean>

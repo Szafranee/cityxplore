@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import app.cityxplore.auth.domain.SocialProvider
 import cityxplore.client.composeapp.generated.resources.Res
 import cityxplore.client.composeapp.generated.resources.discord_logo
-import cityxplore.client.composeapp.generated.resources.facebook_logo
 import cityxplore.client.composeapp.generated.resources.google_logo
 import org.jetbrains.compose.resources.vectorResource
 
@@ -200,13 +199,13 @@ fun RegisterScreen(
                     logoSize = 86
                 )
 
-                SocialLoginButton(
-                    altText = "Sign up with Facebook",
-                    onClick = { onSocialLogin(SocialProvider.FACEBOOK) },
-                    containerColor = Color(0xFF1877F2),
-                    contentColor = Color.White,
-                    logo = vectorResource(Res.drawable.facebook_logo),
-                )
+                // SocialLoginButton(
+                //     altText = "Sign up with Facebook",
+                //     onClick = { onSocialLogin(SocialProvider.FACEBOOK) },
+                //     containerColor = Color(0xFF1877F2),
+                //     contentColor = Color.White,
+                //     logo = vectorResource(Res.drawable.facebook_logo),
+                // )
 
                 SocialLoginButton(
                     altText = "Sign up with Discord",
