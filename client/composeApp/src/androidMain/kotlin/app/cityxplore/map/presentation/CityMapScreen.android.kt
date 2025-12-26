@@ -148,14 +148,19 @@ private fun ReadyMap(
         )
     }
 
-    // Update POI markers when state changes
-    if (mapViewRef.value != null) {
-        val mapView = mapViewRef.value!!
-        val annotationManager = remember(mapView) {
-            mapView.annotations.createPointAnnotationManager()
-        }
+    // Remember annotation manager for the current map view
+    val annotationManager = remember(mapViewRef.value) {
+        mapViewRef.value?.annotations?.createPointAnnotationManager()
+    }
 
-        annotationManager.deleteAll()
+    // Update POI markers when map view or POI list changes
+    LaunchedEffect(mapViewRef.value, mapState.pois) {
+        val manager = annotationManager ?: return@LaunchedEffect
+
+        // Clear existing markers
+        manager.deleteAll()
+
+        // Create new markers for each POI
         mapState.pois.forEach { poi ->
             val point = Point.fromLngLat(poi.longitude, poi.latitude)
             val icon = if (poi.discovered) {
@@ -168,7 +173,7 @@ private fun ReadyMap(
                 .withPoint(point)
                 .withIconImage(icon)
 
-            annotationManager.create(pointAnnotationOptions)
+            manager.create(pointAnnotationOptions)
         }
     }
 
