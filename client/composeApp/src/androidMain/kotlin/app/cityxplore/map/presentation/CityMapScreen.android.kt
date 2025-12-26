@@ -21,10 +21,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -33,7 +31,6 @@ import app.cityxplore.theme.AppColors
 import com.mapbox.android.gestures.MoveGestureDetector
 import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
-import com.mapbox.maps.ImageHolder
 import com.mapbox.maps.MapView
 import com.mapbox.maps.plugin.animation.MapAnimationOptions
 import com.mapbox.maps.plugin.animation.camera
@@ -106,7 +103,6 @@ private fun ReadyMap(
         return
     }
 
-    rememberCoroutineScope()
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -132,10 +128,6 @@ private fun ReadyMap(
     val isFollowingUser = remember(mapState.isFollowingUser) { mutableStateOf(mapState.isFollowingUser) }
     val shouldCenterOnFirstLocation = remember { mutableStateOf(true) }
 
-    remember {
-        val bitmap = createMarkerWithArrow(color = AppColors.green.toArgb(), size = 150)
-        ImageHolder.from(bitmap)
-    }
 
     fun animateToLocation(point: Point, zoom: Double = 15.0) {
         mapViewRef.value?.camera?.easeTo(

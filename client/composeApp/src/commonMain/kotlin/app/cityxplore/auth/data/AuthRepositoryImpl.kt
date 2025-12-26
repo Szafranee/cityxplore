@@ -13,9 +13,11 @@ import io.github.jan.supabase.postgrest.postgrest
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
+import kotlin.time.TimeSource
 
 /**
  * Implementation of [AuthRepository] using Supabase Auth SDK and Ktor HTTP client.
@@ -34,13 +36,14 @@ class AuthRepositoryImpl(
 
     /**
      * Flow emitting authentication state based on Supabase session status.
-     * Emits `true` when a session is authenticated, `false` otherwise.
+     * Emits `true` when a session is authenticated, `false` when not authenticated,
+     * and `null` when the session is still initialising (to avoid premature navigation).
      */
-    override val authState: Flow<Boolean> = auth.sessionStatus
+    override val authState: Flow<Boolean?> = auth.sessionStatus
         .map { status ->
             when (status) {
                 is SessionStatus.Authenticated -> true
-                is SessionStatus.Initializing -> false
+                is SessionStatus.Initializing -> null
                 else -> false
             }
         }
@@ -128,14 +131,21 @@ class AuthRepositoryImpl(
      * If the input contains '@', it is assumed to be an email and returned as-is.
      * Otherwise, the username is queried in the Supabase users table to find the associated email.
      *
+     * **Security Note**: This method includes a deliberate delay to mitigate timing attacks
+     * and username enumeration. Always returns null for non-existent usernames to avoid
+     * revealing whether a username exists in the system.
+     *
      * @param login The username or email to resolve.
      * @return The resolved email address, or `null` if the username is not found.
      */
     override suspend fun resolveEmail(login: String): String? {
         if (login.contains("@")) return login
 
+        // Add deliberate delay to prevent timing-based username enumeration
+        val startMark = TimeSource.Monotonic.markNow()
+
         // Query users table to find email by username
-        return try {
+        val result = try {
             val user = supabase.postgrest.from("users")
                 .select {
                     filter {
@@ -146,6 +156,14 @@ class AuthRepositoryImpl(
         } catch (_: Exception) {
             null
         }
+
+        // Ensure a consistent response time (minimum 200 ms) to prevent timing attacks
+        val elapsed = startMark.elapsedNow().inWholeMilliseconds
+        if (elapsed < 200) {
+            delay(200 - elapsed)
+        }
+
+        return result
     }
 
     /**

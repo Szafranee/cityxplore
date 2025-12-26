@@ -1,5 +1,6 @@
 package app.cityxplore.di
 
+import app.cityxplore.core.isDebugBuild
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.ktor.client.HttpClient
@@ -20,12 +21,18 @@ import org.koin.dsl.module
  *
  * This module provides a configured [HttpClient] with:
  * - **ContentNegotiation**: JSON serialization/deserialization using kotlinx.serialization
- * - **Logging**: HTTP request/response logging for debugging
+ * - **Logging**: HTTP request/response logging - LogLevel.BODY for debug builds,
+ *   LogLevel.INFO for production to avoid exposing sensitive data
  * - **Bearer Token Authentication**: Automatically injects the current Supabase JWT token
  *   into the Authorization header for every request to the backend API
+ * - **Error Handling**: Allows callers to inspect response status and handle 4xx/5xx errors gracefully
  *
  * The token injection happens dynamically on each request, ensuring support for
  * account switching and automatic token refresh.
+ *
+ * **Note**: `expectSuccess` is set to `false` to allow callers to handle non-2xx responses.
+ * Repository implementations should check `response.status` and map errors to domain-specific
+ * error types with user-friendly messages.
  *
  * @see app.cityxplore.di.authModule
  */
@@ -33,7 +40,7 @@ fun networkModule(): Module = module {
     single {
         val supabase = get<SupabaseClient>()
         HttpClient(get<HttpClientEngine>()) {
-            expectSuccess = true
+            expectSuccess = false
             install(ContentNegotiation) {
                 json(Json {
                     ignoreUnknownKeys = true
@@ -42,7 +49,8 @@ fun networkModule(): Module = module {
                 })
             }
             install(Logging) {
-                level = LogLevel.BODY
+                // Use detailed logging only in debug builds to avoid exposing sensitive data in production
+                level = if (isDebugBuild) LogLevel.BODY else LogLevel.INFO
             }
         }.apply {
             // Dynamically inject the current token on EVERY request to support account switching

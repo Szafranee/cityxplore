@@ -23,9 +23,14 @@ buildConfig {
         localProperties.load(FileInputStream(localPropertiesFile))
     }
 
-    buildConfigField("String", "SUPABASE_URL", "\"${localProperties.getProperty("SUPABASE_URL")}\"")
-    buildConfigField("String", "SUPABASE_KEY", "\"${localProperties.getProperty("SUPABASE_KEY")}\"")
-    buildConfigField("String", "MAPBOX_PUBLIC_TOKEN", "\"${localProperties.getProperty("MAPBOX_PUBLIC_TOKEN")}\"")
+    fun getRequiredProperty(key: String): String {
+        return localProperties.getProperty(key)
+            ?: throw GradleException("Missing required property '$key' in local.properties")
+    }
+
+    buildConfigField("String", "SUPABASE_URL", "\"${getRequiredProperty("SUPABASE_URL")}\"")
+    buildConfigField("String", "SUPABASE_KEY", "\"${getRequiredProperty("SUPABASE_KEY")}\"")
+    buildConfigField("String", "MAPBOX_PUBLIC_TOKEN", "\"${getRequiredProperty("MAPBOX_PUBLIC_TOKEN")}\"")
 }
 
 kotlin {
@@ -111,8 +116,12 @@ android {
         if (localPropertiesFile.exists()) {
             localProperties.load(FileInputStream(localPropertiesFile))
         }
-        val mapboxToken = localProperties.getProperty("MAPBOX_PUBLIC_TOKEN") ?: ""
+
+        val mapboxToken = localProperties.getProperty("MAPBOX_PUBLIC_TOKEN")
+            ?: throw GradleException("Missing required property 'MAPBOX_PUBLIC_TOKEN' in local.properties")
+
         manifestPlaceholders["MAPBOX_ACCESS_TOKEN"] = mapboxToken
+        resValue("string", "mapbox_access_token", mapboxToken)
     }
     packaging {
         resources {
@@ -120,8 +129,12 @@ android {
         }
     }
     buildTypes {
+        getByName("debug") {
+            // Android automatically generates BuildConfig.DEBUG = true for debug builds
+        }
         getByName("release") {
             isMinifyEnabled = false
+            // Android automatically generates BuildConfig.DEBUG = false for release builds
         }
     }
     compileOptions {
@@ -130,6 +143,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

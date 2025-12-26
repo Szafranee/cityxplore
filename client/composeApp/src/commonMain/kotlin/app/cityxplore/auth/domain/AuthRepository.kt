@@ -24,9 +24,10 @@ enum class SocialProvider {
 interface AuthRepository {
     /**
      * Flow emitting the current authentication state of the user.
-     * Emits `true` when authenticated, `false` otherwise.
+     * Emits `true` when authenticated, `false` when not authenticated,
+     * and `null` when the session is still initialising.
      */
-    val authState: Flow<Boolean>
+    val authState: Flow<Boolean?>
 
     /**
      * Registers a new user with email and password.

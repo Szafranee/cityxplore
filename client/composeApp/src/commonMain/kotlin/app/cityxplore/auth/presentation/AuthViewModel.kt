@@ -69,12 +69,12 @@ class AuthViewModel(
 
     /**
      * Observes the user ID from the authentication state.
-     * Updates whenever authentication status changes.
+     * Updates whenever the authentication status changes.
      */
     private fun observeUserId() {
         scope.launch {
             repository.authState.collect { isAuthenticated ->
-                _userId.value = if (isAuthenticated) {
+                _userId.value = if (isAuthenticated == true) {
                     repository.getCurrentUserId()
                 } else {
                     null
@@ -86,21 +86,30 @@ class AuthViewModel(
     /**
      * Observes the authentication state from the repository.
      * When authenticated, checks if the user has a profile to determine
-     * if onboarding is required.
+     * if onboarding is required. Stays in Loading state during session initialisation.
      */
     private fun observeAuthState() {
         scope.launch {
             repository.authState.collect { isAuthenticated ->
-                if (isAuthenticated) {
-                    // Allow session and JWT token to be fully initialised before making API calls
-                    delay(500)
-                    if (repository.hasProfile()) {
-                        _state.value = AuthState.Authenticated
-                    } else {
-                        _state.value = AuthState.Onboarding
+                when (isAuthenticated) {
+                    true -> {
+                        // Allow session and JWT token to be fully initialised before making API calls
+                        delay(300)
+                        if (repository.hasProfile()) {
+                            _state.value = AuthState.Authenticated
+                        } else {
+                            _state.value = AuthState.Onboarding
+                        }
                     }
-                } else {
-                    _state.value = AuthState.Unauthenticated
+
+                    false -> {
+                        _state.value = AuthState.Unauthenticated
+                    }
+
+                    null -> {
+                        // Session is still initialising, keep Loading state
+                        _state.value = AuthState.Loading
+                    }
                 }
             }
         }
@@ -118,7 +127,7 @@ class AuthViewModel(
             _state.value = AuthState.Loading
             val email = repository.resolveEmail(login)
             if (email == null) {
-                _state.value = AuthState.Error("Could not find account with that username.")
+                _state.value = AuthState.Error("Invalid email or password.")
                 return@launch
             }
             repository.signIn(email, pass)
