@@ -18,6 +18,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -218,18 +219,6 @@ private fun ReadyMap(
                         mapViewRef.value = this
                         mapboxMap.loadStyle("mapbox://styles/szafran00/cmdusan3600d001pj4eri2fl1")
 
-                        location.addOnIndicatorPositionChangedListener(positionListener)
-
-                        mapboxMap.addOnMapClickListener {
-                            if (isFollowingUser.value) {
-                                isFollowingUser.value = false
-                                onAction(MapAction.ToggleFollowUser)
-                            }
-                            true
-                        }
-
-                        gestures.addOnMoveListener(onMoveListener)
-
                         compass.updateSettings { enabled = true }
                         scalebar.updateSettings { enabled = true }
                         gestures.updateSettings {
@@ -254,6 +243,33 @@ private fun ReadyMap(
             },
             modifier = Modifier.fillMaxSize()
         )
+
+        // Register and clean-up listeners
+        DisposableEffect(mapViewRef.value) {
+            val mapView = mapViewRef.value
+            val mapClickListener: (Point) -> Boolean = { _ ->
+                if (isFollowingUser.value) {
+                    isFollowingUser.value = false
+                    onAction(MapAction.ToggleFollowUser)
+                }
+                true
+            }
+
+            mapView?.let {
+                it.location.addOnIndicatorPositionChangedListener(positionListener)
+                it.gestures.addOnMoveListener(onMoveListener)
+                it.mapboxMap.addOnMapClickListener(mapClickListener)
+            }
+
+            onDispose {
+                mapView?.let {
+                    it.location.removeOnIndicatorPositionChangedListener(positionListener)
+                    it.gestures.removeOnMoveListener(onMoveListener)
+                    // Note: Mapbox SDK doesn't provide removeOnMapClickListener
+                    // The listener will be cleaned up when MapView is destroyed
+                }
+            }
+        }
 
         // Re-center button
         FloatingActionButton(
