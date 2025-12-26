@@ -8,22 +8,58 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * Sealed interface representing the authentication state of the application.
+ *
+ * This state machine controls navigation between authentication screens
+ * and determines whether the user can access the main application features.
+ */
 sealed interface AuthState {
+    /** Initial loading state while verifying authentication status */
     data object Loading : AuthState
+
+    /** User is authenticated and has a complete profile */
     data object Authenticated : AuthState
+
+    /** User is not authenticated */
     data object Unauthenticated : AuthState
+
+    /** User is authenticated but needs to complete onboarding/profile setup */
     data object Onboarding : AuthState
+
+    /** User needs to verify their email before proceeding */
     data class EmailVerification(val email: String) : AuthState
+
+    /** An error occurred during authentication */
     data class Error(val message: String) : AuthState
 }
 
+/**
+ * ViewModel managing authentication state and operations.
+ *
+ * This ViewModel handles user sign-in, sign-up, social authentication,
+ * email verification, and session management. It observes the authentication
+ * state from the repository and updates the UI accordingly.
+ *
+ * @property repository The authentication repository for backend operations.
+ */
 class AuthViewModel(
     private val repository: AuthRepository
 ) : CityXploreBaseViewModel() {
     private val _state = MutableStateFlow<AuthState>(AuthState.Loading)
+
+    /**
+     * StateFlow emitting the current authentication state.
+     * UI components observe this to react to authentication changes.
+     */
     val state = _state.asStateFlow()
 
     private val _userId = MutableStateFlow<String?>(null)
+
+    /**
+     * StateFlow emitting the current user's unique identifier.
+     * Emits `null` when not authenticated.
+     */
     val userId = _userId.asStateFlow()
 
     init {
@@ -31,6 +67,10 @@ class AuthViewModel(
         observeUserId()
     }
 
+    /**
+     * Observes the user ID from the authentication state.
+     * Updates whenever authentication status changes.
+     */
     private fun observeUserId() {
         scope.launch {
             repository.authState.collect { isAuthenticated ->
@@ -43,11 +83,16 @@ class AuthViewModel(
         }
     }
 
+    /**
+     * Observes the authentication state from the repository.
+     * When authenticated, checks if the user has a profile to determine
+     * if onboarding is required.
+     */
     private fun observeAuthState() {
         scope.launch {
             repository.authState.collect { isAuthenticated ->
                 if (isAuthenticated) {
-                    // Allow session and JWT token to be fully initialized before making API calls
+                    // Allow session and JWT token to be fully initialised before making API calls
                     delay(500)
                     if (repository.hasProfile()) {
                         _state.value = AuthState.Authenticated
@@ -61,6 +106,13 @@ class AuthViewModel(
         }
     }
 
+    /**
+     * Signs in a user with username or email and password.
+     * If a username is provided, it is resolved to an email address first.
+     *
+     * @param login The username or email address.
+     * @param pass The user's password.
+     */
     fun signIn(login: String, pass: String) {
         scope.launch {
             _state.value = AuthState.Loading
@@ -80,6 +132,14 @@ class AuthViewModel(
         }
     }
 
+    /**
+     * Registers a new user with email and password.
+     * If the user is immediately authenticated (no email verification required),
+     * proceeds to check profile status. Otherwise, enters email verification state.
+     *
+     * @param email The user's email address.
+     * @param pass The user's password (minimum 6 characters).
+     */
     fun signUp(email: String, pass: String) {
         scope.launch {
             _state.value = AuthState.Loading
@@ -99,7 +159,10 @@ class AuthViewModel(
         }
     }
 
-    // Poll for email verification status to support verification on different devices
+    /**
+     * Polls for email verification status to support verification on different devices.
+     * Checks authentication status every 3 seconds until verified.
+     */
     private fun startVerificationPolling() {
         scope.launch {
             while (_state.value is AuthState.EmailVerification) {
@@ -111,16 +174,29 @@ class AuthViewModel(
         }
     }
 
+    /**
+     * Resends the email verification link to the specified email address.
+     *
+     * @param email The email address to send the verification link to.
+     */
     fun resendVerificationEmail(email: String) {
         scope.launch {
             repository.resendVerificationEmail(email)
         }
     }
 
+    /**
+     * Cancels email verification and returns to the unauthenticated state.
+     */
     fun cancelVerification() {
         _state.value = AuthState.Unauthenticated
     }
 
+    /**
+     * Initiates social provider authentication (Google, Discord).
+     *
+     * @param provider The [SocialProvider] to use for authentication.
+     */
     fun onSocialLogin(provider: SocialProvider) {
         scope.launch {
             _state.value = AuthState.Loading
@@ -132,6 +208,12 @@ class AuthViewModel(
         }
     }
 
+    /**
+     * Parses authentication errors into user-friendly messages.
+     *
+     * @param error The exception thrown during authentication.
+     * @return A user-friendly error message.
+     */
     private fun parseAuthError(error: Throwable): String {
         val msg = error.message ?: return "An unknown error occurred"
         return when {
@@ -152,6 +234,9 @@ class AuthViewModel(
         }
     }
 
+    /**
+     * Signs out the currently authenticated user.
+     */
     fun signOut() {
         scope.launch {
             repository.signOut()
@@ -159,6 +244,10 @@ class AuthViewModel(
         }
     }
 
+    /**
+     * Refreshes the profile check to determine if onboarding is required.
+     * Useful after profile creation to update the authentication state.
+     */
     fun refreshProfileCheck() {
         scope.launch {
             if (repository.isAuthenticated()) {
@@ -171,6 +260,9 @@ class AuthViewModel(
         }
     }
 
+    /**
+     * Clears the current error state and returns to unauthenticated state.
+     */
     fun clearError() {
         if (_state.value is AuthState.Error) {
             _state.value = AuthState.Unauthenticated

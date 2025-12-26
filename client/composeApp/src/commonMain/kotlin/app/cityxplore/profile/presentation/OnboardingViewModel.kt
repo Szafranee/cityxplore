@@ -11,23 +11,56 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * Sealed interface representing the state of the onboarding/profile creation process.
+ */
 sealed interface OnboardingState {
+    /** Initial idle state before any action is taken */
     data object Idle : OnboardingState
+
+    /** Profile creation is in progress */
     data object Loading : OnboardingState
+
+    /** Profile successfully created */
     data object Success : OnboardingState
+
+    /** An error occurred during profile creation */
     data class Error(val message: String) : OnboardingState
 }
 
+/**
+ * ViewModel managing user onboarding and profile creation.
+ *
+ * This ViewModel handles the initial profile setup for new users, including
+ * fetching user metadata from social providers (e.g. full name, preferred username)
+ * and creating the user profile in the backend system.
+ *
+ * @property repository The profile repository for backend operations.
+ * @property supabase The Supabase client for retrieving user metadata.
+ */
 class OnboardingViewModel(
     private val repository: ProfileRepository,
     private val supabase: SupabaseClient
 ) : CityXploreBaseViewModel() {
     private val _state = MutableStateFlow<OnboardingState>(OnboardingState.Idle)
+
+    /**
+     * StateFlow emitting the current onboarding state.
+     */
     val state = _state.asStateFlow()
 
     private val _initialUsername = MutableStateFlow<String?>(null)
+
+    /**
+     * StateFlow emitting a suggested username derived from user metadata.
+     * This is typically populated from social provider data (e.g. Google full name).
+     */
     val initialUsername: StateFlow<String?> = _initialUsername.asStateFlow()
 
+    /**
+     * Fetches user metadata from the Supabase authentication session.
+     * Extracts the preferred username, full name, or name to suggest as an initial username.
+     */
     fun fetchUserMetadata() {
         scope.launch {
             val user = supabase.auth.currentUserOrNull()
@@ -40,6 +73,12 @@ class OnboardingViewModel(
         }
     }
 
+    /**
+     * Creates a user profile with the specified username and optional avatar URL.
+     *
+     * @param username The desired username for the profile.
+     * @param avatarUrl The optional URL to the user's avatar image.
+     */
     fun createProfile(username: String, avatarUrl: String?) {
         scope.launch {
             _state.value = OnboardingState.Loading

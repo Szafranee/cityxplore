@@ -11,6 +11,19 @@ import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import org.koin.dsl.module
 
+/**
+ * Koin dependency injection module for authentication-related components.
+ *
+ * This module provides:
+ * - [AuthRepository] implementation using Supabase Auth SDK
+ * - [AuthViewModel] for managing authentication state
+ * - [SupabaseClient] configured with Auth and Postgrest plugins
+ * - Supabase Auth instance for direct access if needed
+ *
+ * Configuration is loaded from BuildConfig, which reads from local.properties:
+ * - SUPABASE_URL: The Supabase project URL
+ * - SUPABASE_KEY: The Supabase anonymous/public API key
+ */
 val authModule = module {
     single<AuthRepository> { AuthRepositoryImpl(get(), get()) }
     factory { AuthViewModel(get()) }

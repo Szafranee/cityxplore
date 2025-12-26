@@ -17,12 +17,25 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 
+/**
+ * Implementation of [AuthRepository] using Supabase Auth SDK and Ktor HTTP client.
+ *
+ * This class manages authentication operations including email/password authentication,
+ * social provider authentication (Google, Discord), session management, and user profile verification.
+ *
+ * @property supabase The Supabase client instance for authentication operations.
+ * @property client The HTTP client for making API calls to the backend.
+ */
 class AuthRepositoryImpl(
     private val supabase: SupabaseClient,
     private val client: HttpClient
 ) : AuthRepository {
     private val auth = supabase.auth
 
+    /**
+     * Flow emitting authentication state based on Supabase session status.
+     * Emits `true` when a session is authenticated, `false` otherwise.
+     */
     override val authState: Flow<Boolean> = auth.sessionStatus
         .map { status ->
             when (status) {
@@ -32,6 +45,13 @@ class AuthRepositoryImpl(
             }
         }
 
+    /**
+     * Initiates social provider authentication using the specified provider.
+     * Opens the provider's OAuth flow with a deep link redirect URL.
+     *
+     * @param provider The social authentication provider to use.
+     * @return [Result] containing [Unit] on successful initiation, or exception on failure.
+     */
     override suspend fun signInWith(provider: SocialProvider): Result<Unit> {
         return try {
             val redirectUrl = "app.cityxplore://login"
@@ -46,6 +66,14 @@ class AuthRepositoryImpl(
         }
     }
 
+    /**
+     * Registers a new user with email and password using Supabase Auth.
+     * The user will receive a verification email before they can sign in.
+     *
+     * @param email The user's email address.
+     * @param password The user's password (minimum 6 characters).
+     * @return [Result] containing [Unit] on success, or exception on failure.
+     */
     override suspend fun signUp(email: String, password: String): Result<Unit> {
         return try {
             auth.signUpWith(Email) {
@@ -58,6 +86,13 @@ class AuthRepositoryImpl(
         }
     }
 
+    /**
+     * Signs in an existing user with email and password.
+     *
+     * @param email The user's email address.
+     * @param password The user's password.
+     * @return [Result] containing [Unit] on success, or exception on failure.
+     */
     override suspend fun signIn(email: String, password: String): Result<Unit> {
         return try {
             auth.signInWith(Email) {
@@ -70,14 +105,32 @@ class AuthRepositoryImpl(
         }
     }
 
+    /**
+     * Signs out the currently authenticated user, clearing the session.
+     *
+     * @return [Result] containing [Unit] on success, or exception on failure.
+     */
     override suspend fun signOut(): Result<Unit> = runCatching {
         auth.signOut()
     }
 
+    /**
+     * Checks if a valid authentication session exists.
+     *
+     * @return `true` if authenticated, `false` otherwise.
+     */
     override suspend fun isAuthenticated(): Boolean {
         return auth.currentSessionOrNull() != null
     }
 
+    /**
+     * Resolves a login identifier to an email address.
+     * If the input contains '@', it is assumed to be an email and returned as-is.
+     * Otherwise, the username is queried in the Supabase users table to find the associated email.
+     *
+     * @param login The username or email to resolve.
+     * @return The resolved email address, or `null` if the username is not found.
+     */
     override suspend fun resolveEmail(login: String): String? {
         if (login.contains("@")) return login
 
@@ -95,6 +148,12 @@ class AuthRepositoryImpl(
         }
     }
 
+    /**
+     * Checks if the currently authenticated user has a profile in the backend system.
+     * Makes a request to the `/api/users/me` endpoint to verify profile existence.
+     *
+     * @return `true` if the user has a profile (200 OK response), `false` otherwise.
+     */
     override suspend fun hasProfile(): Boolean {
         auth.currentUserOrNull() ?: return false
         return try {
@@ -105,6 +164,12 @@ class AuthRepositoryImpl(
         }
     }
 
+    /**
+     * Resends the email verification link to the specified email address.
+     *
+     * @param email The email address to send the verification link to.
+     * @return [Result] containing [Unit] on success, or exception on failure.
+     */
     override suspend fun resendVerificationEmail(email: String): Result<Unit> {
         return try {
             auth.resendEmail(OtpType.Email.SIGNUP, email)
@@ -114,10 +179,20 @@ class AuthRepositoryImpl(
         }
     }
 
+    /**
+     * Retrieves the unique identifier of the currently authenticated user.
+     *
+     * @return The user ID as a [String], or `null` if not authenticated.
+     */
     override suspend fun getCurrentUserId(): String? {
         return auth.currentUserOrNull()?.id
     }
 }
 
+/**
+ * Data transfer object for retrieving user email from the database.
+ *
+ * @property email The user's email address.
+ */
 @Serializable
 data class UserEmailDto(val email: String)

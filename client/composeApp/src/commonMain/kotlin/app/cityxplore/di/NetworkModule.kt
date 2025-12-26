@@ -15,6 +15,20 @@ import kotlinx.serialization.json.Json
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
+/**
+ * Koin dependency injection module for network-related components.
+ *
+ * This module provides a configured [HttpClient] with:
+ * - **ContentNegotiation**: JSON serialization/deserialization using kotlinx.serialization
+ * - **Logging**: HTTP request/response logging for debugging
+ * - **Bearer Token Authentication**: Automatically injects the current Supabase JWT token
+ *   into the Authorization header for every request to the backend API
+ *
+ * The token injection happens dynamically on each request, ensuring support for
+ * account switching and automatic token refresh.
+ *
+ * @see app.cityxplore.di.authModule
+ */
 fun networkModule(): Module = module {
     single {
         val supabase = get<SupabaseClient>()
