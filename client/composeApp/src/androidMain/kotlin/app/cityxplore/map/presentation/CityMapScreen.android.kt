@@ -126,7 +126,6 @@ private fun ReadyMap(
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
     val lastLocation = remember { mutableStateOf<Point?>(null) }
     val locationInitialized = remember { mutableStateOf(false) }
-    val isFollowingUser = remember(mapState.isFollowingUser) { mutableStateOf(mapState.isFollowingUser) }
     val shouldCenterOnFirstLocation = remember { mutableStateOf(true) }
 
 
@@ -180,7 +179,7 @@ private fun ReadyMap(
 
 
     // Track user location and auto-centre on the first fix
-    val positionListener = remember {
+    val positionListener = remember(mapState.isFollowingUser) {
         OnIndicatorPositionChangedListener { point ->
             lastLocation.value = point
 
@@ -188,18 +187,17 @@ private fun ReadyMap(
                 shouldCenterOnFirstLocation.value = false
                 locationInitialized.value = true
                 centerOnLocationInstantly(point)
-            } else if (isFollowingUser.value) {
+            } else if (mapState.isFollowingUser) {
                 animateToLocation(point)
             }
         }
     }
 
     // Disable follow mode when user manually moves the map
-    val onMoveListener = remember {
+    val onMoveListener = remember(mapState.isFollowingUser) {
         object : OnMoveListener {
             override fun onMove(detector: MoveGestureDetector): Boolean {
-                if (isFollowingUser.value) {
-                    isFollowingUser.value = false
+                if (mapState.isFollowingUser) {
                     onAction(MapAction.ToggleFollowUser)
                 }
                 return false
@@ -245,11 +243,10 @@ private fun ReadyMap(
         )
 
         // Register and clean-up listeners
-        DisposableEffect(mapViewRef.value) {
+        DisposableEffect(mapViewRef.value, mapState.isFollowingUser) {
             val mapView = mapViewRef.value
             val mapClickListener: (Point) -> Boolean = { _ ->
-                if (isFollowingUser.value) {
-                    isFollowingUser.value = false
+                if (mapState.isFollowingUser) {
                     onAction(MapAction.ToggleFollowUser)
                 }
                 true
@@ -265,8 +262,7 @@ private fun ReadyMap(
                 mapView?.let {
                     it.location.removeOnIndicatorPositionChangedListener(positionListener)
                     it.gestures.removeOnMoveListener(onMoveListener)
-                    // Note: Mapbox SDK doesn't provide removeOnMapClickListener
-                    // The listener will be cleaned up when MapView is destroyed
+                    it.gestures.removeOnMapClickListener(mapClickListener)
                 }
             }
         }
@@ -275,7 +271,6 @@ private fun ReadyMap(
         FloatingActionButton(
             onClick = {
                 mapViewRef.value?.let { _ ->
-                    isFollowingUser.value = true
                     onAction(MapAction.ToggleFollowUser)
 
                     val point = lastLocation.value
