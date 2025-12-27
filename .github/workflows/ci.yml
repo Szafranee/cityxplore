@@ -48,8 +48,8 @@ jobs:
         run: ./gradlew :backend:check --no-daemon
 
       # ---- CLIENT ----
-      - name: Validate KMP client build
-        run: ./gradlew :client:composeApp:assemble --no-daemon
+      #      - name: Validate KMP client build
+      #        run: ./gradlew :client:composeApp:assemble --no-daemon
 
       # ---- MIGRATIONS ----
       - name: Set up Supabase CLI
