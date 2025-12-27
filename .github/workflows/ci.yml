@@ -10,6 +10,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
     services:
       postgres:
         image: postgres:15
@@ -40,18 +44,11 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
 
-      - name: Build backend (Gradle)
-        run: ./gradlew :backend:build --no-daemon
-
-      - name: Run backend tests
-        run: ./gradlew :backend:test --no-daemon
+      - name: Backend checks (compile + tests)
+        run: ./gradlew :backend:check --no-daemon
 
       # ---- CLIENT ----
       - name: Validate KMP client build
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
         run: ./gradlew :client:composeApp:assemble --no-daemon
 
       # ---- MIGRATIONS ----
