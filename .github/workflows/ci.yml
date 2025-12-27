@@ -48,6 +48,10 @@ jobs:
 
       # ---- CLIENT ----
       - name: Validate KMP client build
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
         run: ./gradlew :client:composeApp:assemble --no-daemon
 
       # ---- MIGRATIONS ----

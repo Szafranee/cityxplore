@@ -24,8 +24,11 @@ buildConfig {
     }
 
     fun getRequiredProperty(key: String): String {
+        // Try local.properties first, then environment variables (for CI/CD)
         return localProperties.getProperty(key)
-            ?: throw GradleException("Missing required property '$key' in local.properties")
+            ?: System.getenv(key)
+            ?: providers.gradleProperty(key).orNull
+            ?: throw GradleException("Missing required property '$key' in local.properties or environment variables")
     }
 
     buildConfigField("String", "SUPABASE_URL", "\"${getRequiredProperty("SUPABASE_URL")}\"")
@@ -117,8 +120,11 @@ android {
             localProperties.load(FileInputStream(localPropertiesFile))
         }
 
+        // Try local.properties first, then environment variables (for CI/CD)
         val mapboxToken = localProperties.getProperty("MAPBOX_PUBLIC_TOKEN")
-            ?: throw GradleException("Missing required property 'MAPBOX_PUBLIC_TOKEN' in local.properties")
+            ?: System.getenv("MAPBOX_PUBLIC_TOKEN")
+            ?: providers.gradleProperty("MAPBOX_PUBLIC_TOKEN").orNull
+            ?: throw GradleException("Missing required property 'MAPBOX_PUBLIC_TOKEN' in local.properties or environment variables")
 
         manifestPlaceholders["MAPBOX_ACCESS_TOKEN"] = mapboxToken
         resValue("string", "mapbox_access_token", mapboxToken)
