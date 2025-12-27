@@ -1,6 +1,5 @@
-package org.example.project
+package app.cityxplore
 
 import androidx.compose.ui.window.ComposeUIViewController
-import app.cityxplore.CityXploreRoot
 
 fun MainViewController() = ComposeUIViewController { CityXploreRoot() }

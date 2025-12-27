@@ -148,12 +148,12 @@ private fun ReadyMap(
         )
     }
 
-    // Remember annotation manager for the current map view
+    // Remember the annotation manager for the current map view
     val annotationManager = remember(mapViewRef.value) {
         mapViewRef.value?.annotations?.createPointAnnotationManager()
     }
 
-    // Update POI markers when map view or POI list changes
+    // Update POI markers when the map view or POI list changes
     LaunchedEffect(mapViewRef.value, mapState.pois) {
         val manager = annotationManager ?: return@LaunchedEffect
 
@@ -178,36 +178,6 @@ private fun ReadyMap(
     }
 
 
-    // Track user location and auto-centre on the first fix
-    val positionListener = remember(mapState.isFollowingUser) {
-        OnIndicatorPositionChangedListener { point ->
-            lastLocation.value = point
-
-            if (shouldCenterOnFirstLocation.value) {
-                shouldCenterOnFirstLocation.value = false
-                locationInitialized.value = true
-                centerOnLocationInstantly(point)
-            } else if (mapState.isFollowingUser) {
-                animateToLocation(point)
-            }
-        }
-    }
-
-    // Disable follow mode when user manually moves the map
-    val onMoveListener = remember(mapState.isFollowingUser) {
-        object : OnMoveListener {
-            override fun onMove(detector: MoveGestureDetector): Boolean {
-                if (mapState.isFollowingUser) {
-                    onAction(MapAction.ToggleFollowUser)
-                }
-                return false
-            }
-
-            override fun onMoveBegin(detector: MoveGestureDetector) {}
-
-            override fun onMoveEnd(detector: MoveGestureDetector) {}
-        }
-    }
 
     Box(modifier = modifier.fillMaxSize()) {
         AndroidView(
@@ -245,6 +215,34 @@ private fun ReadyMap(
         // Register and clean-up listeners
         DisposableEffect(mapViewRef.value, mapState.isFollowingUser) {
             val mapView = mapViewRef.value
+
+            // Track user location and auto-centre on the first fix
+            val positionListener = OnIndicatorPositionChangedListener { point ->
+                lastLocation.value = point
+
+                if (shouldCenterOnFirstLocation.value) {
+                    shouldCenterOnFirstLocation.value = false
+                    locationInitialized.value = true
+                    centerOnLocationInstantly(point)
+                } else if (mapState.isFollowingUser) {
+                    animateToLocation(point)
+                }
+            }
+
+            // Disable follow mode when the user manually moves the map
+            val onMoveListener = object : OnMoveListener {
+                override fun onMove(detector: MoveGestureDetector): Boolean {
+                    if (mapState.isFollowingUser) {
+                        onAction(MapAction.ToggleFollowUser)
+                    }
+                    return false
+                }
+
+                override fun onMoveBegin(detector: MoveGestureDetector) {}
+
+                override fun onMoveEnd(detector: MoveGestureDetector) {}
+            }
+
             val mapClickListener: (Point) -> Boolean = { _ ->
                 if (mapState.isFollowingUser) {
                     onAction(MapAction.ToggleFollowUser)

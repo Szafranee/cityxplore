@@ -34,6 +34,7 @@ buildConfig {
     buildConfigField("String", "SUPABASE_URL", "\"${getRequiredProperty("SUPABASE_URL")}\"")
     buildConfigField("String", "SUPABASE_KEY", "\"${getRequiredProperty("SUPABASE_KEY")}\"")
     buildConfigField("String", "MAPBOX_PUBLIC_TOKEN", "\"${getRequiredProperty("MAPBOX_PUBLIC_TOKEN")}\"")
+    buildConfigField("Boolean", "DEBUG", "true")
 }
 
 kotlin {
@@ -104,11 +105,11 @@ kotlin {
 }
 
 android {
-    namespace = "compose.project.demo"
+    namespace = "app.cityxplore"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "compose.project.demo"
+        applicationId = "app.cityxplore"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
@@ -136,11 +137,10 @@ android {
     }
     buildTypes {
         getByName("debug") {
-            // Android automatically generates BuildConfig.DEBUG = true for debug builds
+            // Debug build type
         }
         getByName("release") {
             isMinifyEnabled = false
-            // Android automatically generates BuildConfig.DEBUG = false for release builds
         }
     }
     compileOptions {
@@ -149,7 +149,7 @@ android {
     }
     buildFeatures {
         compose = true
-        buildConfig = true
+        buildConfig = false  // Disabled - using com.github.gmazzo.buildconfig plugin instead
     }
 }
 

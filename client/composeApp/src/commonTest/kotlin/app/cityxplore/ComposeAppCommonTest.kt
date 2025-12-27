@@ -1,4 +1,4 @@
-package org.example.project
+package app.cityxplore
 
 import kotlin.test.Test
 import kotlin.test.assertEquals

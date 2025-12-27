@@ -1,9 +1,9 @@
 plugins {
     kotlin("jvm")
-    kotlin("plugin.spring") version "2.2.0"
+    kotlin("plugin.spring") version libs.versions.kotlin
     id("org.springframework.boot") version "3.5.6"
     id("io.spring.dependency-management") version "1.1.7"
-    kotlin("plugin.jpa") version "2.2.0"
+    kotlin("plugin.jpa") version libs.versions.kotlin
 }
 
 group = "org.cityxplore"
