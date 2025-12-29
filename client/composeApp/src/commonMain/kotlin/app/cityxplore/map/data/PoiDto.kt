@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import kotlin.time.Instant
 
 /**
  * Data transfer object representing a Point of Interest from the backend API.
@@ -122,8 +123,11 @@ data class UserPoiDiscoveryDto(
  * @return A [app.cityxplore.map.domain.UserDiscovery] domain object.
  */
 fun UserPoiDiscoveryDto.toDomain(): app.cityxplore.map.domain.UserDiscovery {
-    // For now, use 0 as a placeholder. Full implementation should parse ISO-8601
-    val timestamp = 0L
+    val timestamp = try {
+        Instant.parse(discoveredAt).toEpochMilliseconds()
+    } catch (_: Exception) {
+        0L // Fallback to 0 on parse failure
+    }
     return app.cityxplore.map.domain.UserDiscovery(
         poiId = poiId,
         discoveredAt = timestamp

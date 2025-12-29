@@ -1,6 +1,8 @@
 package app.cityxplore.map.domain
 
 import app.cityxplore.core.location.Location
+import io.ktor.client.plugins.ClientRequestException
+import io.ktor.http.HttpStatusCode
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
@@ -10,7 +12,7 @@ import kotlin.math.sqrt
  * Use case for automatically discovering POIs based on the user's location.
  *
  * This use case monitors user location and triggers POI discovery when
- * the user is within the discovery radius (50 meters by default).
+ * the user is within the discovery radius (75 meters by default).
  *
  * @property getPoisUseCase Usecase to fetch all POIs with discovery status.
  * @property discoverPoiUseCase Usecase to discover a specific POI.
@@ -23,7 +25,7 @@ class AutoDiscoverPoisUseCase(
         /**
          * Discovery radius in meters. User must be within this distance to discover a POI.
          */
-        const val DISCOVERY_RADIUS_METERS = 100.0
+        const val DISCOVERY_RADIUS_METERS = 75.0
     }
 
     /**
@@ -57,8 +59,17 @@ class AutoDiscoverPoisUseCase(
                     val discoverResult = discoverPoiUseCase(poi.id)
                     if (discoverResult.isSuccess) {
                         discoveredIds.add(poi.id)
+                    } else {
+                        // Check if the failure is due to 409 Conflict (already discovered)
+                        val exception = discoverResult.exceptionOrNull()
+                        if (exception is ClientRequestException && exception.response.status == HttpStatusCode.Conflict) {
+                            // Silently ignore 409 Conflict - POI was already discovered
+                        } else {
+                            // Log all other errors with context
+                            println("Failed to discover POI ${poi.id} (${poi.name}): ${exception?.message}")
+                            exception?.printStackTrace()
+                        }
                     }
-                    // Ignore 409 Conflict (already discovered) errors silently
                 }
             }
 

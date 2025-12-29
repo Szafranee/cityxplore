@@ -77,13 +77,19 @@ class MapViewModel(
         scope.launch(cityXploreDispatchers.io) {
             _state.value = MapUiState.Loading
 
+            // Preserve the current follow flag from existing state
+            val previousIsFollowing = when (val s = _state.value) {
+                is MapUiState.Ready -> s.isFollowingUser
+                else -> true
+            }
+
             val result = getPoisUseCase()
             _state.value = result.fold(
                 onSuccess = { pois ->
                     MapUiState.Ready(
                         pois = pois.map(PoiModel::toMapPoi),
                         userLocation = lastKnownLocation,
-                        isFollowingUser = true,
+                        isFollowingUser = previousIsFollowing,
                         selectedPoi = null,
                         newlyDiscoveredPoiIds = emptySet()
                     )
@@ -151,7 +157,25 @@ class MapViewModel(
                             )
                         }
                     }
+
+                    poisResult.onFailure { error ->
+                        // Log error and clear discovery state to prevent inconsistency
+                        println("Failed to refresh POIs after discovery: ${error.message}")
+                        val currentState = _state.value
+                        if (currentState is MapUiState.Ready) {
+                            // Keep current state but clear newly discovered IDs
+                            _state.value = currentState.copy(
+                                newlyDiscoveredPoiIds = emptySet()
+                            )
+                        }
+                    }
                 }
+            }
+
+            result.onFailure { error ->
+                // Log auto-discovery failure
+                println("Auto-discovery failed: ${error.message}")
+                // Optionally emit a UI error event here if needed
             }
         }
     }
