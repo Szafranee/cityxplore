@@ -1,0 +1,216 @@
+package app.cityxplore.auth.data
+
+import app.cityxplore.auth.domain.AuthRepository
+import app.cityxplore.auth.domain.SocialProvider
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.OtpType
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.providers.Discord
+import io.github.jan.supabase.auth.providers.Google
+import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.auth.status.SessionStatus
+import io.github.jan.supabase.postgrest.postgrest
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.serialization.Serializable
+import kotlin.time.TimeSource
+
+/**
+ * Implementation of [AuthRepository] using Supabase Auth SDK and Ktor HTTP client.
+ *
+ * This class manages authentication operations including email/password authentication,
+ * social provider authentication (Google, Discord), session management, and user profile verification.
+ *
+ * @property supabase The Supabase client instance for authentication operations.
+ * @property client The HTTP client for making API calls to the backend.
+ */
+class AuthRepositoryImpl(
+    private val supabase: SupabaseClient,
+    private val client: HttpClient
+) : AuthRepository {
+    private val auth = supabase.auth
+
+    /**
+     * Flow emitting authentication state based on Supabase session status.
+     * Emits `true` when a session is authenticated, `false` when not authenticated,
+     * and `null` when the session is still initialising (to avoid premature navigation).
+     */
+    override val authState: Flow<Boolean?> = auth.sessionStatus
+        .map { status ->
+            when (status) {
+                is SessionStatus.Authenticated -> true
+                is SessionStatus.Initializing -> null
+                else -> false
+            }
+        }
+
+    /**
+     * Initiates social provider authentication using the specified provider.
+     * Opens the provider's OAuth flow with a deep link redirect URL.
+     *
+     * @param provider The social authentication provider to use.
+     * @return [Result] containing [Unit] on successful initiation, or exception on failure.
+     */
+    override suspend fun signInWith(provider: SocialProvider): Result<Unit> {
+        return try {
+            val redirectUrl = "app.cityxplore://login"
+            when (provider) {
+                SocialProvider.GOOGLE -> auth.signInWith(Google, redirectUrl)
+                // SocialProvider.FACEBOOK -> auth.signInWith(Facebook, redirectUrl)
+                SocialProvider.DISCORD -> auth.signInWith(Discord, redirectUrl)
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Registers a new user with email and password using Supabase Auth.
+     * The user will receive a verification email before they can sign in.
+     *
+     * @param email The user's email address.
+     * @param password The user's password (minimum 6 characters).
+     * @return [Result] containing [Unit] on success, or exception on failure.
+     */
+    override suspend fun signUp(email: String, password: String): Result<Unit> {
+        return try {
+            auth.signUpWith(Email) {
+                this.email = email
+                this.password = password
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Signs in an existing user with email and password.
+     *
+     * @param email The user's email address.
+     * @param password The user's password.
+     * @return [Result] containing [Unit] on success, or exception on failure.
+     */
+    override suspend fun signIn(email: String, password: String): Result<Unit> {
+        return try {
+            auth.signInWith(Email) {
+                this.email = email
+                this.password = password
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Signs out the currently authenticated user, clearing the session.
+     *
+     * @return [Result] containing [Unit] on success, or exception on failure.
+     */
+    override suspend fun signOut(): Result<Unit> = runCatching {
+        auth.signOut()
+    }
+
+    /**
+     * Checks if a valid authentication session exists.
+     *
+     * @return `true` if authenticated, `false` otherwise.
+     */
+    override suspend fun isAuthenticated(): Boolean {
+        return auth.currentSessionOrNull() != null
+    }
+
+    /**
+     * Resolves a login identifier to an email address.
+     * If the input contains '@', it is assumed to be an email and returned as-is.
+     * Otherwise, the username is queried in the Supabase users table to find the associated email.
+     *
+     * **Security Note**: This method includes a deliberate delay to mitigate timing attacks
+     * and username enumeration. Always returns null for non-existent usernames to avoid
+     * revealing whether a username exists in the system.
+     *
+     * @param login The username or email to resolve.
+     * @return The resolved email address, or `null` if the username is not found.
+     */
+    override suspend fun resolveEmail(login: String): String? {
+        if (login.contains("@")) return login
+
+        // Add deliberate delay to prevent timing-based username enumeration
+        val startMark = TimeSource.Monotonic.markNow()
+
+        // Query users table to find email by username
+        val result = try {
+            val user = supabase.postgrest.from("users")
+                .select {
+                    filter {
+                        eq("username", login)
+                    }
+                }.decodeSingleOrNull<UserEmailDto>()
+            user?.email
+        } catch (_: Exception) {
+            null
+        }
+
+        // Ensure a consistent response time (minimum 200 ms) to prevent timing attacks
+        val elapsed = startMark.elapsedNow().inWholeMilliseconds
+        if (elapsed < 200) {
+            delay(200 - elapsed)
+        }
+
+        return result
+    }
+
+    /**
+     * Checks if the currently authenticated user has a profile in the backend system.
+     * Makes a request to the `/api/users/me` endpoint to verify profile existence.
+     *
+     * @return `true` if the user has a profile (200 OK response), `false` otherwise.
+     */
+    override suspend fun hasProfile(): Boolean {
+        auth.currentUserOrNull() ?: return false
+        return try {
+            val response = client.get("https://api.cityxplore.app/api/users/me")
+            response.status == HttpStatusCode.OK
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Resends the email verification link to the specified email address.
+     *
+     * @param email The email address to send the verification link to.
+     * @return [Result] containing [Unit] on success, or exception on failure.
+     */
+    override suspend fun resendVerificationEmail(email: String): Result<Unit> {
+        return try {
+            auth.resendEmail(OtpType.Email.SIGNUP, email)
+            Result.success(Unit)
+        } catch (_: Exception) {
+            Result.failure(Exception("Failed to resend verification email"))
+        }
+    }
+
+    /**
+     * Retrieves the unique identifier of the currently authenticated user.
+     *
+     * @return The user ID as a [String], or `null` if not authenticated.
+     */
+    override suspend fun getCurrentUserId(): String? {
+        return auth.currentUserOrNull()?.id
+    }
+}
+
+/**
+ * Data transfer object for retrieving user email from the database.
+ *
+ * @property email The user's email address.
+ */
+@Serializable
+data class UserEmailDto(val email: String)

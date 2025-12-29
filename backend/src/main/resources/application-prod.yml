@@ -28,17 +28,20 @@ spring:
         jdbc:
           lob:
             non_contextual_creation: true
+    #        dialect: org.hibernate.dialect.PostgreSQLDialect
     show-sql: false
 
   flyway:
     enabled: false
+
+server:
+  port: ${PORT:8080}
 
 supabase:
   api-key: ${SUPABASE_PUBLISHABLE_KEY}
   secret-key: ${SUPABASE_SECRET_KEY}
   storage:
     url: https://${SUPABASE_PROJECT_REF}.supabase.co/storage/v1
-
 
 logging:
   level:
@@ -47,20 +50,19 @@ logging:
     org.hibernate.SQL: WARN
 
 management:
+  endpoint:
+    health:
+      show-details: when-authorized
   endpoints:
     web:
       exposure:
         include: health,info
-  endpoint:
-    health:
-      show-details: when-authorized
-  info:
-    env:
-      enabled: false
   health:
     diskspace:
       enabled: true
-
+  info:
+    env:
+      enabled: false
 
 app:
   admin:
