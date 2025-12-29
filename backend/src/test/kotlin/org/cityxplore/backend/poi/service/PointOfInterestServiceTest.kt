@@ -5,6 +5,7 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
+import org.cityxplore.backend.discoveries.repository.UserPoiDiscoveryRepository
 import org.cityxplore.backend.poi.dto.CreatePoiPublicRequest
 import org.cityxplore.backend.poi.dto.CreatePoiRequest
 import org.cityxplore.backend.poi.dto.UpdatePoiRequest
@@ -26,13 +27,15 @@ import java.util.UUID
 class PointOfInterestServiceTest {
 
     private lateinit var poiRepository: PointOfInterestRepository
+    private lateinit var userPoiDiscoveryRepository: UserPoiDiscoveryRepository
     private lateinit var poiService: PointOfInterestService
     private val geometryFactory = GeometryFactory(PrecisionModel(), 4326)
 
     @BeforeEach
     fun setUp() {
         poiRepository = mockk()
-        poiService = PointOfInterestService(poiRepository)
+        userPoiDiscoveryRepository = mockk()
+        poiService = PointOfInterestService(poiRepository, userPoiDiscoveryRepository)
     }
 
     @Test
@@ -105,6 +108,7 @@ class PointOfInterestServiceTest {
         )
 
         every { poiRepository.findByIdIsActiveTrue(poiId) } returns poi
+        // No authenticated user, so existsByUserIdAndPoiId should not be called
 
         // When
         val result = poiService.getById(poiId)
@@ -113,6 +117,7 @@ class PointOfInterestServiceTest {
         assertEquals(poiId, result.id)
         assertEquals("Museum", result.name)
         assertEquals("Culture", result.category)
+        assertEquals(null, result.isDiscovered) // Not authenticated = null
         verify(exactly = 1) { poiRepository.findByIdIsActiveTrue(poiId) }
     }
 
