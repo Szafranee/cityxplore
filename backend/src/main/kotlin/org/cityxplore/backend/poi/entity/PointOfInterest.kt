@@ -53,7 +53,10 @@ data class PointOfInterest(
     var updatedAt: LocalDateTime? = null,
 
     @Column(name = "is_active", nullable = false)
-    var isActive: Boolean = true
+    var isActive: Boolean = true,
+
+    @Column(name = "is_major", nullable = false)
+    var isMajor: Boolean = false
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -72,7 +75,8 @@ data class PointOfInterest(
         if (this is HibernateProxy) this.hibernateLazyInitializer.persistentClass.hashCode() else javaClass.hashCode()
 
     override fun toString(): String =
-        "${'$'}{this::class.simpleName}(id=${'$'}id, name=${'$'}name, description=${'$'}description, " +
-                "category=${'$'}category, location=${'$'}location, metadata=${'$'}metadata, " +
-                "imageUrls=${'$'}imageUrls, createdAt=${'$'}createdAt, updatedAt=${'$'}updatedAt, isActive=${'$'}isActive)"
+        $$"${this::class.simpleName}(id=$id, name=$name, description=$description, " +
+                $$"category=$category, location=$location, metadata=$metadata, " +
+                $$"imageUrls=$imageUrls, createdAt=$createdAt, updatedAt=$updatedAt, " +
+                $$"isActive=$isActive, isMajor=$isMajor)"
 }

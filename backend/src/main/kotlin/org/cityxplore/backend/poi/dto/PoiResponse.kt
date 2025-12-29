@@ -17,5 +17,7 @@ data class PoiResponse(
     val imageUrls: List<String>?,
     val createdAt: LocalDateTime?,
     val updatedAt: LocalDateTime?,
-    val isActive: Boolean
+    val isActive: Boolean,
+    val isMajor: Boolean = false,
+    val isDiscovered: Boolean? = null // Calculated field, null if user not authenticated
 )
