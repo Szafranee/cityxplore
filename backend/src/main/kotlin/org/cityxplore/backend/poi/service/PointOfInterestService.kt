@@ -1,5 +1,6 @@
 package org.cityxplore.backend.poi.service
 
+import org.cityxplore.backend.discoveries.repository.UserPoiDiscoveryRepository
 import org.cityxplore.backend.poi.dto.CreatePoiPublicRequest
 import org.cityxplore.backend.poi.dto.CreatePoiRequest
 import org.cityxplore.backend.poi.dto.PoiAdminResponse
@@ -15,6 +16,7 @@ import org.locationtech.jts.geom.Coordinate
 import org.locationtech.jts.geom.GeometryFactory
 import org.locationtech.jts.geom.PrecisionModel
 import org.springframework.http.HttpStatus
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
@@ -27,22 +29,59 @@ import java.util.UUID
  * Admin helpers (getAllPois, createPoi, ...) expose richer DTOs used by admin controllers.
  *
  * @property poiRepository Repository used to interact with the persistence layer for POI data.
+ * @property userPoiDiscoveryRepository Repository for user POI discoveries.
  */
 @Service
 class PointOfInterestService(
-    private val poiRepository: PointOfInterestRepository
+    private val poiRepository: PointOfInterestRepository,
+    private val userPoiDiscoveryRepository: UserPoiDiscoveryRepository
 ) {
     private val geometryFactory = GeometryFactory(PrecisionModel(), 4326)
 
     /**
      * Retrieves all Points of Interest (POIs) from the repository and maps them to a list of response DTOs.
+     * If user is authenticated, includes isDiscovered flag for each POI.
      *
      * @return A list of `PoiResponse` objects representing all Points of Interest.
      */
     @Transactional(readOnly = true)
-    fun getAll(): List<PoiResponse> =
-        poiRepository.findAllByIsActiveTrue()
-            .toResponseDtoList()
+    fun getAll(): List<PoiResponse> {
+        val pois = poiRepository.findAllByIsActiveTrue()
+        val userId = getCurrentUserId()
+
+        return if (userId != null) {
+            // User is authenticated - fetch their discoveries
+            val discoveredPoiIds = userPoiDiscoveryRepository.findAllByUserId(userId)
+                .map { it.poiId }
+                .toSet()
+
+            pois.map { poi ->
+                poi.toResponseDto().copy(
+                    isDiscovered = discoveredPoiIds.contains(poi.id)
+                )
+            }
+        } else {
+            // User not authenticated - return without discovery status
+            pois.toResponseDtoList()
+        }
+    }
+
+    /**
+     * Helper function to extract the current user ID from Security Context.
+     * Returns null if the user is not authenticated.
+     */
+    private fun getCurrentUserId(): UUID? {
+        return try {
+            val authentication = SecurityContextHolder.getContext().authentication
+            if (authentication?.principal is String) {
+                UUID.fromString(authentication.principal as String)
+            } else {
+                null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     /**
      * Retrieves a Point of Interest (POI) by its unique identifier.

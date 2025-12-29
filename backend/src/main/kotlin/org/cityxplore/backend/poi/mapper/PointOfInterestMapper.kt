@@ -21,7 +21,9 @@ fun PointOfInterest.toResponseDto(): PoiResponse = PoiResponse(
     imageUrls = this.imageUrls,
     createdAt = this.createdAt,
     updatedAt = this.updatedAt,
-    isActive = this.isActive
+    isActive = this.isActive,
+    isMajor = this.isMajor,
+    isDiscovered = null // Will be calculated in service layer if user is authenticated
 )
 
 fun List<PointOfInterest>.toResponseDtoList(): List<PoiResponse> = this.map { it.toResponseDto() }
