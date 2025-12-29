@@ -68,7 +68,7 @@ class PointOfInterestService(
 
     /**
      * Helper function to extract the current user ID from Security Context.
-     * Returns null if the user is not authenticated.
+     * Returns null if the user is not authenticated or if the principal is not a valid UUID.
      */
     private fun getCurrentUserId(): UUID? {
         return try {
@@ -78,23 +78,36 @@ class PointOfInterestService(
             } else {
                 null
             }
-        } catch (_: Exception) {
+        } catch (_: IllegalArgumentException) {
+            // Invalid UUID format - return null
             null
         }
     }
 
     /**
      * Retrieves a Point of Interest (POI) by its unique identifier.
+     * If user is authenticated, includes isDiscovered flag.
      * Throws a `ResponseStatusException` with a 404 status if the POI is not found.
      *
      * @param id The unique identifier of the Point of Interest to retrieve.
      * @return A `PoiResponse` object representing the retrieved Point of Interest.
      */
     @Transactional(readOnly = true)
-    fun getById(id: UUID): PoiResponse =
-        poiRepository.findByIdIsActiveTrue(id)
-            ?.toResponseDto()
+    fun getById(id: UUID): PoiResponse {
+        val poi = poiRepository.findByIdIsActiveTrue(id)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "POI not found")
+
+        val userId = getCurrentUserId()
+
+        return if (userId != null) {
+            // User is authenticated - check if they discovered this POI
+            val isDiscovered = userPoiDiscoveryRepository.existsByUserIdAndPoiId(userId, id)
+            poi.toResponseDto().copy(isDiscovered = isDiscovered)
+        } else {
+            // User not authenticated - return without discovery status
+            poi.toResponseDto()
+        }
+    }
 
     /**
      * Creates a new Point of Interest (POI) and saves it to the database.

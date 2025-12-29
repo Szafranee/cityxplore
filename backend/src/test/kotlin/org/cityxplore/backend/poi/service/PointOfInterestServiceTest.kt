@@ -108,6 +108,7 @@ class PointOfInterestServiceTest {
         )
 
         every { poiRepository.findByIdIsActiveTrue(poiId) } returns poi
+        // No authenticated user, so existsByUserIdAndPoiId should not be called
 
         // When
         val result = poiService.getById(poiId)
@@ -116,6 +117,7 @@ class PointOfInterestServiceTest {
         assertEquals(poiId, result.id)
         assertEquals("Museum", result.name)
         assertEquals("Culture", result.category)
+        assertEquals(null, result.isDiscovered) // Not authenticated = null
         verify(exactly = 1) { poiRepository.findByIdIsActiveTrue(poiId) }
     }
 
