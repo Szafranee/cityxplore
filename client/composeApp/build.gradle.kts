@@ -14,27 +14,42 @@ plugins {
     id("com.github.gmazzo.buildconfig") version "6.0.7"
 }
 
+// Shared property resolution logic
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        load(FileInputStream(localPropertiesFile))
+    }
+}
+
+fun getRequiredProperty(key: String): String {
+    // Try local.properties first, then environment variables (for CI/CD), then Gradle properties
+    return localProperties.getProperty(key)
+        ?: System.getenv(key)
+        ?: providers.gradleProperty(key).orNull
+        ?: throw GradleException("Missing required property '$key' in local.properties or environment variables")
+}
+
+// Resolve properties once at configuration time
+val supabaseUrl: String by lazy { getRequiredProperty("SUPABASE_URL") }
+val supabaseKey: String by lazy { getRequiredProperty("SUPABASE_KEY") }
+val mapboxPublicToken: String by lazy { getRequiredProperty("MAPBOX_PUBLIC_TOKEN") }
+
 buildConfig {
     packageName("app.cityxplore")
 
-    val localProperties = Properties()
-    val localPropertiesFile = rootProject.file("local.properties")
-    if (localPropertiesFile.exists()) {
-        localProperties.load(FileInputStream(localPropertiesFile))
-    }
+    buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+    buildConfigField("String", "SUPABASE_KEY", "\"$supabaseKey\"")
+    buildConfigField("String", "MAPBOX_PUBLIC_TOKEN", "\"$mapboxPublicToken\"")
 
-    fun getRequiredProperty(key: String): String {
-        // Try local.properties first, then environment variables (for CI/CD)
-        return localProperties.getProperty(key)
-            ?: System.getenv(key)
-            ?: providers.gradleProperty(key).orNull
-            ?: throw GradleException("Missing required property '$key' in local.properties or environment variables")
+    // Configure DEBUG conditionally - defaults to false for release safety
+    // Can be explicitly enabled via -Pdebug.build=true
+    // Automatically detects Android build type when available
+    val explicitDebugProperty = providers.gradleProperty("debug.build").orNull?.toBoolean()
+    val isDebugBuild = explicitDebugProperty ?: gradle.startParameter.taskNames.any {
+        it.contains("debug", ignoreCase = true) && !it.contains("release", ignoreCase = true)
     }
-
-    buildConfigField("String", "SUPABASE_URL", "\"${getRequiredProperty("SUPABASE_URL")}\"")
-    buildConfigField("String", "SUPABASE_KEY", "\"${getRequiredProperty("SUPABASE_KEY")}\"")
-    buildConfigField("String", "MAPBOX_PUBLIC_TOKEN", "\"${getRequiredProperty("MAPBOX_PUBLIC_TOKEN")}\"")
-    buildConfigField("Boolean", "DEBUG", "true")
+    buildConfigField("Boolean", "DEBUG", isDebugBuild.toString())
 }
 
 kotlin {
@@ -115,20 +130,9 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        val localProperties = Properties()
-        val localPropertiesFile = rootProject.file("local.properties")
-        if (localPropertiesFile.exists()) {
-            localProperties.load(FileInputStream(localPropertiesFile))
-        }
-
-        // Try local.properties first, then environment variables (for CI/CD)
-        val mapboxToken = localProperties.getProperty("MAPBOX_PUBLIC_TOKEN")
-            ?: System.getenv("MAPBOX_PUBLIC_TOKEN")
-            ?: providers.gradleProperty("MAPBOX_PUBLIC_TOKEN").orNull
-            ?: throw GradleException("Missing required property 'MAPBOX_PUBLIC_TOKEN' in local.properties or environment variables")
-
-        manifestPlaceholders["MAPBOX_ACCESS_TOKEN"] = mapboxToken
-        resValue("string", "mapbox_access_token", mapboxToken)
+        // Use the shared mapboxPublicToken resolved at top level
+        manifestPlaceholders["MAPBOX_ACCESS_TOKEN"] = mapboxPublicToken
+        resValue("string", "mapbox_access_token", mapboxPublicToken)
     }
     packaging {
         resources {
