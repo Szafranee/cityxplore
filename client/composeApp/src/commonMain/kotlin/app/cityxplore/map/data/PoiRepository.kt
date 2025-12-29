@@ -29,6 +29,13 @@ interface PoiRepository {
     suspend fun fetchPois(): Result<List<PoiModel>>
 
     /**
+     * Fetches all POI discoveries for the current authenticated user.
+     *
+     * @return [Result] containing a list of discovery IDs (POI IDs) on success, or exception on failure.
+     */
+    suspend fun fetchUserDiscoveries(): Result<Set<String>>
+
+    /**
      * Marks a POI as discovered by the current user.
      *
      * @param id The unique identifier of the POI to discover.
@@ -57,7 +64,18 @@ class NetworkPoiRepository(
     override suspend fun fetchPois(): Result<List<PoiModel>> = runCatching {
         client.get("https://api.cityxplore.app/api/pois").body<List<PoiDto>>().mapNotNull(PoiDto::toDomain)
     }
-// ...existing code...
+
+    /**
+     * Fetches all POI discoveries for the current user from the backend API endpoint `/api/pois/discoveries`.
+     *
+     * @return [Result] containing a set of discovered POI IDs.
+     */
+    override suspend fun fetchUserDiscoveries(): Result<Set<String>> = runCatching {
+        client.get("https://api.cityxplore.app/api/pois/discoveries")
+            .body<List<UserPoiDiscoveryDto>>()
+            .map { it.poiId }
+            .toSet()
+    }
 
     /**
      * Sends a discovery request to the backend API endpoint `/api/pois/{id}/discover`.
@@ -89,6 +107,15 @@ class FakePoiRepository : PoiRepository {
             PoiModel("1", "Old Town", "Historic square", 52.2297, 21.0122, true, PoiCategory.HISTORICAL),
             PoiModel("2", "Vistula Park", "Green escape", 52.25, 21.00, false, PoiCategory.CULTURAL)
         )
+    )
+
+    /**
+     * Returns a hardcoded set of discovered POI IDs for development/testing.
+     *
+     * @return [Result] containing sample discovered POI IDs.
+     */
+    override suspend fun fetchUserDiscoveries(): Result<Set<String>> = Result.success(
+        setOf("1")
     )
 
     /**

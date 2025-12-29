@@ -1,5 +1,6 @@
 package app.cityxplore.map.presentation
 
+import app.cityxplore.core.location.Location
 import app.cityxplore.map.domain.MapPoi
 
 /**
@@ -16,13 +17,17 @@ sealed interface MapUiState {
      * Map is ready with POI data loaded.
      *
      * @property pois The list of POIs to display on the map.
+     * @property userLocation The current location of the user, or null if not available.
      * @property isFollowingUser Whether the map camera should follow the user's location.
      * @property selectedPoi The currently selected POI for displaying details, or `null` if none selected.
+     * @property newlyDiscoveredPoiIds Set of POI IDs that were just discovered (for showing notifications).
      */
     data class Ready(
         val pois: List<MapPoi>,
+        val userLocation: Location?,
         val isFollowingUser: Boolean,
-        val selectedPoi: MapPoi?
+        val selectedPoi: MapPoi?,
+        val newlyDiscoveredPoiIds: Set<String>
     ) : MapUiState
 
     /**
@@ -55,4 +60,18 @@ sealed interface MapAction {
 
     /** The user granted location permission */
     data object PermissionGranted : MapAction
+
+    /**
+     * User's location was updated.
+     *
+     * @property location The new user location.
+     */
+    data class UpdateLocation(val location: Location) : MapAction
+
+    /**
+     * User dismissed the discovery notification for a POI.
+     *
+     * @property poiId The ID of the POI whose notification should be dismissed.
+     */
+    data class DismissDiscoveryNotification(val poiId: String) : MapAction
 }

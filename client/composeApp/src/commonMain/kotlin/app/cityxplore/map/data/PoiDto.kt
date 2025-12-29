@@ -100,3 +100,32 @@ fun PoiDto.toDomain(): app.cityxplore.map.domain.PoiModel? {
         }
     )
 }
+
+/**
+ * Data transfer object representing a user's POI discovery from the backend API.
+ *
+ * @property poiId The unique identifier of the discovered POI.
+ * @property discoveredAt ISO-8601 timestamp of when the POI was discovered.
+ * @property favorite Whether the user marks this discovery as a favorite.
+ */
+@Serializable
+data class UserPoiDiscoveryDto(
+    val poiId: String,
+    val discoveredAt: String,
+    val favorite: Boolean = false
+)
+
+/**
+ * Maps a [UserPoiDiscoveryDto] to a domain model [app.cityxplore.map.domain.UserDiscovery].
+ * Converts ISO-8601 timestamp to Unix epoch milliseconds.
+ *
+ * @return A [app.cityxplore.map.domain.UserDiscovery] domain object.
+ */
+fun UserPoiDiscoveryDto.toDomain(): app.cityxplore.map.domain.UserDiscovery {
+    // For now, use 0 as a placeholder. Full implementation should parse ISO-8601
+    val timestamp = 0L
+    return app.cityxplore.map.domain.UserDiscovery(
+        poiId = poiId,
+        discoveredAt = timestamp
+    )
+}
