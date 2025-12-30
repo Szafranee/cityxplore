@@ -31,6 +31,16 @@ supabase = "3.2.6"
 playServicesLocation = "21.3.0"
 mapboxMaps = "11.14.0"
 coil = "3.3.0"
+springBoot = "3.5.9"
+springSecurityTest = "7.0.2"
+lombok = "1.18.42"
+flyway-database-postgresql = "11.20.0"
+flyway-core = "11.20.0"
+kotlin-reflect = "2.3.0"
+junit-platform-launcher = "6.0.1"
+junit-platform-engine = "6.0.1"
+postgresql = "42.7.8"
+commonsCompress = "1.28.0"
 
 [libraries]
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
@@ -42,10 +52,11 @@ androidx-material-icons-extended = { module = "androidx.compose.material:materia
 hibernate-core-v6629final = { module = "org.hibernate.orm:hibernate-core", version.ref = "hibernateCoreVersion" }
 hibernate-spatial-v6629final = { module = "org.hibernate.orm:hibernate-spatial", version.ref = "hibernateSpatialVersion" }
 hypersistence-utils-hibernate-x3 = { module = "io.hypersistence:hypersistence-utils-hibernate-63", version.ref = "hypersistenceUtilsHibernateX3" }
-junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
-kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
-flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql" }
-flyway-core = { module = "org.flywaydb:flyway-core" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform-launcher" }
+junit-platform-engine = { module = "org.junit.platform:junit-platform-engine", version.ref = "junit-platform-engine" }
+kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin-reflect" }
+flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway-database-postgresql" }
+flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway-core" }
 jackson-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
 kotlin-test = { group = "org.jetbrains.kotlin", name = "kotlin-test", version.ref = "kotlin" }
 kotlin-test-junit5 = { module = "org.jetbrains.kotlin:kotlin-test-junit5" }
@@ -63,19 +74,18 @@ lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecyc
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
-postgresql = { module = "org.postgresql:postgresql" }
+postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 projectlombok-lombok = { module = "org.projectlombok:lombok" }
-lombok = { module = "org.projectlombok:lombok" }
-spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
-spring-boot-starter-data-jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa" }
-spring-boot-starter-oauth2-client = { module = "org.springframework.boot:spring-boot-starter-oauth2-client" }
-spring-boot-starter-oauth2-resource-server = { module = "org.springframework.boot:spring-boot-starter-oauth2-resource-server" }
-spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
-spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web" }
-spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
-spring-boot-starter-security = { module = "org.springframework.boot:spring-boot-starter-security" }
-spring-security-oauth2-jose = { module = "org.springframework.security:spring-security-oauth2-jose" }
-spring-security-test = { module = "org.springframework.security:spring-security-test" }
+lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
+spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator", version.ref = "springBoot" }
+spring-boot-starter-data-jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa", version.ref = "springBoot" }
+spring-boot-starter-oauth2-client = { module = "org.springframework.boot:spring-boot-starter-oauth2-client", version.ref = "springBoot" }
+spring-boot-starter-oauth2-resource-server = { module = "org.springframework.boot:spring-boot-starter-oauth2-resource-server", version.ref = "springBoot" }
+spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test", version.ref = "springBoot" }
+spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web", version.ref = "springBoot" }
+spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation", version.ref = "springBoot" }
+spring-boot-starter-security = { module = "org.springframework.boot:spring-boot-starter-security", version.ref = "springBoot" }
+spring-security-test = { module = "org.springframework.security:spring-security-test", version.ref = "springSecurityTest" }
 springmockk = { module = "com.ninja-squad:springmockk", version.ref = "springmockk" }
 koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
 koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
@@ -85,6 +95,7 @@ supabase-postgrest = { module = "io.github.jan-tennert.supabase:postgrest-kt", v
 supabase-compose-auth = { module = "io.github.jan-tennert.supabase:compose-auth", version.ref = "supabase" }
 supabase-compose-auth-ui = { module = "io.github.jan-tennert.supabase:compose-auth-ui", version.ref = "supabase" }
 play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "playServicesLocation" }
+commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
 
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
@@ -93,3 +104,9 @@ androidLibrary = { id = "com.android.library", version.ref = "agp" }
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "compose" }
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 composeHotReload = { id = "org.jetbrains.compose.hot-reload", version.ref = "composeHotReload" }
+jpa = { id = "org.jetbrains.kotlin.plugin.jpa", version.ref = "kotlin" }
+jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
+springBoot = { id = "org.springframework.boot", version.ref = "springBoot" }
+springDependencyManagement = { id = "io.spring.dependency-management", version = "1.1.7" }
+kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

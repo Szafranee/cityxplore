@@ -1,10 +1,11 @@
 plugins {
-    kotlin("jvm")
-    kotlin("plugin.spring") version libs.versions.kotlin
-    id("org.springframework.boot") version "3.5.6"
-    id("io.spring.dependency-management") version "1.1.7"
-    kotlin("plugin.jpa") version libs.versions.kotlin
+    alias(libs.plugins.jvm)
+    alias(libs.plugins.spring)
+    alias(libs.plugins.jpa)
+    alias(libs.plugins.springBoot)
+    alias(libs.plugins.springDependencyManagement)
 }
+
 
 group = "org.cityxplore"
 version = "0.0.1-SNAPSHOT"
@@ -33,7 +34,6 @@ dependencies {
     implementation(libs.spring.boot.starter.oauth2.client)
     implementation(libs.spring.boot.starter.security)
     implementation(libs.spring.boot.starter.oauth2.resource.server)
-    implementation(libs.spring.security.oauth2.jose)
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.spring.boot.starter.web)
     implementation(libs.jackson.module.kotlin)
@@ -52,6 +52,7 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.springmockk)
     testRuntimeOnly(libs.junit.platform.launcher)
+    testRuntimeOnly(libs.junit.platform.engine)
 }
 
 kotlin {
