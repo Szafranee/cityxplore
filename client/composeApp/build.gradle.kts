@@ -10,7 +10,7 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
-    kotlin("plugin.serialization") version libs.versions.kotlin
+    alias(libs.plugins.kotlinSerialization)
     id("com.github.gmazzo.buildconfig") version "6.0.7"
 }
 
