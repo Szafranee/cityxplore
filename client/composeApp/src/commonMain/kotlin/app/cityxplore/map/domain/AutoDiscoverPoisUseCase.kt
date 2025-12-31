@@ -25,7 +25,7 @@ class AutoDiscoverPoisUseCase(
         /**
          * Discovery radius in meters. User must be within this distance to discover a POI.
          */
-        const val DISCOVERY_RADIUS_METERS = 75.0
+        const val DISCOVERY_RADIUS_METERS = 200.0
     }
 
     /**

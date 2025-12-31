@@ -1,6 +1,8 @@
 package app.cityxplore.map.data
 
 import app.cityxplore.map.domain.PoiCategory
+import app.cityxplore.map.domain.PoiModel
+import app.cityxplore.map.domain.UserDiscovery
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -21,6 +23,7 @@ import kotlin.time.Instant
  * @property longitudeJson The raw JSON element for longitude (may be string or number).
  * @property discovered Whether the current user has discovered this POI.
  * @property category The category of the POI.
+ * @property isMajor Whether this is a major landmark.
  */
 @Serializable
 data class PoiDto(
@@ -29,8 +32,9 @@ data class PoiDto(
     val description: String? = null,
     @SerialName("latitude") val latitudeJson: JsonElement? = null,
     @SerialName("longitude") val longitudeJson: JsonElement? = null,
-    @SerialName("is_discovered") val discovered: Boolean? = null,
+    @SerialName("isDiscovered") val discovered: Boolean? = null,
     val category: PoiCategoryDto = PoiCategoryDto.UNKNOWN,
+    @SerialName("isMajor") val isMajor: Boolean = false,
 ) {
     /**
      * Parses the latitude from JSON, handling both string and numeric formats.
@@ -52,23 +56,29 @@ data class PoiDto(
  */
 @Serializable
 enum class PoiCategoryDto {
-    @SerialName("Historical")
+    @SerialName("HISTORICAL")
     HISTORICAL,
 
-    @SerialName("Cultural")
+    @SerialName("CULTURAL")
     CULTURAL,
 
-    @SerialName("Food")
+    @SerialName("NATURE")
+    NATURE,
+
+    @SerialName("FOOD")
     FOOD,
 
-    @SerialName("Custom")
+    @SerialName("SPORTS")
+    SPORTS,
+
+    @SerialName("ENTERTAINMENT")
+    ENTERTAINMENT,
+
+    @SerialName("CUSTOM")
     CUSTOM,
 
-    @SerialName("Tested")
-    TESTED,
-
-    @SerialName("Nature")
-    NATURE,
+    @SerialName("OTHER")
+    OTHER,
 
     UNKNOWN
 }
@@ -79,11 +89,11 @@ enum class PoiCategoryDto {
  *
  * @return A [app.cityxplore.map.domain.PoiModel] domain object, or `null` if coordinates are invalid.
  */
-fun PoiDto.toDomain(): app.cityxplore.map.domain.PoiModel? {
+fun PoiDto.toDomain(): PoiModel? {
     val lat = latitude
     val lng = longitude
     if (lat == null || lng == null) return null
-    return app.cityxplore.map.domain.PoiModel(
+    return PoiModel(
         id = id,
         name = name,
         description = description,
@@ -93,12 +103,15 @@ fun PoiDto.toDomain(): app.cityxplore.map.domain.PoiModel? {
         category = when (category) {
             PoiCategoryDto.HISTORICAL -> PoiCategory.HISTORICAL
             PoiCategoryDto.CULTURAL -> PoiCategory.CULTURAL
+            PoiCategoryDto.NATURE -> PoiCategory.NATURE
             PoiCategoryDto.FOOD -> PoiCategory.FOOD
+            PoiCategoryDto.SPORTS -> PoiCategory.SPORTS
+            PoiCategoryDto.ENTERTAINMENT -> PoiCategory.ENTERTAINMENT
             PoiCategoryDto.CUSTOM -> PoiCategory.CUSTOM
-            PoiCategoryDto.TESTED -> PoiCategory.UNKNOWN
-            PoiCategoryDto.NATURE -> PoiCategory.UNKNOWN
+            PoiCategoryDto.OTHER -> PoiCategory.OTHER
             PoiCategoryDto.UNKNOWN -> PoiCategory.UNKNOWN
-        }
+        },
+        isMajor = isMajor,
     )
 }
 
@@ -122,13 +135,13 @@ data class UserPoiDiscoveryDto(
  *
  * @return A [app.cityxplore.map.domain.UserDiscovery] domain object.
  */
-fun UserPoiDiscoveryDto.toDomain(): app.cityxplore.map.domain.UserDiscovery {
+fun UserPoiDiscoveryDto.toDomain(): UserDiscovery {
     val timestamp = try {
         Instant.parse(discoveredAt).toEpochMilliseconds()
     } catch (_: Exception) {
         0L // Fallback to 0 on parse failure
     }
-    return app.cityxplore.map.domain.UserDiscovery(
+    return UserDiscovery(
         poiId = poiId,
         discoveredAt = timestamp
     )

@@ -2,9 +2,6 @@ package app.cityxplore.map.presentation
 
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Paint
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -161,11 +158,11 @@ private fun ReadyMap(
         // Create new markers for each POI
         mapState.pois.forEach { poi ->
             val point = Point.fromLngLat(poi.longitude, poi.latitude)
-            val icon = if (poi.discovered) {
-                createMarkerWithArrow(android.graphics.Color.BLUE, 100)
-            } else {
-                createMarkerWithArrow(android.graphics.Color.RED, 100)
-            }
+            val icon = createPoiMarkerBitmap(
+                category = poi.category,
+                discovered = poi.discovered,
+                isMajor = poi.isMajor
+            )
 
             val pointAnnotationOptions = PointAnnotationOptions()
                 .withPoint(point)
@@ -346,31 +343,4 @@ private fun ReadyMap(
             Icon(Icons.Default.MyLocation, contentDescription = "My Location")
         }
     }
-}
-
-fun createMarkerWithArrow(color: Int, size: Int): Bitmap {
-    val bitmap = createBitmap(size, size, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-
-    canvas.drawColor(android.graphics.Color.TRANSPARENT)
-
-    val centerX = size / 2f
-    val centerY = size / 2f
-    val circleRadius = size * 0.15f
-
-    val outerPaint = Paint().apply {
-        this.color = android.graphics.Color.WHITE
-        isAntiAlias = true
-        style = Paint.Style.FILL
-    }
-    canvas.drawCircle(centerX, centerY, circleRadius + 8, outerPaint)
-
-    val innerPaint = Paint().apply {
-        this.color = color
-        isAntiAlias = true
-        style = Paint.Style.FILL
-    }
-    canvas.drawCircle(centerX, centerY, circleRadius, innerPaint)
-
-    return bitmap
 }

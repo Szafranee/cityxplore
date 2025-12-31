@@ -13,6 +13,7 @@ package app.cityxplore.map.domain
  * @property longitude The geographic longitude coordinate.
  * @property discovered Whether the current user has discovered this POI.
  * @property category The category/type of the POI.
+ * @property isMajor Whether this is a major landmark (e.g. city's main attraction).
  */
 data class PoiModel(
     val id: String,
@@ -22,6 +23,7 @@ data class PoiModel(
     val longitude: Double,
     val discovered: Boolean,
     val category: PoiCategory,
+    val isMajor: Boolean = false,
 )
 
 /**
@@ -37,11 +39,23 @@ enum class PoiCategory {
     /** Cultural sites (museums, theatres, galleries) */
     CULTURAL,
 
+    /** Natural locations (parks, gardens, nature reserves) */
+    NATURE,
+
     /** Food and dining locations (restaurants, cafés) */
     FOOD,
 
+    /** Sports facilities (stadiums, arenas, sports centres) */
+    SPORTS,
+
+    /** Entertainment venues (cinemas, theatres, concert halls) */
+    ENTERTAINMENT,
+
     /** User-created custom POIs */
     CUSTOM,
+
+    /** Other miscellaneous POIs */
+    OTHER,
 
     /** Unknown or uncategorized POIs */
     UNKNOWN
@@ -60,7 +74,7 @@ data class UserDiscovery(
 
 /**
  * Maps a [PoiModel] to a simplified [MapPoi] representation for map rendering.
- * Strips out unnecessary fields like description and category to optimise map performance.
+ * Strips out unnecessary fields like description to optimise map performance.
  *
  * @return A lightweight [MapPoi] object for map visualisation.
  */
@@ -70,6 +84,8 @@ fun PoiModel.toMapPoi() = MapPoi(
     latitude = latitude,
     longitude = longitude,
     discovered = discovered,
+    category = category,
+    isMajor = isMajor,
 )
 
 /**
@@ -81,11 +97,15 @@ fun PoiModel.toMapPoi() = MapPoi(
  * @property latitude The geographic latitude coordinate.
  * @property longitude The geographic longitude coordinate.
  * @property discovered Whether the current user has discovered this POI.
+ * @property category The category/type of the POI.
+ * @property isMajor Whether this is a major landmark.
  */
 data class MapPoi(
     val id: String,
     val name: String,
     val latitude: Double,
     val longitude: Double,
-    val discovered: Boolean
+    val discovered: Boolean,
+    val category: PoiCategory,
+    val isMajor: Boolean,
 )

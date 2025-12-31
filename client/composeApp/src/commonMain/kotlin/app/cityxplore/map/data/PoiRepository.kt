@@ -1,6 +1,5 @@
 package app.cityxplore.map.data
 
-import app.cityxplore.map.domain.PoiCategory
 import app.cityxplore.map.domain.PoiModel
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -17,7 +16,6 @@ import io.ktor.http.contentType
  * POI discovery operations.
  *
  * @see NetworkPoiRepository
- * @see FakePoiRepository
  */
 interface PoiRepository {
     /**
@@ -90,39 +88,4 @@ class NetworkPoiRepository(
             setBody(emptyMap<String, String>())
         }
     }.map { }
-}
-
-/**
- * Fake implementation of [PoiRepository] for testing and development.
- * Returns hardcoded POI data without making network requests.
- */
-class FakePoiRepository : PoiRepository {
-    /**
-     * Returns a hardcoded list of sample POIs for development/testing.
-     *
-     * @return [Result] containing sample POI data.
-     */
-    override suspend fun fetchPois(): Result<List<PoiModel>> = Result.success(
-        listOf(
-            PoiModel("1", "Old Town", "Historic square", 52.2297, 21.0122, true, PoiCategory.HISTORICAL),
-            PoiModel("2", "Vistula Park", "Green escape", 52.25, 21.00, false, PoiCategory.CULTURAL)
-        )
-    )
-
-    /**
-     * Returns a hardcoded set of discovered POI IDs for development/testing.
-     *
-     * @return [Result] containing sample discovered POI IDs.
-     */
-    override suspend fun fetchUserDiscoveries(): Result<Set<String>> = Result.success(
-        setOf("1")
-    )
-
-    /**
-     * Simulates a successful POI discovery without making network requests.
-     *
-     * @param id The unique identifier of the POI to discover (ignored in fake implementation).
-     * @return [Result] containing [Unit] (always succeeds).
-     */
-    override suspend fun discoverPoi(id: String): Result<Unit> = Result.success(Unit)
 }
