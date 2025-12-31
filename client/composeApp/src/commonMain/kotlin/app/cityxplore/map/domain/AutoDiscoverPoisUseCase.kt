@@ -9,34 +9,30 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Use case for automatically discovering POIs based on the user's location.
+ * Automatically discovers POIs when user enters their proximity range.
  *
- * This use case monitors user location and triggers POI discovery when
- * the user is within the discovery radius (75 meters by default).
+ * Monitors user location and triggers discovery for POIs within the defined radius.
+ * Handles edge cases like concurrent discoveries and network errors gracefully.
  *
- * @property getPoisUseCase Usecase to fetch all POIs with discovery status.
- * @property discoverPoiUseCase Usecase to discover a specific POI.
+ * @property getPoisUseCase Use case to fetch all POIs with their discovery status
+ * @property discoverPoiUseCase Use case to mark a POI as discovered
  */
 class AutoDiscoverPoisUseCase(
     private val getPoisUseCase: GetPoisWithDiscoveriesUseCase,
     private val discoverPoiUseCase: DiscoverPoiUseCase
 ) {
     companion object {
-        /**
-         * Discovery radius in meters. User must be within this distance to discover a POI.
-         */
         const val DISCOVERY_RADIUS_METERS = 200.0
     }
 
     /**
-     * Checks if any undiscovered POIs are within discovery range and discovers them.
+     * Discovers all undiscovered POIs within range of the current location.
      *
-     * @param currentLocation Current user location.
-     * @return List of newly discovered POI IDs.
+     * @param currentLocation User's current GPS coordinates
+     * @return Result containing IDs of newly discovered POIs, or error if operation fails
      */
     suspend fun checkAndDiscoverNearbyPois(currentLocation: Location): Result<List<String>> {
         return try {
-            // Fetch all POIs
             val poisResult = getPoisUseCase()
             if (poisResult.isFailure) {
                 return Result.failure(poisResult.exceptionOrNull() ?: Exception("Failed to fetch POIs"))
@@ -45,7 +41,6 @@ class AutoDiscoverPoisUseCase(
             val pois = poisResult.getOrThrow()
             val discoveredIds = mutableListOf<String>()
 
-            // Check each undiscovered POI
             pois.filter { !it.discovered }.forEach { poi ->
                 val distance = calculateDistance(
                     currentLocation.latitude,
@@ -55,20 +50,11 @@ class AutoDiscoverPoisUseCase(
                 )
 
                 if (distance <= DISCOVERY_RADIUS_METERS) {
-                    // Attempt to discover the POI
                     val discoverResult = discoverPoiUseCase(poi.id)
                     if (discoverResult.isSuccess) {
                         discoveredIds.add(poi.id)
                     } else {
-                        // Check if the failure is due to 409 Conflict (already discovered)
-                        val exception = discoverResult.exceptionOrNull()
-                        if (exception is ClientRequestException && exception.response.status == HttpStatusCode.Conflict) {
-                            // Silently ignore 409 Conflict - POI was already discovered
-                        } else {
-                            // Log all other errors with context
-                            println("Failed to discover POI ${poi.id} (${poi.name}): ${exception?.message}")
-                            exception?.printStackTrace()
-                        }
+                        handleDiscoveryError(poi, discoverResult.exceptionOrNull())
                     }
                 }
             }
@@ -80,9 +66,27 @@ class AutoDiscoverPoisUseCase(
     }
 
     /**
-     * Calculates distance between two points using Haversine formula.
+     * Handles discovery errors with proper logging.
      *
-     * @return Distance in meters.
+     * 409 Conflict responses are ignored silently as they indicate
+     * the POI was already discovered (race condition between devices).
+     */
+    private fun handleDiscoveryError(poi: PoiModel, exception: Throwable?) {
+        val isAlreadyDiscovered = exception is ClientRequestException &&
+                exception.response.status == HttpStatusCode.Conflict
+
+        if (!isAlreadyDiscovered) {
+            println("Failed to discover POI ${poi.id} (${poi.name}): ${exception?.message}")
+            exception?.printStackTrace()
+        }
+    }
+
+    /**
+     * Calculates great-circle distance between two geographic coordinates.
+     *
+     * Uses Haversine formula for accuracy over short distances.
+     *
+     * @return Distance in meters
      */
     private fun calculateDistance(
         lat1: Double,
@@ -106,8 +110,5 @@ class AutoDiscoverPoisUseCase(
         return earthRadiusMeters * c
     }
 
-    /**
-     * Converts degrees to radians.
-     */
     private fun toRadians(degrees: Double): Double = degrees * kotlin.math.PI / 180.0
 }

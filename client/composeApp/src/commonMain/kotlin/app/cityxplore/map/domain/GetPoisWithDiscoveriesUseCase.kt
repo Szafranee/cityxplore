@@ -19,7 +19,6 @@ class GetPoisWithDiscoveriesUseCase(
      * @return [Result] containing a list of [PoiModel] with updated discovery flags.
      */
     suspend operator fun invoke(): Result<List<PoiModel>> {
-        // Fetch both POIs and discoveries
         val poisResult = repository.fetchPois()
         if (poisResult.isFailure) {
             return poisResult
@@ -33,7 +32,6 @@ class GetPoisWithDiscoveriesUseCase(
         val pois = poisResult.getOrThrow()
         val discoveredIds = discoveriesResult.getOrThrow()
 
-        // Update discovery status
         val updatedPois = pois.map { poi ->
             poi.copy(discovered = discoveredIds.contains(poi.id))
         }
