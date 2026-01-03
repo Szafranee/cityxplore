@@ -1,5 +1,6 @@
 package org.cityxplore.backend.fogofwar.controller
 
+import com.uber.h3core.H3Core
 import jakarta.validation.Valid
 import org.cityxplore.backend.fogofwar.model.FogOfWarResponse
 import org.cityxplore.backend.fogofwar.model.RevealHexagonsRequest
@@ -39,6 +40,7 @@ class FogOfWarController(
 ) {
 
     private val logger = LoggerFactory.getLogger(FogOfWarController::class.java)
+    private val h3 = H3Core.newInstance()
 
     /**
      * Returns all hexagons covering the Warsaw metropolitan area.
@@ -158,16 +160,16 @@ class FogOfWarController(
     }
 
     /**
-     * Validates the H3 hexagon index format.
+     * Validates if the provided string is a valid H3 index.
      *
-     * H3 indices at resolution 10 are 15-character strings containing
-     * hexadecimal digits (0-9, a-f).
-     *
-     * @param hex Hexagon index to validate
-     * @return true if valid, false otherwise
+     * @param hex The H3 index in string format to be validated.
+     * @return True if the string is a valid H3 index, false otherwise.
      */
     private fun isValidH3Index(hex: String): Boolean {
-        // Basic validation: 15 chars, alphanumeric
-        return hex.length == 15 && hex.all { it.isLetterOrDigit() }
+        return try {
+            h3.isValidCell(hex)
+        } catch (_: Exception) {
+            false
+        }
     }
 }

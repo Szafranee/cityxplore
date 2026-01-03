@@ -16,6 +16,7 @@ class WarsawHexagonGenerator {
 
     private val logger = LoggerFactory.getLogger(WarsawHexagonGenerator::class.java)
     private val warsawBounds = WarsawBounds()
+    private val h3 = H3Core.newInstance()
 
     /**
      * Generates all hexagons covering Warsaw at the specified resolution.
@@ -28,10 +29,13 @@ class WarsawHexagonGenerator {
      * @return Set of H3 hex index strings covering the Warsaw area
      */
     fun generateHexagons(resolution: Int = 10): Set<String> {
+        if (resolution !in 0..15) {
+            throw IllegalArgumentException("resolution must be between 0 and 15")
+        }
+
         logger.info("Generating Warsaw hexagons at resolution $resolution...")
         val startTime = System.currentTimeMillis()
 
-        val h3 = H3Core.newInstance()
         val hexagons = mutableSetOf<String>()
 
         // Step size for grid sampling (~1km between sample points)
