@@ -4,8 +4,10 @@ import app.cityxplore.core.cityXploreDispatchers
 import app.cityxplore.core.location.Location
 import app.cityxplore.core.location.LocationService
 import app.cityxplore.map.domain.AutoDiscoverPoisUseCase
+import app.cityxplore.map.domain.FogOfWarRepository
 import app.cityxplore.map.domain.GetPoisWithDiscoveriesUseCase
 import app.cityxplore.map.domain.PoiModel
+import app.cityxplore.map.domain.UpdateFogOfWarUseCase
 import app.cityxplore.map.domain.toMapPoi
 import app.cityxplore.platform.CityXploreBaseViewModel
 import kotlinx.coroutines.Job
@@ -23,6 +25,7 @@ import kotlinx.coroutines.launch
  * - Managing map camera follow mode
  * - Handling POI selection for detail display
  * - Tracking newly discovered POIs for UI notifications
+ * - Managing Fog of War (revealed hexagons)
  *
  * POIs are automatically discovered when the user is within the discovery radius
  * (defined in [AutoDiscoverPoisUseCase]). The discovery is handled by the use case,
@@ -30,11 +33,15 @@ import kotlinx.coroutines.launch
  *
  * @property getPoisUseCase Use case for fetching POIs with discovery status.
  * @property autoDiscoverUseCase Use case for automatic POI discovery based on location.
+ * @property updateFogOfWarUseCase Use case for updating fog of war based on user location.
+ * @property fogOfWarRepository Repository for fetching revealed hexagons.
  * @property locationService The service providing user location updates.
  */
 class MapViewModel(
     private val getPoisUseCase: GetPoisWithDiscoveriesUseCase,
     private val autoDiscoverUseCase: AutoDiscoverPoisUseCase,
+    private val updateFogOfWarUseCase: UpdateFogOfWarUseCase,
+    private val fogOfWarRepository: FogOfWarRepository,
     private val locationService: LocationService
 ) : CityXploreBaseViewModel() {
     private val _state = MutableStateFlow<MapUiState>(MapUiState.Loading)
@@ -50,6 +57,7 @@ class MapViewModel(
 
     init {
         loadPois()
+        loadFogOfWar()
     }
 
     /**
@@ -77,10 +85,14 @@ class MapViewModel(
         scope.launch(cityXploreDispatchers.io) {
             _state.value = MapUiState.Loading
 
-            // Preserve the current follow flag from existing state
+            // Preserve the current follow flag and revealed hexagons from existing state
             val previousIsFollowing = when (val s = _state.value) {
                 is MapUiState.Ready -> s.isFollowingUser
                 else -> true
+            }
+            val previousRevealedHexagons = when (val s = _state.value) {
+                is MapUiState.Ready -> s.revealedHexagons
+                else -> emptySet()
             }
 
             val result = getPoisUseCase()
@@ -91,13 +103,31 @@ class MapViewModel(
                         userLocation = lastKnownLocation,
                         isFollowingUser = previousIsFollowing,
                         selectedPoi = null,
-                        newlyDiscoveredPoiIds = emptySet()
+                        newlyDiscoveredPoiIds = emptySet(),
+                        revealedHexagons = previousRevealedHexagons
                     )
                 },
                 onFailure = { error ->
                     MapUiState.Error(error.message ?: "Unable to load POIs")
                 }
             )
+        }
+    }
+
+    /**
+     * Loads the Fog of War state from the backend.
+     * Fetches revealed hexagons and updates the map state.
+     */
+    private fun loadFogOfWar() {
+        scope.launch(cityXploreDispatchers.io) {
+            val result = fogOfWarRepository.getRevealedHexagons()
+            result.onSuccess { revealedHexagons ->
+                val currentState = _state.value
+                if (currentState is MapUiState.Ready) {
+                    _state.value = currentState.copy(revealedHexagons = revealedHexagons)
+                }
+            }
+            // Silently ignore errors - fog of war is not critical for app functionality
         }
     }
 
@@ -113,11 +143,31 @@ class MapViewModel(
                     lastKnownLocation = location
                     updateUserLocation(location)
                     checkForNearbyPois(location)
+                    updateFogOfWar(location)
                 }
             } catch (_: Exception) {
                 // Location service error - could be permissions or hardware issue
                 // Keep current state, don't crash the app
             }
+        }
+    }
+
+    /**
+     * Updates the Fog of War based on user's current location.
+     * Reveals hexagons within the configured radius.
+     *
+     * @param location The user's current location.
+     */
+    private fun updateFogOfWar(location: Location) {
+        scope.launch(cityXploreDispatchers.io) {
+            val result = updateFogOfWarUseCase(location)
+            result.onSuccess { newHexCount ->
+                if (newHexCount > 0) {
+                    // Reload revealed hexagons from repository
+                    loadFogOfWar()
+                }
+            }
+            // Silently ignore errors
         }
     }
 

@@ -81,6 +81,7 @@ kotlin {
             implementation(libs.play.services.location)
             implementation(libs.kotlinx.coroutines.play.services)
             implementation(libs.mapbox.maps.android)
+            implementation(libs.h3)
         }
         commonMain.dependencies {
             implementation(compose.runtime)

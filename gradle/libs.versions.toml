@@ -31,6 +31,7 @@ supabase = "3.2.6"
 playServicesLocation = "21.3.0"
 mapboxMaps = "11.14.0"
 coil = "3.3.0"
+h3 = "4.4.0"
 springBoot = "3.5.9"
 springSecurityTest = "7.0.2"
 lombok = "1.18.42"
@@ -46,6 +47,7 @@ commonsCompress = "1.28.0"
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
 mapbox-maps-android = { module = "com.mapbox.maps:android", version.ref = "mapboxMaps" }
+h3 = { module = "com.uber:h3", version.ref = "h3" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "androidx-activity" }
 androidx-lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycleViewmodel" }
 androidx-material-icons-extended = { module = "androidx.compose.material:material-icons-extended", version.ref = "materialIconsExtended" }

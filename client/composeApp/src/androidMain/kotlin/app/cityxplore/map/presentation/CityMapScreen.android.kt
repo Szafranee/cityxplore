@@ -128,6 +128,11 @@ private fun ReadyMap(
     val locationInitialized = remember { mutableStateOf(false) }
     val shouldCenterOnFirstLocation = remember { mutableStateOf(true) }
 
+    // Fog of War - DISABLED until backend provides Warsaw hex list
+    // TODO: Re-enable when backend endpoint /api/fog-of-war/warsaw-hexagons is implemented
+    // val fogRenderer = remember { mutableStateOf<FogOfWarRenderer?>(null) }
+    // val warsawHexagons = remember { mutableStateOf<Set<String>?>(null) }
+
 
     fun animateToLocation(point: Point, zoom: Double = 15.0) {
         mapViewRef.value?.camera?.easeTo(
@@ -209,7 +214,12 @@ private fun ReadyMap(
                 try {
                     MapView(context).apply {
                         mapViewRef.value = this
-                        mapboxMap.loadStyle("mapbox://styles/szafran00/cmdusan3600d001pj4eri2fl1")
+                        mapboxMap.loadStyle("mapbox://styles/szafran00/cmdusan3600d001pj4eri2fl1") { _ ->
+                            // TODO: Initialize fog of war when backend is ready
+                            // val renderer = FogOfWarRenderer(this)
+                            // renderer.initialize(style)
+                            // fogRenderer.value = renderer
+                        }
 
                         compass.updateSettings { enabled = true }
                         scalebar.updateSettings { enabled = true }
@@ -235,6 +245,14 @@ private fun ReadyMap(
             },
             modifier = Modifier.fillMaxSize()
         )
+
+        // TODO: Re-enable fog updates when backend is ready
+        // LaunchedEffect(mapState.revealedHexagons, warsawHexagons.value) {
+        //     val hexes = warsawHexagons.value
+        //     if (hexes != null) {
+        //         fogRenderer.value?.updateFog(hexes, mapState.revealedHexagons)
+        //     }
+        // }
 
         // Register and clean-up listeners
         DisposableEffect(mapViewRef.value, mapState.isFollowingUser) {
