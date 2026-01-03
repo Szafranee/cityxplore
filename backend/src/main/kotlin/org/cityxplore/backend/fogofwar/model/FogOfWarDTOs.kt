@@ -1,5 +1,8 @@
 package org.cityxplore.backend.fogofwar.model
 
+import jakarta.validation.constraints.NotEmpty
+import jakarta.validation.constraints.Size
+import org.cityxplore.backend.fogofwar.validation.ValidH3Index
 import java.time.Instant
 
 /**
@@ -53,6 +56,9 @@ data class FogOfWarResponse(
  * @property hexagons Set of H3 hex indices to mark as revealed
  */
 data class RevealHexagonsRequest(
+    @field:NotEmpty(message = "Hexagons set cannot be empty")
+    @field:Size(max = 1000, message = "Maximum 1000 hexagons per request")
+    @field:ValidH3Index
     val hexagons: Set<String>
 )
 

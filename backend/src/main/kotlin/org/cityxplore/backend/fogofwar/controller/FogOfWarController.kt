@@ -1,9 +1,9 @@
 package org.cityxplore.backend.fogofwar.controller
 
-import com.uber.h3core.H3Core
 import jakarta.validation.Valid
 import org.cityxplore.backend.fogofwar.model.FogOfWarResponse
 import org.cityxplore.backend.fogofwar.model.RevealHexagonsRequest
+import org.cityxplore.backend.fogofwar.model.RevealHexagonsResponse
 import org.cityxplore.backend.fogofwar.model.WarsawHexagonsResponse
 import org.cityxplore.backend.fogofwar.service.FogOfWarService
 import org.cityxplore.backend.shared.security.JwtUtils
@@ -13,7 +13,6 @@ import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.validation.annotation.Validated
-import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -40,7 +39,6 @@ class FogOfWarController(
 ) {
 
     private val logger = LoggerFactory.getLogger(FogOfWarController::class.java)
-    private val h3 = H3Core.newInstance()
 
     /**
      * Returns all hexagons covering the Warsaw metropolitan area.
@@ -76,100 +74,26 @@ class FogOfWarController(
     }
 
     /**
-     * Adds new hexagons to the user's revealed set.
+     * Reveals a set of hexagons for the authenticated user.
      *
-     * Uses set union-semantics - duplicate hexagons are automatically ignored.
-     * This endpoint is idempotent.
+     * This operation adds the specified hexagons to the user's revealed hexagons,
+     * ensuring idempotency and preventing duplication. The method logs the user's
+     * activity and returns a response containing the result of the operation.
      *
-     * @param jwt JWT token containing user authentication info
-     * @param request Request body containing hexagons to reveal
-     * @return RevealHexagonsResponse with operation result
+     * @param jwt JWT token containing user authentication details
+     * @param request Request containing the set of hexagons to reveal
+     * @return ResponseEntity containing a RevealHexagonsResponse with the operation result
      */
     @PostMapping("/reveal")
     fun revealHexagons(
         @AuthenticationPrincipal jwt: Jwt,
         @Valid @RequestBody request: RevealHexagonsRequest
-    ): ResponseEntity<Any> {
+    ): ResponseEntity<RevealHexagonsResponse> {
         val userId = JwtUtils.extractUserId(jwt)
-
-        // Validation: hexagons array must not be empty
-        if (request.hexagons.isEmpty()) {
-            logger.warn("User $userId attempted to reveal empty hexagons array")
-            return ResponseEntity
-                .badRequest()
-                .body(
-                    mapOf(
-                        "error" to "Invalid request",
-                        "details" to "hexagons array cannot be empty"
-                    )
-                )
-        }
-
-        // Validation: limit max hexagons per request to prevent abuse
-        if (request.hexagons.size > 1000) {
-            logger.warn("User $userId attempted to reveal ${request.hexagons.size} hexagons (max 1000)")
-            return ResponseEntity
-                .badRequest()
-                .body(
-                    mapOf(
-                        "error" to "Invalid request",
-                        "details" to "Maximum 1000 hexagons per request"
-                    )
-                )
-        }
-
-        // Validation: basic H3 format check (15 chars, alphanumeric)
-        val invalidHexagons = request.hexagons.filter { !isValidH3Index(it) }
-        if (invalidHexagons.isNotEmpty()) {
-            logger.warn("User $userId provided invalid hexagon formats: ${invalidHexagons.take(5)}")
-            return ResponseEntity
-                .badRequest()
-                .body(
-                    mapOf(
-                        "error" to "Invalid request",
-                        "details" to "Invalid hexagon format detected"
-                    )
-                )
-        }
 
         logger.info("User $userId revealing ${request.hexagons.size} hexagons")
         val response = service.revealHexagons(userId, request.hexagons)
 
         return ResponseEntity.ok(response)
-    }
-
-    /**
-     * Clears all revealed hexagons for the authenticated user.
-     *
-     * This endpoint is primarily for testing and debugging purposes.
-     * In production, consider adding additional authorisation checks.
-     *
-     * @param jwt JWT token containing user authentication info
-     * @return 204 No Content on success
-     */
-    @DeleteMapping("/me")
-    fun clearAllRevealed(
-        @AuthenticationPrincipal jwt: Jwt
-    ): ResponseEntity<Void> {
-        val userId = JwtUtils.extractUserId(jwt)
-        logger.info("User $userId clearing all fog of war data")
-
-        service.clearAllRevealed(userId)
-
-        return ResponseEntity.noContent().build()
-    }
-
-    /**
-     * Validates if the provided string is a valid H3 index.
-     *
-     * @param hex The H3 index in string format to be validated.
-     * @return True if the string is a valid H3 index, false otherwise.
-     */
-    private fun isValidH3Index(hex: String): Boolean {
-        return try {
-            h3.isValidCell(hex)
-        } catch (_: Exception) {
-            false
-        }
     }
 }
