@@ -43,6 +43,7 @@ dependencies {
     implementation(libs.hibernate.core.v6629final)
     implementation(libs.hibernate.spatial.v6629final)
     implementation(libs.hypersistence.utils.hibernate.x3)
+    implementation(libs.h3)
     compileOnly(libs.lombok)
     runtimeOnly(libs.postgresql)
     annotationProcessor(libs.projectlombok.lombok)
