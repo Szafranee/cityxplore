@@ -58,8 +58,7 @@ data class FogOfWarResponse(
 data class RevealHexagonsRequest(
     @field:NotEmpty(message = "Hexagons set cannot be empty")
     @field:Size(max = 1000, message = "Maximum 1000 hexagons per request")
-    @field:ValidH3Index
-    val hexagons: Set<String>
+    val hexagons: Set<@ValidH3Index String>
 )
 
 /**

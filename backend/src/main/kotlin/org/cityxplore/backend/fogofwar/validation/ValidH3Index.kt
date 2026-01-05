@@ -7,7 +7,7 @@ import jakarta.validation.ConstraintValidatorContext
 import jakarta.validation.Payload
 import kotlin.reflect.KClass
 
-@Target(AnnotationTarget.FIELD, AnnotationTarget.VALUE_PARAMETER)
+@Target(AnnotationTarget.FIELD, AnnotationTarget.VALUE_PARAMETER, AnnotationTarget.TYPE)
 @Retention(AnnotationRetention.RUNTIME)
 @Constraint(validatedBy = [H3IndexValidator::class])
 annotation class ValidH3Index(
@@ -17,7 +17,9 @@ annotation class ValidH3Index(
 )
 
 class H3IndexValidator : ConstraintValidator<ValidH3Index, String> {
-    private val h3 = H3Core.newInstance()
+    companion object {
+        private val h3 = H3Core.newInstance()
+    }
 
     override fun isValid(value: String?, context: ConstraintValidatorContext?): Boolean {
         if (value == null) return true // Let @NotNull handle nulls
