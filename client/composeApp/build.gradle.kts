@@ -139,6 +139,9 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+        jniLibs.pickFirsts.add(
+            "lib/**/libh3-java.so"
+        )
     }
     buildTypes {
         getByName("debug") {

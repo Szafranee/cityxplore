@@ -16,16 +16,16 @@ import app.cityxplore.core.location.Location
  */
 class UpdateFogOfWarUseCase(
     private val repository: FogOfWarRepository,
-    private val config: FogOfWarConfig = FogOfWarConfig()
+    private val config: FogOfWarConfiguration = FogOfWarConfiguration()
 ) {
     /**
      * Updates the fog of war based on the user's location.
      *
-     * Calculates hexagons within [FogOfWarConfig.revealRadiusMeters] and marks them as revealed.
-     * Only new hexagons are sent to the repository to minimize unnecessary updates.
+     * Calculates hexagons within [FogOfWarConfiguration.revealRadiusMeters] and marks them as revealed.
+     * Only new hexagons are sent to the repository to minimise unnecessary updates.
      *
      * @param location The user's current location.
-     * @return Result indicating success or failure, with newly revealed hex count.
+     * @return Result indicating success or failure, with a newly revealed hex count.
      */
     suspend operator fun invoke(location: Location): Result<Int> = runCatching {
         // Get currently revealed hexagons
@@ -51,9 +51,18 @@ class UpdateFogOfWarUseCase(
 
 /**
  * Platform-specific hex calculator.
- * Android implementation uses H3 library, iOS is a stub for now.
+ * Android implementation uses the H3 library, iOS is a stub for now.
  */
 internal expect object HexCalculator {
+    /**
+     * Calculates hexagons to reveal around a centre point.
+     *
+     * @param latitude Center latitude.
+     * @param longitude Center longitude.
+     * @param radiusMeters Radius to reveal in meters.
+     * @param resolution H3 resolution (0-15).
+     * @return Set of H3 index strings.
+     */
     fun calculateHexagonsToReveal(
         latitude: Double,
         longitude: Double,

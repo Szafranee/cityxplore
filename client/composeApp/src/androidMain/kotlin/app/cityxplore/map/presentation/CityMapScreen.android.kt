@@ -40,7 +40,6 @@ import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions
 import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
 import com.mapbox.maps.plugin.compass.compass
 import com.mapbox.maps.plugin.gestures.OnMoveListener
-import com.mapbox.maps.plugin.gestures.addOnMapClickListener
 import com.mapbox.maps.plugin.gestures.gestures
 import com.mapbox.maps.plugin.locationcomponent.OnIndicatorPositionChangedListener
 import com.mapbox.maps.plugin.locationcomponent.location
@@ -128,11 +127,8 @@ private fun ReadyMap(
     val locationInitialized = remember { mutableStateOf(false) }
     val shouldCenterOnFirstLocation = remember { mutableStateOf(true) }
 
-    // Fog of War - DISABLED until backend provides Warsaw hex list
-    // TODO: Re-enable when backend endpoint /api/fog-of-war/warsaw-hexagons is implemented
-    // val fogRenderer = remember { mutableStateOf<FogOfWarRenderer?>(null) }
-    // val warsawHexagons = remember { mutableStateOf<Set<String>?>(null) }
-
+    // Fog of War
+    val fogRenderer = remember { mutableStateOf<FogOfWarRenderer?>(null) }
 
     fun animateToLocation(point: Point, zoom: Double = 15.0) {
         mapViewRef.value?.camera?.easeTo(
@@ -214,11 +210,10 @@ private fun ReadyMap(
                 try {
                     MapView(context).apply {
                         mapViewRef.value = this
-                        mapboxMap.loadStyle("mapbox://styles/szafran00/cmdusan3600d001pj4eri2fl1") { _ ->
-                            // TODO: Initialize fog of war when backend is ready
-                            // val renderer = FogOfWarRenderer(this)
-                            // renderer.initialize(style)
-                            // fogRenderer.value = renderer
+                        mapboxMap.loadStyle("mapbox://styles/szafran00/cmdusan3600d001pj4eri2fl1") { style ->
+                            val renderer = FogOfWarRenderer(this)
+                            renderer.initialize(style)
+                            fogRenderer.value = renderer
                         }
 
                         compass.updateSettings { enabled = true }
@@ -246,13 +241,12 @@ private fun ReadyMap(
             modifier = Modifier.fillMaxSize()
         )
 
-        // TODO: Re-enable fog updates when backend is ready
-        // LaunchedEffect(mapState.revealedHexagons, warsawHexagons.value) {
-        //     val hexes = warsawHexagons.value
-        //     if (hexes != null) {
-        //         fogRenderer.value?.updateFog(hexes, mapState.revealedHexagons)
-        //     }
-        // }
+        LaunchedEffect(mapState.revealedHexagons, mapState.warsawHexagons, fogRenderer.value) {
+            val renderer = fogRenderer.value
+            if (renderer != null && mapState.warsawHexagons.isNotEmpty()) {
+                renderer.updateFog(mapState.warsawHexagons, mapState.revealedHexagons)
+            }
+        }
 
         // Register and clean-up listeners
         DisposableEffect(mapViewRef.value, mapState.isFollowingUser) {
@@ -285,7 +279,7 @@ private fun ReadyMap(
                 override fun onMoveEnd(detector: MoveGestureDetector) {}
             }
 
-            val mapClickListener: (Point) -> Boolean = { _ ->
+            val mapClickListener = com.mapbox.maps.plugin.gestures.OnMapClickListener { _ ->
                 if (mapState.isFollowingUser) {
                     onAction(MapAction.ToggleFollowUser)
                 }
@@ -295,7 +289,7 @@ private fun ReadyMap(
             mapView?.let {
                 it.location.addOnIndicatorPositionChangedListener(positionListener)
                 it.gestures.addOnMoveListener(onMoveListener)
-                it.mapboxMap.addOnMapClickListener(mapClickListener)
+                it.gestures.addOnMapClickListener(mapClickListener)
             }
 
             onDispose {

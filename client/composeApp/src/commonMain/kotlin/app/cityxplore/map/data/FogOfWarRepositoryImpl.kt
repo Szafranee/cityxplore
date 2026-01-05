@@ -1,6 +1,5 @@
 package app.cityxplore.map.data
 
-import app.cityxplore.map.domain.FogOfWarModel
 import app.cityxplore.map.domain.FogOfWarRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -28,13 +27,8 @@ class FogOfWarRepositoryImpl(
     private val httpClient: HttpClient
 ) : FogOfWarRepository {
 
-    private companion object {
-        const val BASE_URL = "https://api.cityxplore.app"
-        const val FOG_ENDPOINT = "$BASE_URL/api/fog-of-war"
-    }
-
     override suspend fun getWarsawHexagons(): Result<Set<String>> = runCatching {
-        val response = httpClient.get("$FOG_ENDPOINT/warsaw-hexagons")
+        val response = httpClient.get("https://api.cityxplore.app/api/fog-of-war/warsaw-hexagons")
 
         if (!response.status.isSuccess()) {
             throw Exception("Failed to fetch Warsaw hexagons: ${response.status}")
@@ -45,7 +39,7 @@ class FogOfWarRepositoryImpl(
     }
 
     override suspend fun getRevealedHexagons(): Result<Set<String>> = runCatching {
-        val response = httpClient.get("$FOG_ENDPOINT/me")
+        val response = httpClient.get("https://api.cityxplore.app/api/fog-of-war/me")
 
         if (!response.status.isSuccess()) {
             throw Exception("Failed to fetch fog of war: ${response.status}")
@@ -56,7 +50,7 @@ class FogOfWarRepositoryImpl(
     }
 
     override suspend fun revealHexagons(hexIndices: Set<String>): Result<Unit> = runCatching {
-        val response = httpClient.post("$FOG_ENDPOINT/reveal") {
+        val response = httpClient.post("https://api.cityxplore.app/api/fog-of-war/reveal") {
             contentType(ContentType.Application.Json)
             setBody(RevealHexagonsRequest(hexagons = hexIndices))
         }
@@ -68,7 +62,7 @@ class FogOfWarRepositoryImpl(
     }
 
     override suspend fun clearAllRevealed(): Result<Unit> = runCatching {
-        val response = httpClient.request("$FOG_ENDPOINT/me") {
+        val response = httpClient.request("https://api.cityxplore.app/api/fog-of-war/me") {
             method = io.ktor.http.HttpMethod.Delete
         }
 
@@ -77,10 +71,3 @@ class FogOfWarRepositoryImpl(
         }
     }
 }
-
-/**
- * Maps [FogOfWarDto] to a domain model.
- */
-fun FogOfWarDto.toDomain(): FogOfWarModel = FogOfWarModel(
-    revealedHexIndices = this.revealedHexagons
-)

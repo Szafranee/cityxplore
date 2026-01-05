@@ -21,7 +21,7 @@ data class FogOfWarModel(
  * @property fogColor Hex colour string for unrevealed areas (e.g. "#80000000" for semi-transparent black).
  * @property warsawBounds Geographic bounds of the Warsaw region (lat/lng min/max) for hex generation.
  */
-data class FogOfWarConfig(
+data class FogOfWarConfiguration(
     val h3Resolution: Int = 10,
     val revealRadiusMeters: Double = 200.0,
     val fogColor: String = "#B0404040", // Semi-transparent dark gray

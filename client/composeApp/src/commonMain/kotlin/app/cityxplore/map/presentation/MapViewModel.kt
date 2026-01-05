@@ -54,6 +54,8 @@ class MapViewModel(
 
     private var locationObserverJob: Job? = null
     private var lastKnownLocation: Location? = null
+    private var cachedWarsawHexagons: Set<String> = emptySet()
+    private var cachedRevealedHexagons: Set<String> = emptySet()
 
     init {
         loadPois()
@@ -67,7 +69,11 @@ class MapViewModel(
      */
     fun onAction(action: MapAction) {
         when (action) {
-            MapAction.Refresh -> loadPois()
+            MapAction.Refresh -> {
+                loadPois()
+                loadFogOfWar()
+            }
+
             is MapAction.SelectPoi -> selectPoi(action.poiId)
             MapAction.ToggleFollowUser -> toggleFollowState()
             MapAction.PermissionGranted -> startLocationTracking()
@@ -85,14 +91,10 @@ class MapViewModel(
         scope.launch(cityXploreDispatchers.io) {
             _state.value = MapUiState.Loading
 
-            // Preserve the current follow flag and revealed hexagons from existing state
+            // Preserve the current follow flag from existing state
             val previousIsFollowing = when (val s = _state.value) {
                 is MapUiState.Ready -> s.isFollowingUser
                 else -> true
-            }
-            val previousRevealedHexagons = when (val s = _state.value) {
-                is MapUiState.Ready -> s.revealedHexagons
-                else -> emptySet()
             }
 
             val result = getPoisUseCase()
@@ -104,7 +106,8 @@ class MapViewModel(
                         isFollowingUser = previousIsFollowing,
                         selectedPoi = null,
                         newlyDiscoveredPoiIds = emptySet(),
-                        revealedHexagons = previousRevealedHexagons
+                        revealedHexagons = cachedRevealedHexagons,
+                        warsawHexagons = cachedWarsawHexagons
                     )
                 },
                 onFailure = { error ->
@@ -120,14 +123,19 @@ class MapViewModel(
      */
     private fun loadFogOfWar() {
         scope.launch(cityXploreDispatchers.io) {
-            val result = fogOfWarRepository.getRevealedHexagons()
-            result.onSuccess { revealedHexagons ->
-                val currentState = _state.value
-                if (currentState is MapUiState.Ready) {
-                    _state.value = currentState.copy(revealedHexagons = revealedHexagons)
-                }
+            val revealedResult = fogOfWarRepository.getRevealedHexagons()
+            val warsawResult = fogOfWarRepository.getWarsawHexagons()
+
+            cachedRevealedHexagons = revealedResult.getOrElse { cachedRevealedHexagons }
+            cachedWarsawHexagons = warsawResult.getOrElse { cachedWarsawHexagons }
+
+            val currentState = _state.value
+            if (currentState is MapUiState.Ready) {
+                _state.value = currentState.copy(
+                    revealedHexagons = cachedRevealedHexagons,
+                    warsawHexagons = cachedWarsawHexagons
+                )
             }
-            // Silently ignore errors - fog of war is not critical for app functionality
         }
     }
 
