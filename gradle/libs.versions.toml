@@ -31,6 +31,7 @@ supabase = "3.2.6"
 playServicesLocation = "21.3.0"
 mapboxMaps = "11.14.0"
 coil = "3.3.0"
+h3 = "4.4.0"
 springBoot = "3.5.9"
 springSecurityTest = "7.0.2"
 lombok = "1.18.42"
@@ -57,6 +58,7 @@ junit-platform-engine = { module = "org.junit.platform:junit-platform-engine", v
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin-reflect" }
 flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway-database-postgresql" }
 flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway-core" }
+h3 = { module = "com.uber:h3", version.ref = "h3" }
 jackson-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
 kotlin-test = { group = "org.jetbrains.kotlin", name = "kotlin-test", version.ref = "kotlin" }
 kotlin-test-junit5 = { module = "org.jetbrains.kotlin:kotlin-test-junit5" }
