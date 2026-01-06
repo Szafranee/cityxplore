@@ -26,7 +26,6 @@ private object RegionHexagonCache : KoinComponent {
     }
 
     private val h3: H3Core by lazy {
-        // Use the same loading strategy as AndroidH3Service.
         runCatching {
             System.loadLibrary("h3-java")
             H3Core.newSystemInstance()
@@ -35,17 +34,19 @@ private object RegionHexagonCache : KoinComponent {
         }
     }
 
-    // Cache key: regionId + resolution
-    private val cache = mutableMapOf<String, Set<String>>()
+    // Simple in-memory cache (clears on app restart)
+    private val memoryCache = mutableMapOf<String, Set<String>>()
 
     fun getOrCompute(region: RegionDefinition): Set<String> {
         val cacheKey = "${region.id}_${region.h3Resolution}"
-        cache[cacheKey]?.let { return it }
 
+        // Check in-memory cache
+        memoryCache[cacheKey]?.let { return it }
+
+        // Cache miss - compute via polyfill
         val geoJsonText = runCatching {
             context.assets.open(region.boundaryAssetPath).bufferedReader().use { it.readText() }
         }.getOrElse {
-            // Asset not found or read error - return empty set
             return emptySet()
         }
 
@@ -55,7 +56,6 @@ private object RegionHexagonCache : KoinComponent {
 
         val polygon = featureCollection.features.firstOrNull()?.geometry ?: return emptySet()
 
-        // GeoJSON coordinates are [lng, lat]
         val outerRing: List<LatLng> = polygon.coordinates
             .firstOrNull()
             ?.mapNotNull { coord ->
@@ -66,7 +66,6 @@ private object RegionHexagonCache : KoinComponent {
 
         if (outerRing.isEmpty()) return emptySet()
 
-        // H3 expects rings without the duplicated closing point.
         val ring = if (outerRing.size >= 2 && outerRing.first() == outerRing.last()) {
             outerRing.dropLast(1)
         } else {
@@ -81,7 +80,7 @@ private object RegionHexagonCache : KoinComponent {
             emptySet()
         }
 
-        cache[cacheKey] = hexes
+        memoryCache[cacheKey] = hexes
         return hexes
     }
 }
@@ -101,6 +100,5 @@ private data class GeoJsonFeature(
 @Serializable
 private data class GeoJsonPolygon(
     val type: String,
-    // coordinates: [ [ [lng,lat], ... ] ]
     val coordinates: List<List<List<Double>>>
 )

@@ -55,37 +55,46 @@ class FogOfWarRenderer(
         const val BASE_FOG_OPACITY = 0.7
     }
 
-    fun initialize(style: Style) {
-        val fogColorInt = parseColorString(fogColor)
+    private var isInitialized = false
 
-        style.addSource(
-            geoJsonSource(FOG_SOURCE_ID) {
-                featureCollection(FeatureCollection.fromFeatures(emptyList()))
-            }
-        )
-        style.addLayer(
-            fillLayer(FOG_LAYER_ID, FOG_SOURCE_ID) {
-                fillColor(fogColorInt)
-                fillOpacity(BASE_FOG_OPACITY)
-                fillAntialias(false)
-            }
-        )
+    fun initialize(style: Style): Boolean {
+        return try {
+            val fogColorInt = parseColorString(fogColor)
 
-        style.addSource(
-            geoJsonSource(FADING_SOURCE_ID) {
-                featureCollection(FeatureCollection.fromFeatures(emptyList()))
-            }
-        )
-        style.addLayer(
-            fillLayer(FADING_LAYER_ID, FADING_SOURCE_ID) {
-                fillColor(fogColorInt)
-                fillOpacity(0.0)
-                fillAntialias(false)
-                visibility(Visibility.VISIBLE)
-            }
-        )
+            style.addSource(
+                geoJsonSource(FOG_SOURCE_ID) {
+                    featureCollection(FeatureCollection.fromFeatures(emptyList()))
+                }
+            )
+            style.addLayer(
+                fillLayer(FOG_LAYER_ID, FOG_SOURCE_ID) {
+                    fillColor(fogColorInt)
+                    fillOpacity(BASE_FOG_OPACITY)
+                    fillAntialias(false)
+                }
+            )
 
-        currentFadingOpacity = 0.0
+            style.addSource(
+                geoJsonSource(FADING_SOURCE_ID) {
+                    featureCollection(FeatureCollection.fromFeatures(emptyList()))
+                }
+            )
+            style.addLayer(
+                fillLayer(FADING_LAYER_ID, FADING_SOURCE_ID) {
+                    fillColor(fogColorInt)
+                    fillOpacity(0.0)
+                    fillAntialias(false)
+                    visibility(Visibility.VISIBLE)
+                }
+            )
+
+            currentFadingOpacity = 0.0
+            isInitialized = true
+            true
+        } catch (e: Exception) {
+            android.util.Log.e("FogOfWarRenderer", "Failed to initialize fog: ${e.message}", e)
+            false
+        }
     }
 
     private var isFirstUpdate = true
@@ -95,6 +104,8 @@ class FogOfWarRenderer(
     }
 
     suspend fun updateFog(allWarsawHexes: Set<String>, revealedHexes: Set<String>) {
+        if (!isInitialized) return // Graceful degradation if fog didn't initialize
+
         val style = mapView.mapboxMap.style ?: return
 
         if (isFirstUpdate) {

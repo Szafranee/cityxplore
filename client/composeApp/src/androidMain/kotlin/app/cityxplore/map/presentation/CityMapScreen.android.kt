@@ -129,6 +129,8 @@ private fun ReadyMap(
 
     // Fog of War
     val fogRenderer = remember { mutableStateOf<FogOfWarRenderer?>(null) }
+    val fogInitialized = remember { mutableStateOf(false) }
+    val fogInitError = remember { mutableStateOf(false) }
 
     fun animateToLocation(point: Point, zoom: Double? = null) {
         mapViewRef.value?.camera?.easeTo(
@@ -203,8 +205,13 @@ private fun ReadyMap(
                         mapViewRef.value = this
                         mapboxMap.loadStyle("mapbox://styles/szafran00/cmdusan3600d001pj4eri2fl1") { style ->
                             val renderer = FogOfWarRenderer(this)
-                            renderer.initialize(style)
-                            fogRenderer.value = renderer
+                            val success = renderer.initialize(style)
+                            if (success) {
+                                fogRenderer.value = renderer
+                                fogInitialized.value = true
+                            } else {
+                                fogInitError.value = true
+                            }
                         }
 
                         compass.updateSettings { enabled = true }
@@ -238,6 +245,18 @@ private fun ReadyMap(
                 renderer.updateFog(mapState.warsawHexagons, mapState.revealedHexagons)
             }
         }
+
+        // Show error notification if fog initialization failed
+        LaunchedEffect(fogInitError.value) {
+            if (fogInitError.value) {
+                Toast.makeText(
+                    context,
+                    "⚠️ Fog of War could not be loaded. Map will work without fog effect.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+
 
         // Register and clean-up listeners
         DisposableEffect(mapViewRef.value, mapState.isFollowingUser) {
