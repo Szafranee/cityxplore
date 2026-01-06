@@ -1,5 +1,6 @@
 package app.cityxplore.map.data
 
+import app.cityxplore.map.domain.FogOfWarConfiguration
 import app.cityxplore.map.domain.FogOfWarRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -24,10 +25,16 @@ import io.ktor.http.isSuccess
  * @property httpClient Ktor client with authentication configured.
  */
 class FogOfWarRepositoryImpl(
-    private val httpClient: HttpClient
+    private val httpClient: HttpClient,
+    private val config: FogOfWarConfiguration = FogOfWarConfiguration()
 ) : FogOfWarRepository {
 
     override suspend fun getWarsawHexagons(): Result<Set<String>> = runCatching {
+        val localHexes = loadWarsawHexagons(resolution = config.h3Resolution)
+        if (localHexes.isNotEmpty()) {
+            return@runCatching localHexes
+        }
+
         val response = httpClient.get("https://api.cityxplore.app/api/fog-of-war/warsaw-hexagons")
 
         if (!response.status.isSuccess()) {

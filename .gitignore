@@ -44,6 +44,11 @@ captures/
 .externalNativeBuild/
 .cxx/
 
+# Native libraries (managed by Gradle dependencies)
+*.so
+*.dylib
+**/jniLibs/
+
 # Local properties
 local.properties
 *.keystore

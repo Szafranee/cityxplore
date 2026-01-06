@@ -130,22 +130,13 @@ private fun ReadyMap(
     // Fog of War
     val fogRenderer = remember { mutableStateOf<FogOfWarRenderer?>(null) }
 
-    fun animateToLocation(point: Point, zoom: Double = 15.0) {
+    fun animateToLocation(point: Point, zoom: Double? = null) {
         mapViewRef.value?.camera?.easeTo(
             CameraOptions.Builder()
                 .center(point)
-                .zoom(zoom)
+                .apply { zoom?.let { zoom(it) } }
                 .build(),
-            MapAnimationOptions.Builder().duration(1000).build()
-        )
-    }
-
-    fun centerOnLocationInstantly(point: Point, zoom: Double = 15.0) {
-        mapViewRef.value?.mapboxMap?.setCamera(
-            CameraOptions.Builder()
-                .center(point)
-                .zoom(zoom)
-                .build()
+            MapAnimationOptions.Builder().duration(300).build()
         )
     }
 
@@ -259,17 +250,32 @@ private fun ReadyMap(
                 if (shouldCenterOnFirstLocation.value) {
                     shouldCenterOnFirstLocation.value = false
                     locationInitialized.value = true
-                    centerOnLocationInstantly(point)
+                    // First center with zoom
+                    mapView?.mapboxMap?.setCamera(
+                        CameraOptions.Builder()
+                            .center(point)
+                            .zoom(15.0)
+                            .build()
+                    )
                 } else if (mapState.isFollowingUser) {
-                    animateToLocation(point)
+                    // Smooth follow using setCamera (puck provides interpolation)
+                    mapView?.mapboxMap?.setCamera(
+                        CameraOptions.Builder()
+                            .center(point)
+                            .build()
+                    )
                 }
             }
 
             // Disable follow mode when the user manually moves the map
             val onMoveListener = object : OnMoveListener {
                 override fun onMove(detector: MoveGestureDetector): Boolean {
-                    if (mapState.isFollowingUser) {
-                        onAction(MapAction.ToggleFollowUser)
+                    // Only disable follow mode if it's a single-finger pan
+                    // Multi-pointer moves are usually part of a zoom/rotate gesture
+                    if (detector.pointersCount == 1) {
+                        if (mapState.isFollowingUser) {
+                            onAction(MapAction.ToggleFollowUser)
+                        }
                     }
                     return false
                 }
@@ -279,24 +285,15 @@ private fun ReadyMap(
                 override fun onMoveEnd(detector: MoveGestureDetector) {}
             }
 
-            val mapClickListener = com.mapbox.maps.plugin.gestures.OnMapClickListener { _ ->
-                if (mapState.isFollowingUser) {
-                    onAction(MapAction.ToggleFollowUser)
-                }
-                true
-            }
-
             mapView?.let {
                 it.location.addOnIndicatorPositionChangedListener(positionListener)
                 it.gestures.addOnMoveListener(onMoveListener)
-                it.gestures.addOnMapClickListener(mapClickListener)
             }
 
             onDispose {
                 mapView?.let {
                     it.location.removeOnIndicatorPositionChangedListener(positionListener)
                     it.gestures.removeOnMoveListener(onMoveListener)
-                    it.gestures.removeOnMapClickListener(mapClickListener)
                 }
             }
         }
@@ -305,11 +302,14 @@ private fun ReadyMap(
         FloatingActionButton(
             onClick = {
                 mapViewRef.value?.let { _ ->
-                    onAction(MapAction.ToggleFollowUser)
+                    // Enable follow mode if not already enabled
+                    if (!mapState.isFollowingUser) {
+                        onAction(MapAction.ToggleFollowUser)
+                    }
 
                     val point = lastLocation.value
                     if (point != null) {
-                        animateToLocation(point)
+                        animateToLocation(point, zoom = 15.0)
                     } else {
                         Toast.makeText(context, "Waiting for location...", Toast.LENGTH_SHORT).show()
                     }
