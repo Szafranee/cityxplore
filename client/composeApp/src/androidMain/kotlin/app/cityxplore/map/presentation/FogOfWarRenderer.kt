@@ -20,6 +20,7 @@ import com.mapbox.maps.extension.style.sources.generated.geoJsonSource
 import com.mapbox.maps.extension.style.sources.getSourceAs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Collections.synchronizedSet
 
 /**
  * Manager for rendering Fog of War on Mapbox map.
@@ -44,7 +45,7 @@ class FogOfWarRenderer(
 
     // Cached source state to avoid expensive full recompute on every animation end.
     private var currentFogHexes: Set<String> = emptySet() // hexes currently covered by static fog
-    private var currentFadingHexes: MutableSet<String> = mutableSetOf() // hexes currently fading out
+    private var currentFadingHexes: MutableSet<String> = synchronizedSet(mutableSetOf()) // hexes currently fading out
 
     private companion object {
         const val FOG_SOURCE_ID = "fog-of-war-source"
