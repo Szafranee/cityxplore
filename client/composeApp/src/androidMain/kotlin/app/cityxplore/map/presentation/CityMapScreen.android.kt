@@ -212,7 +212,7 @@ private fun ReadyMap(
                         gestures.updateSettings {
                             scrollEnabled = true
                             rotateEnabled = true
-                            pitchEnabled = true
+                            pitchEnabled = false
                             pinchScrollEnabled = true
                         }
 
