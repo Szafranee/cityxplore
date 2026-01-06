@@ -37,6 +37,7 @@ private object RegionHexagonCache : KoinComponent {
     // Simple in-memory cache (clears on app restart)
     private val memoryCache = mutableMapOf<String, Set<String>>()
 
+    @Synchronized
     fun getOrCompute(region: RegionDefinition): Set<String> {
         val cacheKey = "${region.id}_${region.h3Resolution}"
 

@@ -1,6 +1,7 @@
 package app.cityxplore.map.domain
 
 import com.uber.h3core.H3Core
+import com.uber.h3core.LengthUnit
 import java.io.IOException
 
 /**
@@ -15,17 +16,20 @@ internal actual object HexCalculator {
             System.loadLibrary("h3-java")
             H3Core.newSystemInstance()
         } catch (_: UnsatisfiedLinkError) {
-            // Fallback to extracting from resources (standard behavior)
+            // Fallback to extracting from resources (standard behaviour)
             try {
                 H3Core.newInstance()
             } catch (e2: IOException) {
                 throw RuntimeException("Failed to initialize H3Core", e2)
+            } catch (e3: UnsatisfiedLinkError) {
+                throw RuntimeException("Failed to load H3 native library", e3)
             }
+
         }
     }
 
     /**
-     * Calculates hexagons to reveal around a center point.
+     * Calculates hexagons to reveal around a centre point.
      *
      * @param latitude Center latitude.
      * @param longitude Center longitude.
@@ -41,15 +45,7 @@ internal actual object HexCalculator {
     ): Set<String> {
         val centerHex = h3.latLngToCell(latitude, longitude, resolution)
 
-        // Approximate edge length in meters for common resolutions
-        // Source: https://h3geo.org/docs/core-library/restable/
-        val edgeLengthMeters = when (resolution) {
-            9 -> 174.375668
-            10 -> 65.907807
-            11 -> 24.910561
-            12 -> 9.415526
-            else -> 66.0 // Default to res 10
-        }
+        val edgeLengthMeters = h3.getHexagonEdgeLengthAvg(resolution, LengthUnit.m)
 
         // Approximate k needed to cover the radius
         // Using a slightly generous calculation to ensure coverage

@@ -89,13 +89,13 @@ class MapViewModel(
      */
     private fun loadPois() {
         scope.launch(cityXploreDispatchers.io) {
-            _state.value = MapUiState.Loading
-
-            // Preserve the current follow flag from existing state
+            // Capture the previous state before setting to Loading
             val previousIsFollowing = when (val s = _state.value) {
                 is MapUiState.Ready -> s.isFollowingUser
                 else -> true
             }
+
+            _state.value = MapUiState.Loading
 
             val result = getPoisUseCase()
             _state.value = result.fold(
