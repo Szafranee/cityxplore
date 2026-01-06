@@ -3,6 +3,7 @@ package app.cityxplore.map.presentation
 import android.animation.ValueAnimator
 import android.view.animation.LinearInterpolator
 import androidx.core.graphics.toColorInt
+import app.cityxplore.domain.service.H3Service
 import com.mapbox.geojson.Feature
 import com.mapbox.geojson.FeatureCollection
 import com.mapbox.geojson.Polygon
@@ -33,9 +34,9 @@ import kotlinx.coroutines.withContext
  */
 class FogOfWarRenderer(
     private val mapView: MapView,
+    private val h3Service: H3Service,
     private val fogColor: String = "#404040"
 ) {
-    private val h3Service = app.cityxplore.data.service.AndroidH3Service()
     private var lastRevealedHexes: Set<String> = emptySet()
 
     private var fadeAnimator: ValueAnimator? = null

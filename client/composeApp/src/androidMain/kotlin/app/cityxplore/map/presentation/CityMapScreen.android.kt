@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.createBitmap
+import app.cityxplore.domain.service.H3Service
 import app.cityxplore.theme.AppColors
 import com.mapbox.android.gestures.MoveGestureDetector
 import com.mapbox.geojson.Point
@@ -44,6 +45,7 @@ import com.mapbox.maps.plugin.gestures.gestures
 import com.mapbox.maps.plugin.locationcomponent.OnIndicatorPositionChangedListener
 import com.mapbox.maps.plugin.locationcomponent.location
 import com.mapbox.maps.plugin.scalebar.scalebar
+import org.koin.compose.koinInject
 
 @SuppressLint("MissingPermission")
 @Composable
@@ -87,6 +89,8 @@ private fun ReadyMap(
     onProfileClick: () -> Unit,
 ) {
     val context = LocalContext.current
+
+    val h3Service = koinInject<H3Service>()
 
     // Check for Mapbox token
     val appInfo = remember {
@@ -204,7 +208,7 @@ private fun ReadyMap(
                     MapView(context).apply {
                         mapViewRef.value = this
                         mapboxMap.loadStyle("mapbox://styles/szafran00/cmdusan3600d001pj4eri2fl1") { style ->
-                            val renderer = FogOfWarRenderer(this)
+                            val renderer = FogOfWarRenderer(this, h3Service)
                             val success = renderer.initialize(style)
                             if (success) {
                                 fogRenderer.value = renderer

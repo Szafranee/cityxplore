@@ -70,8 +70,10 @@ class MapViewModel(
     fun onAction(action: MapAction) {
         when (action) {
             MapAction.Refresh -> {
-                loadPois()
-                loadFogOfWar()
+                scope.launch(cityXploreDispatchers.io) {
+                    loadPois()
+                    loadFogOfWar()
+                }
             }
 
             is MapAction.SelectPoi -> selectPoi(action.poiId)

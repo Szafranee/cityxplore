@@ -29,7 +29,9 @@ private object RegionHexagonCache : KoinComponent {
         runCatching {
             System.loadLibrary("h3-java")
             H3Core.newSystemInstance()
-        }.getOrElse {
+        }.getOrElse { error ->
+            // Log fallback for debugging JNI setup issues
+            println("Failed to load system H3 library, falling back to bundled instance: ${error.message}")
             H3Core.newInstance()
         }
     }
