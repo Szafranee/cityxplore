@@ -4,8 +4,10 @@ import app.cityxplore.core.cityXploreDispatchers
 import app.cityxplore.core.location.Location
 import app.cityxplore.core.location.LocationService
 import app.cityxplore.map.domain.AutoDiscoverPoisUseCase
+import app.cityxplore.map.domain.FogOfWarRepository
 import app.cityxplore.map.domain.GetPoisWithDiscoveriesUseCase
 import app.cityxplore.map.domain.PoiModel
+import app.cityxplore.map.domain.UpdateFogOfWarUseCase
 import app.cityxplore.map.domain.toMapPoi
 import app.cityxplore.platform.CityXploreBaseViewModel
 import kotlinx.coroutines.Job
@@ -23,6 +25,7 @@ import kotlinx.coroutines.launch
  * - Managing map camera follow mode
  * - Handling POI selection for detail display
  * - Tracking newly discovered POIs for UI notifications
+ * - Managing Fog of War (revealed hexagons)
  *
  * POIs are automatically discovered when the user is within the discovery radius
  * (defined in [AutoDiscoverPoisUseCase]). The discovery is handled by the use case,
@@ -30,11 +33,15 @@ import kotlinx.coroutines.launch
  *
  * @property getPoisUseCase Use case for fetching POIs with discovery status.
  * @property autoDiscoverUseCase Use case for automatic POI discovery based on location.
+ * @property updateFogOfWarUseCase Use case for updating fog of war based on user location.
+ * @property fogOfWarRepository Repository for fetching revealed hexagons.
  * @property locationService The service providing user location updates.
  */
 class MapViewModel(
     private val getPoisUseCase: GetPoisWithDiscoveriesUseCase,
     private val autoDiscoverUseCase: AutoDiscoverPoisUseCase,
+    private val updateFogOfWarUseCase: UpdateFogOfWarUseCase,
+    private val fogOfWarRepository: FogOfWarRepository,
     private val locationService: LocationService
 ) : CityXploreBaseViewModel() {
     private val _state = MutableStateFlow<MapUiState>(MapUiState.Loading)
@@ -47,9 +54,12 @@ class MapViewModel(
 
     private var locationObserverJob: Job? = null
     private var lastKnownLocation: Location? = null
+    private var cachedWarsawHexagons: Set<String> = emptySet()
+    private var cachedRevealedHexagons: Set<String> = emptySet()
 
     init {
         loadPois()
+        loadFogOfWar()
     }
 
     /**
@@ -59,7 +69,13 @@ class MapViewModel(
      */
     fun onAction(action: MapAction) {
         when (action) {
-            MapAction.Refresh -> loadPois()
+            MapAction.Refresh -> {
+                scope.launch(cityXploreDispatchers.io) {
+                    loadPois()
+                    loadFogOfWar()
+                }
+            }
+
             is MapAction.SelectPoi -> selectPoi(action.poiId)
             MapAction.ToggleFollowUser -> toggleFollowState()
             MapAction.PermissionGranted -> startLocationTracking()
@@ -75,13 +91,13 @@ class MapViewModel(
      */
     private fun loadPois() {
         scope.launch(cityXploreDispatchers.io) {
-            _state.value = MapUiState.Loading
-
-            // Preserve the current follow flag from existing state
+            // Capture the previous state before setting to Loading
             val previousIsFollowing = when (val s = _state.value) {
                 is MapUiState.Ready -> s.isFollowingUser
                 else -> true
             }
+
+            _state.value = MapUiState.Loading
 
             val result = getPoisUseCase()
             _state.value = result.fold(
@@ -91,13 +107,37 @@ class MapViewModel(
                         userLocation = lastKnownLocation,
                         isFollowingUser = previousIsFollowing,
                         selectedPoi = null,
-                        newlyDiscoveredPoiIds = emptySet()
+                        newlyDiscoveredPoiIds = emptySet(),
+                        revealedHexagons = cachedRevealedHexagons,
+                        warsawHexagons = cachedWarsawHexagons
                     )
                 },
                 onFailure = { error ->
                     MapUiState.Error(error.message ?: "Unable to load POIs")
                 }
             )
+        }
+    }
+
+    /**
+     * Loads the Fog of War state from the backend.
+     * Fetches revealed hexagons and updates the map state.
+     */
+    private fun loadFogOfWar() {
+        scope.launch(cityXploreDispatchers.io) {
+            val revealedResult = fogOfWarRepository.getRevealedHexagons()
+            val warsawResult = fogOfWarRepository.getWarsawHexagons()
+
+            cachedRevealedHexagons = revealedResult.getOrElse { cachedRevealedHexagons }
+            cachedWarsawHexagons = warsawResult.getOrElse { cachedWarsawHexagons }
+
+            val currentState = _state.value
+            if (currentState is MapUiState.Ready) {
+                _state.value = currentState.copy(
+                    revealedHexagons = cachedRevealedHexagons,
+                    warsawHexagons = cachedWarsawHexagons
+                )
+            }
         }
     }
 
@@ -113,11 +153,31 @@ class MapViewModel(
                     lastKnownLocation = location
                     updateUserLocation(location)
                     checkForNearbyPois(location)
+                    updateFogOfWar(location)
                 }
             } catch (_: Exception) {
                 // Location service error - could be permissions or hardware issue
                 // Keep current state, don't crash the app
             }
+        }
+    }
+
+    /**
+     * Updates the Fog of War based on user's current location.
+     * Reveals hexagons within the configured radius.
+     *
+     * @param location The user's current location.
+     */
+    private fun updateFogOfWar(location: Location) {
+        scope.launch(cityXploreDispatchers.io) {
+            val result = updateFogOfWarUseCase(location)
+            result.onSuccess { newHexCount ->
+                if (newHexCount > 0) {
+                    // Reload revealed hexagons from repository
+                    loadFogOfWar()
+                }
+            }
+            // Silently ignore errors
         }
     }
 

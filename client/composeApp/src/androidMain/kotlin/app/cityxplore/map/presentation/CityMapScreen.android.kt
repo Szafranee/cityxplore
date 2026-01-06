@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.createBitmap
+import app.cityxplore.domain.service.H3Service
 import app.cityxplore.theme.AppColors
 import com.mapbox.android.gestures.MoveGestureDetector
 import com.mapbox.geojson.Point
@@ -40,11 +41,11 @@ import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions
 import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
 import com.mapbox.maps.plugin.compass.compass
 import com.mapbox.maps.plugin.gestures.OnMoveListener
-import com.mapbox.maps.plugin.gestures.addOnMapClickListener
 import com.mapbox.maps.plugin.gestures.gestures
 import com.mapbox.maps.plugin.locationcomponent.OnIndicatorPositionChangedListener
 import com.mapbox.maps.plugin.locationcomponent.location
 import com.mapbox.maps.plugin.scalebar.scalebar
+import org.koin.compose.koinInject
 
 @SuppressLint("MissingPermission")
 @Composable
@@ -89,6 +90,8 @@ private fun ReadyMap(
 ) {
     val context = LocalContext.current
 
+    val h3Service = koinInject<H3Service>()
+
     // Check for Mapbox token
     val appInfo = remember {
         context.packageManager.getApplicationInfo(context.packageName, PackageManager.GET_META_DATA)
@@ -128,23 +131,18 @@ private fun ReadyMap(
     val locationInitialized = remember { mutableStateOf(false) }
     val shouldCenterOnFirstLocation = remember { mutableStateOf(true) }
 
+    // Fog of War
+    val fogRenderer = remember { mutableStateOf<FogOfWarRenderer?>(null) }
+    val fogInitialized = remember { mutableStateOf(false) }
+    val fogInitError = remember { mutableStateOf(false) }
 
-    fun animateToLocation(point: Point, zoom: Double = 15.0) {
+    fun animateToLocation(point: Point, zoom: Double? = null) {
         mapViewRef.value?.camera?.easeTo(
             CameraOptions.Builder()
                 .center(point)
-                .zoom(zoom)
+                .apply { zoom?.let { zoom(it) } }
                 .build(),
-            MapAnimationOptions.Builder().duration(1000).build()
-        )
-    }
-
-    fun centerOnLocationInstantly(point: Point, zoom: Double = 15.0) {
-        mapViewRef.value?.mapboxMap?.setCamera(
-            CameraOptions.Builder()
-                .center(point)
-                .zoom(zoom)
-                .build()
+            MapAnimationOptions.Builder().duration(300).build()
         )
     }
 
@@ -209,14 +207,23 @@ private fun ReadyMap(
                 try {
                     MapView(context).apply {
                         mapViewRef.value = this
-                        mapboxMap.loadStyle("mapbox://styles/szafran00/cmdusan3600d001pj4eri2fl1")
+                        mapboxMap.loadStyle("mapbox://styles/szafran00/cmdusan3600d001pj4eri2fl1") { style ->
+                            val renderer = FogOfWarRenderer(this, h3Service)
+                            val success = renderer.initialize(style)
+                            if (success) {
+                                fogRenderer.value = renderer
+                                fogInitialized.value = true
+                            } else {
+                                fogInitError.value = true
+                            }
+                        }
 
                         compass.updateSettings { enabled = true }
                         scalebar.updateSettings { enabled = true }
                         gestures.updateSettings {
                             scrollEnabled = true
                             rotateEnabled = true
-                            pitchEnabled = true
+                            pitchEnabled = false
                             pinchScrollEnabled = true
                         }
 
@@ -236,6 +243,25 @@ private fun ReadyMap(
             modifier = Modifier.fillMaxSize()
         )
 
+        LaunchedEffect(mapState.revealedHexagons, mapState.warsawHexagons, fogRenderer.value) {
+            val renderer = fogRenderer.value
+            if (renderer != null && mapState.warsawHexagons.isNotEmpty()) {
+                renderer.updateFog(mapState.warsawHexagons, mapState.revealedHexagons)
+            }
+        }
+
+        // Show error notification if fog initialization failed
+        LaunchedEffect(fogInitError.value) {
+            if (fogInitError.value) {
+                Toast.makeText(
+                    context,
+                    "⚠️ Fog of War could not be loaded. Map will work without fog effect.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+
+
         // Register and clean-up listeners
         DisposableEffect(mapViewRef.value, mapState.isFollowingUser) {
             val mapView = mapViewRef.value
@@ -247,17 +273,32 @@ private fun ReadyMap(
                 if (shouldCenterOnFirstLocation.value) {
                     shouldCenterOnFirstLocation.value = false
                     locationInitialized.value = true
-                    centerOnLocationInstantly(point)
+                    // First center with zoom
+                    mapView?.mapboxMap?.setCamera(
+                        CameraOptions.Builder()
+                            .center(point)
+                            .zoom(15.0)
+                            .build()
+                    )
                 } else if (mapState.isFollowingUser) {
-                    animateToLocation(point)
+                    // Smooth follow using setCamera (puck provides interpolation)
+                    mapView?.mapboxMap?.setCamera(
+                        CameraOptions.Builder()
+                            .center(point)
+                            .build()
+                    )
                 }
             }
 
             // Disable follow mode when the user manually moves the map
             val onMoveListener = object : OnMoveListener {
                 override fun onMove(detector: MoveGestureDetector): Boolean {
-                    if (mapState.isFollowingUser) {
-                        onAction(MapAction.ToggleFollowUser)
+                    // Only disable follow mode if it's a single-finger pan
+                    // Multi-pointer moves are usually part of a zoom/rotate gesture
+                    if (detector.pointersCount == 1) {
+                        if (mapState.isFollowingUser) {
+                            onAction(MapAction.ToggleFollowUser)
+                        }
                     }
                     return false
                 }
@@ -267,24 +308,15 @@ private fun ReadyMap(
                 override fun onMoveEnd(detector: MoveGestureDetector) {}
             }
 
-            val mapClickListener: (Point) -> Boolean = { _ ->
-                if (mapState.isFollowingUser) {
-                    onAction(MapAction.ToggleFollowUser)
-                }
-                true
-            }
-
             mapView?.let {
                 it.location.addOnIndicatorPositionChangedListener(positionListener)
                 it.gestures.addOnMoveListener(onMoveListener)
-                it.mapboxMap.addOnMapClickListener(mapClickListener)
             }
 
             onDispose {
                 mapView?.let {
                     it.location.removeOnIndicatorPositionChangedListener(positionListener)
                     it.gestures.removeOnMoveListener(onMoveListener)
-                    it.gestures.removeOnMapClickListener(mapClickListener)
                 }
             }
         }
@@ -293,11 +325,14 @@ private fun ReadyMap(
         FloatingActionButton(
             onClick = {
                 mapViewRef.value?.let { _ ->
-                    onAction(MapAction.ToggleFollowUser)
+                    // Enable follow mode if not already enabled
+                    if (!mapState.isFollowingUser) {
+                        onAction(MapAction.ToggleFollowUser)
+                    }
 
                     val point = lastLocation.value
                     if (point != null) {
-                        animateToLocation(point)
+                        animateToLocation(point, zoom = 15.0)
                     } else {
                         Toast.makeText(context, "Waiting for location...", Toast.LENGTH_SHORT).show()
                     }

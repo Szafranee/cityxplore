@@ -21,13 +21,17 @@ sealed interface MapUiState {
      * @property isFollowingUser Whether the map camera should follow the user's location.
      * @property selectedPoi The currently selected POI for displaying details, or `null` if none selected.
      * @property newlyDiscoveredPoiIds Set of POI IDs that were just discovered (for showing notifications).
+     * @property revealedHexagons Set of H3 hex indices that have been revealed (for Fog of War).
+     * @property warsawHexagons Set of all H3 hex indices covering the Warsaw region (for Fog of War).
      */
     data class Ready(
         val pois: List<MapPoi>,
         val userLocation: Location?,
         val isFollowingUser: Boolean,
         val selectedPoi: MapPoi?,
-        val newlyDiscoveredPoiIds: Set<String>
+        val newlyDiscoveredPoiIds: Set<String>,
+        val revealedHexagons: Set<String> = emptySet(),
+        val warsawHexagons: Set<String> = emptySet()
     ) : MapUiState
 
     /**

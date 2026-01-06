@@ -45,10 +45,10 @@ buildConfig {
     // Configure DEBUG conditionally - defaults to false for release safety
     // Can be explicitly enabled via -Pdebug.build=true
     // Automatically detects Android build type when available
-    val explicitDebugProperty = providers.gradleProperty("debug.build").orNull?.toBoolean()
-    val isDebugBuild = explicitDebugProperty ?: gradle.startParameter.taskNames.any {
-        it.contains("debug", ignoreCase = true) && !it.contains("release", ignoreCase = true)
-    }
+    val isDebugBuild = providers.gradleProperty("debug.build")
+        .map { it.toBoolean() }
+        .getOrElse(false)
+
     buildConfigField("Boolean", "DEBUG", isDebugBuild.toString())
 }
 
@@ -81,6 +81,7 @@ kotlin {
             implementation(libs.play.services.location)
             implementation(libs.kotlinx.coroutines.play.services)
             implementation(libs.mapbox.maps.android)
+            implementation(libs.h3)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -138,6 +139,9 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+        jniLibs.pickFirsts.add(
+            "lib/**/libh3-java.so"
+        )
     }
     buildTypes {
         getByName("debug") {
