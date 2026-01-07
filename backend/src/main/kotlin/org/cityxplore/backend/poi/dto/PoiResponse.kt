@@ -1,5 +1,6 @@
 package org.cityxplore.backend.poi.dto
 
+import org.cityxplore.backend.poi.entity.PoiImage
 import java.time.LocalDateTime
 import java.util.UUID
 
@@ -14,7 +15,7 @@ data class PoiResponse(
     val latitude: Double?,
     val longitude: Double?,
     val metadata: Map<String, Any?>?,
-    val imageUrls: List<String>?,
+    val imageUrls: List<PoiImage>?,
     val createdAt: LocalDateTime?,
     val updatedAt: LocalDateTime?,
     val isActive: Boolean,

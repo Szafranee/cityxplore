@@ -7,6 +7,7 @@ import io.mockk.verify
 import org.cityxplore.backend.config.JpaAuditingConfiguration
 import org.cityxplore.backend.poi.dto.CreatePoiPublicRequest
 import org.cityxplore.backend.poi.dto.PoiResponse
+import org.cityxplore.backend.poi.entity.PoiImage
 import org.cityxplore.backend.poi.service.PointOfInterestService
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -62,7 +63,7 @@ class PointOfInterestControllerTest {
             latitude = 52.0,
             longitude = 21.0,
             metadata = mapOf("opening_hours" to "9-17"),
-            imageUrls = listOf("https://example.com/img1.jpg"),
+            imageUrls = listOf(PoiImage(url = "https://example.com/img1.jpg")),
             isActive = true,
             createdAt = LocalDateTime.now(),
             updatedAt = LocalDateTime.now()
@@ -125,7 +126,7 @@ class PointOfInterestControllerTest {
             latitude = 52.0,
             longitude = 21.0,
             metadata = mapOf("opening_hours" to "9-17"),
-            imageUrls = listOf("https://example.com/img1.jpg"),
+            imageUrls = listOf(PoiImage(url = "https://example.com/img1.jpg")),
             isActive = true,
             createdAt = LocalDateTime.now(),
             updatedAt = LocalDateTime.now()
@@ -171,7 +172,7 @@ class PointOfInterestControllerTest {
             latitude = 52.0,
             longitude = 21.0,
             metadata = mapOf("opening_hours" to "9-17"),
-            imageUrls = listOf("https://example.com/img.jpg")
+            imageUrls = listOf(PoiImage(url = "https://example.com/img.jpg"))
         )
 
         val createdPoi = PoiResponse(

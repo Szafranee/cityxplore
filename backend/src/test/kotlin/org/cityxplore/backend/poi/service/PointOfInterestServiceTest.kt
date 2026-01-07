@@ -9,6 +9,7 @@ import org.cityxplore.backend.discoveries.repository.UserPoiDiscoveryRepository
 import org.cityxplore.backend.poi.dto.CreatePoiPublicRequest
 import org.cityxplore.backend.poi.dto.CreatePoiRequest
 import org.cityxplore.backend.poi.dto.UpdatePoiRequest
+import org.cityxplore.backend.poi.entity.PoiImage
 import org.cityxplore.backend.poi.entity.PointOfInterest
 import org.cityxplore.backend.poi.repository.PointOfInterestRepository
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -52,7 +53,8 @@ class PointOfInterestServiceTest {
             location = location1,
             isActive = true,
             createdAt = LocalDateTime.now(),
-            updatedAt = LocalDateTime.now()
+            updatedAt = LocalDateTime.now(),
+            imageUrls = arrayOf(PoiImage(url = "http://example.com/img1.jpg"))
         )
 
         val poi2 = PointOfInterest(
@@ -63,7 +65,8 @@ class PointOfInterestServiceTest {
             location = location2,
             isActive = true,
             createdAt = LocalDateTime.now(),
-            updatedAt = LocalDateTime.now()
+            updatedAt = LocalDateTime.now(),
+            imageUrls = arrayOf(PoiImage(url = "http://example.com/img2.jpg"))
         )
 
         every { poiRepository.findAllByIsActiveTrue() } returns listOf(poi1, poi2)
@@ -145,7 +148,8 @@ class PointOfInterestServiceTest {
             category = "Culture",
             latitude = 52.0,
             longitude = 21.0,
-            metadata = mapOf("opening_hours" to "9-17")
+            metadata = mapOf("opening_hours" to "9-17"),
+            imageUrls = listOf(PoiImage("http://url.com"))
         )
 
         val savedPoi = PointOfInterest(
@@ -157,7 +161,8 @@ class PointOfInterestServiceTest {
             metadata = request.metadata,
             isActive = true,
             createdAt = LocalDateTime.now(),
-            updatedAt = LocalDateTime.now()
+            updatedAt = LocalDateTime.now(),
+            imageUrls = arrayOf(PoiImage("http://url.com"))
         )
 
         every { poiRepository.save(any<PointOfInterest>()) } returns savedPoi

@@ -24,10 +24,28 @@ data class PoiModel(
     val discovered: Boolean,
     val category: PoiCategory,
     val isMajor: Boolean = false,
-    val photos: List<String> = emptyList(),
-    val metadata: Map<String, String> = emptyMap(),
+    val photos: List<PoiPhoto> = emptyList(),
+    val metadata: PoiMetadata = PoiMetadata(),
     val discoveryDate: Long? = null
 )
+
+/**
+ * Represents a photo associated with a POI, including attribution and source.
+ */
+data class PoiPhoto(
+    val url: String,
+    val source: PhotoSource,
+    val author: String? = null,
+    val license: String? = null,
+    val attributions: String? = null // Raw HTML for Google Places
+)
+
+enum class PhotoSource {
+    WIKIMEDIA,
+    GOOGLE_PLACES,
+    USER,
+    UNKNOWN
+}
 
 /**
  * Enumeration representing POI categories in the domain layer.
@@ -117,7 +135,7 @@ data class MapPoi(
     val discovered: Boolean,
     val category: PoiCategory,
     val isMajor: Boolean,
-    val photos: List<String> = emptyList(),
-    val metadata: Map<String, String> = emptyMap(),
+    val photos: List<PoiPhoto> = emptyList(),
+    val metadata: PoiMetadata = PoiMetadata(),
     val discoveryDate: Long? = null
 )
