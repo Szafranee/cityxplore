@@ -88,7 +88,10 @@ fun PoiDetailsContent(
                         photo = photo,
                         modifier = Modifier
                             .height(200.dp)
-                            .aspectRatio(4f / 3f)
+                            .then(
+                                if (poi.photos.size == 1) Modifier.fillParentMaxWidth()
+                                else Modifier.aspectRatio(4f / 3f)
+                            )
                     )
                 }
             }
