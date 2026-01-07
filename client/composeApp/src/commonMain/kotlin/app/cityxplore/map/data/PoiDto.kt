@@ -3,6 +3,9 @@ package app.cityxplore.map.data
 import app.cityxplore.map.domain.PoiCategory
 import app.cityxplore.map.domain.PoiModel
 import app.cityxplore.map.domain.UserDiscovery
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toInstant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -35,6 +38,8 @@ data class PoiDto(
     @SerialName("isDiscovered") val discovered: Boolean? = null,
     val category: PoiCategoryDto = PoiCategoryDto.UNKNOWN,
     @SerialName("isMajor") val isMajor: Boolean = false,
+    @SerialName("imageUrls") val imageUrls: List<String> = emptyList(),
+    val metadata: Map<String, String>? = null,
 ) {
     /**
      * Parses the latitude from JSON, handling both string and numeric formats.
@@ -112,6 +117,8 @@ fun PoiDto.toDomain(): PoiModel? {
             PoiCategoryDto.UNKNOWN -> PoiCategory.UNKNOWN
         },
         isMajor = isMajor,
+        photos = imageUrls,
+        metadata = metadata ?: emptyMap(),
     )
 }
 
@@ -139,7 +146,15 @@ fun UserPoiDiscoveryDto.toDomain(): UserDiscovery {
     val timestamp = try {
         Instant.parse(discoveredAt).toEpochMilliseconds()
     } catch (_: Exception) {
-        0L // Fallback to 0 on parse failure
+        try {
+            // Fallback: try parsing as LocalDateTime (e.g. absent 'Z' or with space instead of T) and assume UTC
+            val isoLike = discoveredAt.replace(' ', 'T')
+            LocalDateTime.parse(isoLike)
+                .toInstant(TimeZone.UTC)
+                .toEpochMilliseconds()
+        } catch (_: Exception) {
+            0L // Fallback to 0 on parse failure
+        }
     }
     return UserDiscovery(
         poiId = poiId,

@@ -28,7 +28,7 @@ import java.util.Collections.synchronizedSet
  * Two-layer approach.
  *
  * Critical rule: a hex must be visible in AT MOST ONE layer with non-zero opacity at any moment.
- * Otherwise opacity sums up and user sees "double fog".
+ * Otherwise, opacity sums up and the user sees "double fog".
  *
  * Additionally: avoid restarting fade animation from BASE on every update, because that creates a visible
  * opacity jump ("blink") when discoveries happen frequently.

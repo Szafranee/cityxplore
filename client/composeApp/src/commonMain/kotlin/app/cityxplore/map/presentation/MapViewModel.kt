@@ -77,6 +77,7 @@ class MapViewModel(
             }
 
             is MapAction.SelectPoi -> selectPoi(action.poiId)
+            MapAction.DeselectPoi -> deselectPoi()
             MapAction.ToggleFollowUser -> toggleFollowState()
             MapAction.PermissionGranted -> startLocationTracking()
             is MapAction.UpdateLocation -> updateUserLocation(action.location)
@@ -251,6 +252,13 @@ class MapViewModel(
             _state.value = currentState.copy(
                 selectedPoi = currentState.pois.firstOrNull { it.id == poiId }
             )
+        }
+    }
+
+    private fun deselectPoi() {
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            _state.value = currentState.copy(selectedPoi = null)
         }
     }
 

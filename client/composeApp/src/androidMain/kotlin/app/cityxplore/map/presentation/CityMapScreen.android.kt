@@ -24,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.graphics.createBitmap
 import app.cityxplore.domain.service.H3Service
 import app.cityxplore.theme.AppColors
 import com.mapbox.android.gestures.MoveGestureDetector
@@ -46,7 +45,7 @@ import org.koin.compose.koinInject
 
 @SuppressLint("MissingPermission")
 @Composable
-actual fun CityXploreMapScreen(
+actual fun CityMapPlatformView(
     state: MapUiState,
     onAction: (MapAction) -> Unit,
     modifier: Modifier,
@@ -143,9 +142,22 @@ private fun ReadyMap(
         )
     }
 
+    // Map annotations to POI IDs for click handling
+    val annotationIdToPoiId = remember { mutableMapOf<String, String>() }
+
     // Remember the annotation manager for the current map view
     val annotationManager = remember(mapViewRef.value) {
-        mapViewRef.value?.annotations?.createPointAnnotationManager()
+        val manager = mapViewRef.value?.annotations?.createPointAnnotationManager()
+        manager?.addClickListener { annotation ->
+            val poiId = annotationIdToPoiId[annotation.id]
+            if (poiId != null) {
+                onAction(MapAction.SelectPoi(poiId))
+                true
+            } else {
+                false
+            }
+        }
+        manager
     }
 
     // Update POI markers when the map view or POI list changes
@@ -154,6 +166,7 @@ private fun ReadyMap(
 
         // Clear existing markers
         manager.deleteAll()
+        annotationIdToPoiId.clear()
 
         // Create new markers for each POI
         mapState.pois.forEach { poi ->
@@ -168,7 +181,8 @@ private fun ReadyMap(
                 .withPoint(point)
                 .withIconImage(icon)
 
-            manager.create(pointAnnotationOptions)
+            val annotation = manager.create(pointAnnotationOptions)
+            annotationIdToPoiId[annotation.id] = poi.id
         }
     }
 

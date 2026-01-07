@@ -30,10 +30,14 @@ class GetPoisWithDiscoveriesUseCase(
         }
 
         val pois = poisResult.getOrThrow()
-        val discoveredIds = discoveriesResult.getOrThrow()
+        val discoveriesMap = discoveriesResult.getOrThrow()
 
         val updatedPois = pois.map { poi ->
-            poi.copy(discovered = discoveredIds.contains(poi.id))
+            val discoveryTimestamp = discoveriesMap[poi.id]
+            poi.copy(
+                discovered = discoveryTimestamp != null,
+                discoveryDate = discoveryTimestamp
+            )
         }
 
         return Result.success(updatedPois)

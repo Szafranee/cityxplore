@@ -5,16 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AccountBalance
-import androidx.compose.material.icons.rounded.LocalActivity
-import androidx.compose.material.icons.rounded.MoreHoriz
-import androidx.compose.material.icons.rounded.Park
-import androidx.compose.material.icons.rounded.Place
-import androidx.compose.material.icons.rounded.QuestionMark
-import androidx.compose.material.icons.rounded.Restaurant
-import androidx.compose.material.icons.rounded.SportsSoccer
 import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material.icons.rounded.TheaterComedy
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Path
@@ -30,6 +21,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.graphics.createBitmap
 import app.cityxplore.map.domain.PoiCategory
+import app.cityxplore.map.presentation.components.getCategoryIcon
 import androidx.compose.ui.graphics.Color as ComposeColor
 
 /**
@@ -129,22 +121,6 @@ fun createPoiMarkerBitmap(
     return bitmap
 }
 
-/**
- * Returns the appropriate Material Icon for a POI category.
- */
-private fun getCategoryIcon(category: PoiCategory): ImageVector {
-    return when (category) {
-        PoiCategory.HISTORICAL -> Icons.Rounded.AccountBalance // Classical building/museum
-        PoiCategory.CULTURAL -> Icons.Rounded.TheaterComedy // Theater masks
-        PoiCategory.NATURE -> Icons.Rounded.Park // Tree/park
-        PoiCategory.FOOD -> Icons.Rounded.Restaurant // Fork and knife
-        PoiCategory.SPORTS -> Icons.Rounded.SportsSoccer // Soccer ball
-        PoiCategory.ENTERTAINMENT -> Icons.Rounded.LocalActivity // Star
-        PoiCategory.CUSTOM -> Icons.Rounded.Place // Pin/location marker
-        PoiCategory.OTHER -> Icons.Rounded.MoreHoriz // Three dots
-        PoiCategory.UNKNOWN -> Icons.Rounded.QuestionMark // Question mark
-    }
-}
 
 /**
  * Draws a Material Icon centered at the specified position on the canvas.

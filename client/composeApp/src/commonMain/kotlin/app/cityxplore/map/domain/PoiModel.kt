@@ -24,6 +24,9 @@ data class PoiModel(
     val discovered: Boolean,
     val category: PoiCategory,
     val isMajor: Boolean = false,
+    val photos: List<String> = emptyList(),
+    val metadata: Map<String, String> = emptyMap(),
+    val discoveryDate: Long? = null
 )
 
 /**
@@ -81,11 +84,15 @@ data class UserDiscovery(
 fun PoiModel.toMapPoi() = MapPoi(
     id = id,
     name = name,
+    description = description, // specific mapping
     latitude = latitude,
     longitude = longitude,
     discovered = discovered,
     category = category,
     isMajor = isMajor,
+    photos = photos,
+    metadata = metadata,
+    discoveryDate = discoveryDate
 )
 
 /**
@@ -94,6 +101,7 @@ fun PoiModel.toMapPoi() = MapPoi(
  *
  * @property id The unique identifier of the POI.
  * @property name The display name of the POI.
+ * @property description A detailed description of the POI, or `null` if not available.
  * @property latitude The geographic latitude coordinate.
  * @property longitude The geographic longitude coordinate.
  * @property discovered Whether the current user has discovered this POI.
@@ -103,9 +111,13 @@ fun PoiModel.toMapPoi() = MapPoi(
 data class MapPoi(
     val id: String,
     val name: String,
+    val description: String?, // Added description
     val latitude: Double,
     val longitude: Double,
     val discovered: Boolean,
     val category: PoiCategory,
     val isMajor: Boolean,
+    val photos: List<String> = emptyList(),
+    val metadata: Map<String, String> = emptyMap(),
+    val discoveryDate: Long? = null
 )

@@ -62,6 +62,9 @@ sealed interface MapAction {
      */
     data class SelectPoi(val poiId: String) : MapAction
 
+    /** User deselected generic POI selection (closed details) */
+    data object DeselectPoi : MapAction
+
     /** The user granted location permission */
     data object PermissionGranted : MapAction
 

@@ -29,9 +29,9 @@ interface PoiRepository {
     /**
      * Fetches all POI discoveries for the current authenticated user.
      *
-     * @return [Result] containing a list of discovery IDs (POI IDs) on success, or exception on failure.
+     * @return [Result] containing a map of POI ID to discovery timestamp on success, or exception on failure.
      */
-    suspend fun fetchUserDiscoveries(): Result<Set<String>>
+    suspend fun fetchUserDiscoveries(): Result<Map<String, Long>>
 
     /**
      * Marks a POI as discovered by the current user.
@@ -66,13 +66,15 @@ class NetworkPoiRepository(
     /**
      * Fetches all POI discoveries for the current user from the backend API endpoint `/api/pois/discoveries`.
      *
-     * @return [Result] containing a set of discovered POI IDs.
+     * @return [Result] containing a map of discovered POI IDs to timestamps.
      */
-    override suspend fun fetchUserDiscoveries(): Result<Set<String>> = runCatching {
+    override suspend fun fetchUserDiscoveries(): Result<Map<String, Long>> = runCatching {
         client.get("https://api.cityxplore.app/api/pois/discoveries")
             .body<List<UserPoiDiscoveryDto>>()
-            .map { it.poiId }
-            .toSet()
+            .associate { dto ->
+                val domain = dto.toDomain()
+                domain.poiId to domain.discoveredAt
+            }
     }
 
     /**
