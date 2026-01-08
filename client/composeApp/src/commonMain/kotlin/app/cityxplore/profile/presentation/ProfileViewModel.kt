@@ -60,4 +60,32 @@ class ProfileViewModel(
                 }
         }
     }
+
+    /**
+     * Updates the user's profile with new data.
+     */
+    fun updateProfile(username: String, avatarUrl: String?) {
+        scope.launch {
+            // Keep the current profile visible while updating, or show a loading indicator?
+            // For now, simple approach:
+            val currentProfile = (_state.value as? ProfileState.Success)?.profile
+            _state.value = ProfileState.Loading
+
+            repository.createProfile(username, avatarUrl)
+                .onSuccess {
+                    // Refresh profile to get updated data
+                    fetchProfile()
+                }
+                .onFailure { error ->
+                    // Restore previous profile if possible, otherwise show error
+                    if (currentProfile != null) {
+                        // Ideally we should show a snackbar error, but for now we fallback to Error state or keep old one.
+                        // Let's just go to Error state to be safe and rigorous.
+                        _state.value = ProfileState.Error(error.message ?: "Failed to update profile")
+                    } else {
+                        _state.value = ProfileState.Error(error.message ?: "Failed to update profile")
+                    }
+                }
+        }
+    }
 }

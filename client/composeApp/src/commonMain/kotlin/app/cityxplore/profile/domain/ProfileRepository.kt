@@ -1,7 +1,5 @@
 package app.cityxplore.profile.domain
 
-import kotlinx.serialization.Serializable
-
 /**
  * Repository interface for user profile operations.
  *
@@ -27,21 +25,3 @@ interface ProfileRepository {
      */
     suspend fun getProfile(): Result<UserProfile>
 }
-
-/**
- * Represents a user's profile data, including statistics and personal information.
- *
- * @property id The unique identifier of the user.
- * @property username The user's chosen username.
- * @property avatarUrl The URL to the user's avatar image, or `null` if not set.
- * @property totalDistance The cumulative distance travelled by the user in meters.
- * @property totalPoisDiscovered The total number of Points of Interest discovered by the user.
- */
-@Serializable
-data class UserProfile(
-    val id: String,
-    val username: String,
-    val avatarUrl: String?,
-    val totalDistance: Double,
-    val totalPoisDiscovered: Int
-)

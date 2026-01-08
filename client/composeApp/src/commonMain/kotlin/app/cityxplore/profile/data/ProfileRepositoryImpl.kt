@@ -142,7 +142,15 @@ class ProfileRepositoryImpl(
      */
     override suspend fun getProfile(): Result<UserProfile> {
         return runCatching {
-            client.get("https://api.cityxplore.app/api/users/me").body()
+            val dto = client.get("https://api.cityxplore.app/api/users/me").body<ProfileDto>()
+            UserProfile(
+                id = dto.id,
+                username = dto.username,
+                avatarUrl = dto.avatarUrl,
+                totalDistance = dto.totalDistance,
+                totalPoisDiscovered = dto.totalPoisDiscovered,
+                achievementPoints = dto.totalAchievementPoints
+            )
         }
     }
 }

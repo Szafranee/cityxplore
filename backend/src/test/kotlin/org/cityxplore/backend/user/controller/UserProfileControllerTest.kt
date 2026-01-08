@@ -346,6 +346,7 @@ class UserProfileControllerTest {
         avatarUrl = avatarUrl,
         totalDistance = BigDecimal.ZERO,
         totalPoisDiscovered = 0,
+        totalAchievementPoints = 0,
         createdAt = LocalDateTime.now()
     )
 }

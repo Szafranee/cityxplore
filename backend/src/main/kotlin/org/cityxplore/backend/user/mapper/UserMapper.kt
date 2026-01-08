@@ -32,5 +32,6 @@ fun User.toDto() = UserProfileResponse(
     avatarUrl = avatarUrl,
     totalDistance = totalDistance,
     totalPoisDiscovered = totalPoisDiscovered,
+    totalAchievementPoints = totalAchievementPoints,
     createdAt = createdAt
 )
