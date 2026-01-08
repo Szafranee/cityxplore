@@ -28,15 +28,8 @@ fun PoiCategoryMarker(
         else Color(218, 165, 32) // Goldenrod
     } else {
         if (poi.discovered) getCategoryColor(poi.category)
-        // If undiscovered, on map it is dimmed, but logic in PoiMarkerBitmap is to use getCategoryColor then modify.
-        // But for Details panel (which appears after click), we typically want to show the full color if we are looking at details?
-        // Or if the user clicked an UNDISCOVERED POI, do we show it gray?
-        // The user said "use the same markers as on the map".
-        else getCategoryColor(poi.category).copy(alpha = 0.5f) // Approximation of dimmed
+        else getCategoryColor(poi.category).copy(alpha = 0.5f)
     }
-
-    // Border logic from PoiMarkerBitmap:
-    // White border (10% of radius). Major: thicker.
 
     val borderThickness = if (poi.isMajor) (size * 0.08f) else (size * 0.05f)
 
@@ -62,19 +55,6 @@ fun PoiCategoryMarker(
                 tint = Color.White
             )
         } else {
-            // Undiscovered X not implemented here as we likely want to see the icon in details anyway?
-            // But map shows X. If we want 1:1 match:
-            // Let's stick to showing the icon for details panel context as a discovered state preview?
-            // Or strictly follow map?
-            // User said: "instead of pin ... will be icon ... that is on the map"
-            // If undiscovered map has X, and we want "what is on the map", we should draw X.
-            // BUT user example: "green circle with tree". This implies the "Category" look.
-            // I will assume for DETAILS panel we always show the category icon even if undiscovered,
-            // because clicking it might be a way to learn what it is.
-            // Wait, if it's Fog of War hidden, user can't click it?
-            // If it's visible but undiscovered (grey/dimmed), user can click.
-            // Let's show the Icon but maybe dimmed or just normally as it is "Details".
-
             val icon = getCategoryIcon(poi.category)
             val iconSize = (size - borderThickness * 2) * 0.7f
             Icon(
