@@ -1,5 +1,6 @@
 package org.cityxplore.backend.poi.dto
 
+import jakarta.validation.Valid
 import jakarta.validation.constraints.AssertTrue
 import jakarta.validation.constraints.DecimalMax
 import jakarta.validation.constraints.DecimalMin
@@ -29,6 +30,7 @@ data class CreatePoiPublicRequest(
     val longitude: Double? = null,
     val metadata: Map<String, Any?>? = null,
     @field:Size(max = 5, message = "a maximum of 5 images are allowed")
+    @field:Valid
     val imageUrls: List<PoiImage>? = null
 ) {
     @AssertTrue(message = "latitude and longitude must be provided together or both omitted")

@@ -1,6 +1,7 @@
 package org.cityxplore.backend.poi.entity
 
 import com.fasterxml.jackson.annotation.JsonProperty
+import org.hibernate.validator.constraints.URL
 import java.io.Serializable
 
 /**
@@ -16,6 +17,7 @@ import java.io.Serializable
  * @property attributions HTML attributions required by the provider (specifically for Google Places).
  */
 data class PoiImage(
+    @field:URL
     val url: String? = null,
 
     @JsonProperty("photo_reference")

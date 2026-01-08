@@ -247,7 +247,9 @@ class PointOfInterestMapperTest {
             category = "Protected",
             location = location,
             metadata = mapOf("confidential" to true),
-            imageUrls = arrayOf(PoiImage(url = "http://admin.com"))
+            imageUrls = arrayOf(PoiImage(url = "http://admin.com")),
+            createdAt = now,
+            updatedAt = now
         )
 
         // When

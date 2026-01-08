@@ -95,7 +95,7 @@ data class UserDiscovery(
 
 /**
  * Maps a [PoiModel] to a simplified [MapPoi] representation for map rendering.
- * Strips out unnecessary fields like description to optimise map performance.
+ * Returns a lightweight [MapPoi] including fields such as description, latitude, longitude, discovered, category, isMajor, photos, metadata, and discoveryDate.
  *
  * @return A lightweight [MapPoi] object for map visualisation.
  */

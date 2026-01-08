@@ -166,13 +166,17 @@ private fun parsePhotos(element: JsonElement?): List<PoiPhoto> {
     return try {
         when {
             element is JsonArray -> {
-                // Try parsing as array of objects first
+                // Try parsing as an array of objects first
                 element.mapNotNull {
-                    if (it is JsonObject) parsePoiPhoto(it)
-                    else if (it.jsonPrimitive.isString) {
-                        // Fallback for a simple string array: assume Unknown source or guess
-                        PoiPhoto(url = it.jsonPrimitive.content, source = PhotoSource.UNKNOWN)
-                    } else null
+                    when (it) {
+                        is JsonObject -> parsePoiPhoto(it)
+                        is kotlinx.serialization.json.JsonPrimitive -> {
+                            if (it.isString) PoiPhoto(url = it.content, source = PhotoSource.UNKNOWN)
+                            else null
+                        }
+
+                        else -> null
+                    }
                 }
             }
 
