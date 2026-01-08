@@ -34,6 +34,7 @@ fun getRequiredProperty(key: String): String {
 val supabaseUrl: String by lazy { getRequiredProperty("SUPABASE_URL") }
 val supabaseKey: String by lazy { getRequiredProperty("SUPABASE_KEY") }
 val mapboxPublicToken: String by lazy { getRequiredProperty("MAPBOX_PUBLIC_TOKEN") }
+val googleMapsKey: String by lazy { getRequiredProperty("GOOGLE_MAPS_KEY") }
 
 buildConfig {
     packageName("app.cityxplore")
@@ -41,6 +42,8 @@ buildConfig {
     buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
     buildConfigField("String", "SUPABASE_KEY", "\"$supabaseKey\"")
     buildConfigField("String", "MAPBOX_PUBLIC_TOKEN", "\"$mapboxPublicToken\"")
+    buildConfigField("String", "GOOGLE_MAPS_KEY", "\"$googleMapsKey\"")
+
 
     // Configure DEBUG conditionally - defaults to false for release safety
     // Can be explicitly enabled via -Pdebug.build=true

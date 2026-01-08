@@ -1,9 +1,9 @@
 package org.cityxplore.backend.poi.mapper
 
 import org.cityxplore.backend.poi.dto.CreatePoiPublicRequest
+import org.cityxplore.backend.poi.entity.PoiImage
 import org.cityxplore.backend.poi.entity.PointOfInterest
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -19,23 +19,22 @@ class PointOfInterestMapperTest {
     private val geometryFactory = GeometryFactory(PrecisionModel(), 4326)
 
     @Test
-    fun `toResponseDto should map POI entity to PoiResponse`() {
+    fun `toResponseDto should map PointOfInterest to PoiResponse`() {
         // Given
         val poiId = UUID.randomUUID()
-        val now = LocalDateTime.now()
-        val location = geometryFactory.createPoint(Coordinate(21.0, 52.0))
-
+        val creationDate = LocalDateTime.now()
+        val updateDate = LocalDateTime.now()
         val poi = PointOfInterest(
             id = poiId,
-            name = "Museum",
-            description = "Historic museum",
-            category = "Culture",
-            location = location,
-            metadata = mapOf("opening_hours" to "9-17"),
-            imageUrls = listOf("https://example.com/img1.jpg"),
-            isActive = true,
-            createdAt = now,
-            updatedAt = now
+            name = "Test POI",
+            description = "Description",
+            category = "Category",
+            location = geometryFactory.createPoint(Coordinate(20.0, 10.0)),
+            metadata = mapOf("key" to "value"),
+            imageUrls = arrayOf(PoiImage(url = "http://example.com/img.jpg")),
+            createdAt = creationDate,
+            updatedAt = updateDate,
+            isActive = true
         )
 
         // When
@@ -43,51 +42,30 @@ class PointOfInterestMapperTest {
 
         // Then
         assertEquals(poiId, result.id)
-        assertEquals("Museum", result.name)
-        assertEquals("Historic museum", result.description)
-        assertEquals("Culture", result.category)
-        assertEquals(52.0, result.latitude)
-        assertEquals(21.0, result.longitude)
-        assertEquals(mapOf("opening_hours" to "9-17"), result.metadata)
-        assertEquals(listOf("https://example.com/img1.jpg"), result.imageUrls)
-        assertEquals(true, result.isActive)
-        assertEquals(now, result.createdAt)
-        assertEquals(now, result.updatedAt)
+        assertEquals("Test POI", result.name)
+        assertEquals("Description", result.description)
+        assertEquals("Category", result.category)
+        assertEquals(10.0, result.latitude)
+        assertEquals(20.0, result.longitude)
+        assertEquals(mapOf("key" to "value"), result.metadata)
+        assertEquals(listOf(PoiImage(url = "http://example.com/img.jpg")), result.imageUrls)
+        assertEquals(creationDate, result.createdAt)
+        assertEquals(updateDate, result.updatedAt)
     }
 
     @Test
-    fun `toResponseDto should handle null location`() {
+    fun `toResponseDto should handle null fields`() {
         // Given
         val poi = PointOfInterest(
             id = UUID.randomUUID(),
-            name = "POI without location",
-            description = "Description",
-            category = "Category",
-            location = null,
-            isActive = true
-        )
-
-        // When
-        val result = poi.toResponseDto()
-
-        // Then
-        assertNull(result.latitude)
-        assertNull(result.longitude)
-        assertEquals("POI without location", result.name)
-    }
-
-    @Test
-    fun `toResponseDto should handle null optional fields`() {
-        // Given
-        val location = geometryFactory.createPoint(Coordinate(21.0, 52.0))
-        val poi = PointOfInterest(
-            id = UUID.randomUUID(),
-            name = "Minimal POI",
+            name = "Test POI",
             description = null,
             category = "Category",
-            location = location,
+            location = null,
             metadata = null,
             imageUrls = null,
+            createdAt = null,
+            updatedAt = null,
             isActive = true
         )
 
@@ -95,47 +73,43 @@ class PointOfInterestMapperTest {
         val result = poi.toResponseDto()
 
         // Then
-        assertNull(result.description)
-        assertNull(result.metadata)
-        assertNull(result.imageUrls)
-        assertEquals("Minimal POI", result.name)
+        assertEquals(null, result.description)
+        assertEquals(null, result.latitude)
+        assertEquals(null, result.longitude)
+        assertEquals(null, result.metadata)
+        assertEquals(null, result.imageUrls)
+        assertEquals(null, result.createdAt)
+        assertEquals(null, result.updatedAt)
     }
 
     @Test
-    fun `toResponseDtoList should map list of POI entities`() {
+    fun `toResponseDtoList should map list of POIs`() {
         // Given
-        val location1 = geometryFactory.createPoint(Coordinate(21.0, 52.0))
-        val location2 = geometryFactory.createPoint(Coordinate(21.1, 52.1))
-
         val poi1 = PointOfInterest(
             id = UUID.randomUUID(),
             name = "POI 1",
-            description = "Description 1",
-            category = "Category1",
-            location = location1,
-            isActive = true
+            category = "Cat 1",
+            location = geometryFactory.createPoint(Coordinate(20.0, 10.0)),
+            imageUrls = arrayOf(PoiImage(url = "url1"))
         )
-
         val poi2 = PointOfInterest(
             id = UUID.randomUUID(),
             name = "POI 2",
-            description = "Description 2",
-            category = "Category2",
-            location = location2,
-            isActive = true
+            category = "Cat 2",
+            location = geometryFactory.createPoint(Coordinate(30.0, 15.0)),
+            imageUrls = arrayOf(PoiImage(url = "url2"))
         )
-
-        val poiList = listOf(poi1, poi2)
+        val list = listOf(poi1, poi2)
 
         // When
-        val result = poiList.toResponseDtoList()
+        val result = list.toResponseDtoList()
 
         // Then
         assertEquals(2, result.size)
         assertEquals("POI 1", result[0].name)
+        assertEquals("url1", result[0].imageUrls?.get(0)?.url)
         assertEquals("POI 2", result[1].name)
-        assertEquals(52.0, result[0].latitude)
-        assertEquals(52.1, result[1].latitude)
+        assertEquals("url2", result[1].imageUrls?.get(0)?.url)
     }
 
     @Test
@@ -147,7 +121,7 @@ class PointOfInterestMapperTest {
         val result = emptyList.toResponseDtoList()
 
         // Then
-        assertTrue(result.isEmpty())
+        assertEquals(0, result.size)
     }
 
     @Test
@@ -155,12 +129,12 @@ class PointOfInterestMapperTest {
         // Given
         val request = CreatePoiPublicRequest(
             name = "New POI",
-            description = "New Description",
-            category = "Culture",
-            latitude = 52.0,
-            longitude = 21.0,
-            metadata = mapOf("key" to "value"),
-            imageUrls = listOf("https://example.com/img.jpg")
+            description = "Desc",
+            category = "New Cat",
+            latitude = 10.0,
+            longitude = 20.0,
+            metadata = mapOf("a" to 1),
+            imageUrls = listOf(PoiImage(url = "http://example.com"))
         )
 
         // When
@@ -168,13 +142,12 @@ class PointOfInterestMapperTest {
 
         // Then
         assertEquals("New POI", result.name)
-        assertEquals("New Description", result.description)
-        assertEquals("Culture", result.category)
-        assertNotNull(result.location)
-        assertEquals(52.0, result.location?.y)
-        assertEquals(21.0, result.location?.x)
-        assertEquals(mapOf("key" to "value"), result.metadata)
-        assertEquals(listOf("https://example.com/img.jpg"), result.imageUrls)
+        assertEquals("Desc", result.description)
+        assertEquals("New Cat", result.category)
+        assertEquals(10.0, result.location?.y)
+        assertEquals(20.0, result.location?.x)
+        assertEquals(mapOf("a" to 1), result.metadata)
+        assertTrue(result.imageUrls?.contentEquals(arrayOf(PoiImage(url = "http://example.com"))) == true)
     }
 
     @Test
@@ -270,11 +243,11 @@ class PointOfInterestMapperTest {
         val poi = PointOfInterest(
             id = poiId,
             name = "Admin POI",
-            description = "Admin Description",
-            category = "AdminCategory",
+            description = "Admin Desc",
+            category = "Protected",
             location = location,
-            metadata = mapOf("admin_key" to "admin_value"),
-            isActive = true,
+            metadata = mapOf("confidential" to true),
+            imageUrls = arrayOf(PoiImage(url = "http://admin.com")),
             createdAt = now,
             updatedAt = now
         )
@@ -285,11 +258,11 @@ class PointOfInterestMapperTest {
         // Then
         assertEquals(poiId, result.id)
         assertEquals("Admin POI", result.name)
-        assertEquals("Admin Description", result.description)
-        assertEquals("AdminCategory", result.category)
+        assertEquals("Admin Desc", result.description)
+        assertEquals("Protected", result.category)
         assertEquals(52.0, result.latitude)
         assertEquals(21.0, result.longitude)
-        assertEquals(mapOf("admin_key" to "admin_value"), result.metadata)
+        assertEquals(mapOf("confidential" to true), result.metadata)
         assertEquals(true, result.isActive)
         assertEquals(now, result.createdAt)
         assertEquals(now, result.updatedAt)

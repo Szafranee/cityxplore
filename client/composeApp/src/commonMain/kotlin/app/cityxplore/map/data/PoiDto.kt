@@ -1,9 +1,20 @@
 package app.cityxplore.map.data
 
+import app.cityxplore.BuildConfig
+import app.cityxplore.map.domain.PhotoSource
 import app.cityxplore.map.domain.PoiCategory
+import app.cityxplore.map.domain.PoiModel
+import app.cityxplore.map.domain.PoiPhoto
+import app.cityxplore.map.domain.UserDiscovery
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toInstant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Instant
@@ -21,6 +32,7 @@ import kotlin.time.Instant
  * @property longitudeJson The raw JSON element for longitude (may be string or number).
  * @property discovered Whether the current user has discovered this POI.
  * @property category The category of the POI.
+ * @property isMajor Whether this is a major landmark.
  */
 @Serializable
 data class PoiDto(
@@ -29,8 +41,11 @@ data class PoiDto(
     val description: String? = null,
     @SerialName("latitude") val latitudeJson: JsonElement? = null,
     @SerialName("longitude") val longitudeJson: JsonElement? = null,
-    @SerialName("is_discovered") val discovered: Boolean? = null,
+    @SerialName("isDiscovered") val discovered: Boolean? = null,
     val category: PoiCategoryDto = PoiCategoryDto.UNKNOWN,
+    @SerialName("isMajor") val isMajor: Boolean = false,
+    @SerialName("imageUrls") val imagesJson: JsonElement? = null,
+    val metadata: PoiMetadataDto? = null,
 ) {
     /**
      * Parses the latitude from JSON, handling both string and numeric formats.
@@ -45,6 +60,38 @@ data class PoiDto(
         get() = longitudeJson?.jsonPrimitive?.doubleOrNull
 }
 
+@Serializable
+data class PoiMetadataDto(
+    val trivia: String? = null,
+    @SerialName("opening_hours") val openingHours: OpeningHoursDto? = null,
+    @SerialName("visit_duration") val visitDuration: String? = null,
+    @SerialName("is_free") val isFree: Boolean? = null,
+    val website: String? = null,
+    val address: String? = null,
+    @SerialName("build_year") val buildYear: String? = null
+)
+
+@Serializable
+data class OpeningHoursDto(
+    @SerialName("open_now") val openNow: Boolean? = null,
+    @SerialName("weekday_text") val weekdayText: List<String> = emptyList()
+)
+
+fun PoiMetadataDto.toDomain() = app.cityxplore.map.domain.PoiMetadata(
+    trivia = trivia,
+    openingHours = openingHours?.toDomain(),
+    visitDuration = visitDuration,
+    isFree = isFree,
+    website = website,
+    address = address,
+    buildYear = buildYear
+)
+
+fun OpeningHoursDto.toDomain() = app.cityxplore.map.domain.OpeningHours(
+    openNow = openNow,
+    weekdayText = weekdayText
+)
+
 /**
  * Enumeration representing POI categories as received from the backend.
  *
@@ -52,23 +99,29 @@ data class PoiDto(
  */
 @Serializable
 enum class PoiCategoryDto {
-    @SerialName("Historical")
+    @SerialName("HISTORICAL")
     HISTORICAL,
 
-    @SerialName("Cultural")
+    @SerialName("CULTURAL")
     CULTURAL,
 
-    @SerialName("Food")
+    @SerialName("NATURE")
+    NATURE,
+
+    @SerialName("FOOD")
     FOOD,
 
-    @SerialName("Custom")
+    @SerialName("SPORTS")
+    SPORTS,
+
+    @SerialName("ENTERTAINMENT")
+    ENTERTAINMENT,
+
+    @SerialName("CUSTOM")
     CUSTOM,
 
-    @SerialName("Tested")
-    TESTED,
-
-    @SerialName("Nature")
-    NATURE,
+    @SerialName("OTHER")
+    OTHER,
 
     UNKNOWN
 }
@@ -79,11 +132,11 @@ enum class PoiCategoryDto {
  *
  * @return A [app.cityxplore.map.domain.PoiModel] domain object, or `null` if coordinates are invalid.
  */
-fun PoiDto.toDomain(): app.cityxplore.map.domain.PoiModel? {
+fun PoiDto.toDomain(): PoiModel? {
     val lat = latitude
     val lng = longitude
     if (lat == null || lng == null) return null
-    return app.cityxplore.map.domain.PoiModel(
+    return PoiModel(
         id = id,
         name = name,
         description = description,
@@ -93,13 +146,77 @@ fun PoiDto.toDomain(): app.cityxplore.map.domain.PoiModel? {
         category = when (category) {
             PoiCategoryDto.HISTORICAL -> PoiCategory.HISTORICAL
             PoiCategoryDto.CULTURAL -> PoiCategory.CULTURAL
+            PoiCategoryDto.NATURE -> PoiCategory.NATURE
             PoiCategoryDto.FOOD -> PoiCategory.FOOD
+            PoiCategoryDto.SPORTS -> PoiCategory.SPORTS
+            PoiCategoryDto.ENTERTAINMENT -> PoiCategory.ENTERTAINMENT
             PoiCategoryDto.CUSTOM -> PoiCategory.CUSTOM
-            PoiCategoryDto.TESTED -> PoiCategory.UNKNOWN
-            PoiCategoryDto.NATURE -> PoiCategory.UNKNOWN
+            PoiCategoryDto.OTHER -> PoiCategory.OTHER
             PoiCategoryDto.UNKNOWN -> PoiCategory.UNKNOWN
-        }
+        },
+        isMajor = isMajor,
+        photos = parsePhotos(imagesJson),
+        metadata = metadata?.toDomain() ?: app.cityxplore.map.domain.PoiMetadata(),
     )
+}
+
+private fun parsePhotos(element: JsonElement?): List<PoiPhoto> {
+    if (element == null) return emptyList()
+
+    return try {
+        when {
+            element is JsonArray -> {
+                // Try parsing as an array of objects first
+                element.mapNotNull {
+                    when (it) {
+                        is JsonObject -> parsePoiPhoto(it)
+                        is kotlinx.serialization.json.JsonPrimitive -> {
+                            if (it.isString) PoiPhoto(url = it.content, source = PhotoSource.UNKNOWN)
+                            else null
+                        }
+
+                        else -> null
+                    }
+                }
+            }
+
+            element is JsonObject -> listOfNotNull(parsePoiPhoto(element))
+            else -> emptyList()
+        }
+    } catch (_: Exception) {
+        emptyList()
+    }
+}
+
+private fun parsePoiPhoto(obj: JsonObject): PoiPhoto? {
+    val url = obj["url"]?.jsonPrimitive?.contentOrNull
+    val photoReference = obj["photo_reference"]?.jsonPrimitive?.contentOrNull
+    val sourceStr = obj["source"]?.jsonPrimitive?.contentOrNull
+    val author = obj["author"]?.jsonPrimitive?.contentOrNull
+    val license = obj["license"]?.jsonPrimitive?.contentOrNull
+    val attributions = obj["attributions"]?.jsonPrimitive?.contentOrNull
+
+    val source = when (sourceStr) {
+        "Wikimedia Commons" -> PhotoSource.WIKIMEDIA
+        "Google Places" -> PhotoSource.GOOGLE_PLACES
+        "User Upload" -> PhotoSource.USER
+        else -> PhotoSource.UNKNOWN
+    }
+
+    val finalUrl = url ?: if (source == PhotoSource.GOOGLE_PLACES && photoReference != null) {
+        // Construct Google Photo URL.
+        "https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=$photoReference&key=${BuildConfig.GOOGLE_MAPS_KEY}"
+    } else null
+
+    return if (finalUrl != null) {
+        PoiPhoto(
+            url = finalUrl,
+            source = source,
+            author = author,
+            license = license,
+            attributions = attributions
+        )
+    } else null
 }
 
 /**
@@ -122,13 +239,21 @@ data class UserPoiDiscoveryDto(
  *
  * @return A [app.cityxplore.map.domain.UserDiscovery] domain object.
  */
-fun UserPoiDiscoveryDto.toDomain(): app.cityxplore.map.domain.UserDiscovery {
+fun UserPoiDiscoveryDto.toDomain(): UserDiscovery {
     val timestamp = try {
         Instant.parse(discoveredAt).toEpochMilliseconds()
     } catch (_: Exception) {
-        0L // Fallback to 0 on parse failure
+        try {
+            // Fallback: try parsing as LocalDateTime (e.g. absent 'Z' or with space instead of T) and assume UTC
+            val isoLike = discoveredAt.replace(' ', 'T')
+            LocalDateTime.parse(isoLike)
+                .toInstant(TimeZone.UTC)
+                .toEpochMilliseconds()
+        } catch (_: Exception) {
+            0L // Fallback to 0 on parse failure
+        }
     }
-    return app.cityxplore.map.domain.UserDiscovery(
+    return UserDiscovery(
         poiId = poiId,
         discoveredAt = timestamp
     )

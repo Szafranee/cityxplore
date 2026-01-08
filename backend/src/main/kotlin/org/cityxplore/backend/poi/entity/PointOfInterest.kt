@@ -42,7 +42,7 @@ data class PointOfInterest(
 
     @Type(JsonType::class)
     @Column(name = "image_urls", columnDefinition = "jsonb")
-    var imageUrls: List<String>? = null,
+    var imageUrls: Array<PoiImage>? = null,
 
     @Column(name = "created_at", nullable = true, updatable = false)
     @CreatedDate
@@ -77,6 +77,6 @@ data class PointOfInterest(
     override fun toString(): String =
         $$"${this::class.simpleName}(id=$id, name=$name, description=$description, " +
                 $$"category=$category, location=$location, metadata=$metadata, " +
-                $$"imageUrls=$imageUrls, createdAt=$createdAt, updatedAt=$updatedAt, " +
+                $$"imageUrls=${imageUrls?.contentToString()}, createdAt=$createdAt, updatedAt=$updatedAt, " +
                 $$"isActive=$isActive, isMajor=$isMajor)"
 }
