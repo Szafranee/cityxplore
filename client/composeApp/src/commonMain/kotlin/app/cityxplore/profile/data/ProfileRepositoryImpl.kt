@@ -145,6 +145,7 @@ class ProfileRepositoryImpl(
             val dto = client.get("https://api.cityxplore.app/api/users/me").body<ProfileDto>()
             UserProfile(
                 id = dto.id,
+                email = dto.email,
                 username = dto.username,
                 avatarUrl = dto.avatarUrl,
                 totalDistance = dto.totalDistance,

@@ -1,6 +1,7 @@
 package app.cityxplore
 
 import androidx.compose.runtime.Composable
+import app.cityxplore.di.achievementsModule
 import app.cityxplore.di.authModule
 import app.cityxplore.di.h3Module
 import app.cityxplore.di.locationModule
@@ -26,6 +27,7 @@ fun CityXploreRoot(
             mapModule,
             locationModule,
             profileModule,
+            achievementsModule,
             h3Module
         )
     }) {

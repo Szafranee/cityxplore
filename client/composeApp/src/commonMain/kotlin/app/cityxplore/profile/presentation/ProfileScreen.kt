@@ -11,13 +11,21 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -32,27 +40,34 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import app.cityxplore.achievements.domain.Achievement
 import app.cityxplore.profile.domain.UserProfile
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,14 +77,27 @@ fun ProfileScreen(
     viewModel: ProfileViewModel = koinInject()
 ) {
     val state by viewModel.state.collectAsState()
-    var showEditDialog by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showAvatarEditDialog by remember { mutableStateOf(false) }
+    var showAccountSettingsDialog by remember { mutableStateOf(false) }
+    var showSignOutConfirmation by remember { mutableStateOf(false) }
+    var showDeleteAccountConfirmation by remember { mutableStateOf(false) }
+    var showDeleteAccountFinal by remember { mutableStateOf(false) }
+
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is ProfileEvent.ProfileUpdated -> {
+                    showAvatarEditDialog = false
+                    showAccountSettingsDialog = false
+                    snackbarHostState.showSnackbar("Profile updated successfully")
+                }
+            }
+        }
+    }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Profile") }
-            )
-        }
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Box(
             modifier = Modifier
@@ -86,21 +114,87 @@ fun ProfileScreen(
                 )
 
                 is ProfileState.Success -> {
+                    val scope = rememberCoroutineScope()
                     ProfileContent(
                         profile = currentState.profile,
-                        onEditClick = { showEditDialog = true },
-                        onSignOut = onSignOut
+                        achievements = currentState.achievements,
+                        onAvatarEditClick = { showAvatarEditDialog = true },
+                        onSettingsClick = { showAccountSettingsDialog = true },
+                        onSignOutClick = { showSignOutConfirmation = true },
+                        onJournalClick = {
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Discovery Journal - Coming Soon!")
+                            }
+                        }
                     )
 
-                    if (showEditDialog) {
-                        EditProfileDialog(
-                            currentUsername = currentState.profile.username,
+                    if (showAvatarEditDialog) {
+                        AvatarEditDialog(
                             currentAvatarUrl = currentState.profile.avatarUrl,
-                            onDismiss = { showEditDialog = false },
-                            onSave = { newName, newAvatar ->
-                                viewModel.updateProfile(newName, newAvatar)
-                                showEditDialog = false
+                            isLoading = currentState.isUpdating,
+                            error = currentState.updateError,
+                            onDismiss = {
+                                viewModel.clearError()
+                                showAvatarEditDialog = false
+                            },
+                            onSave = { newAvatar ->
+                                viewModel.updateProfile(currentState.profile.username, newAvatar)
                             }
+                        )
+                    }
+
+                    if (showAccountSettingsDialog) {
+                        AccountSettingsDialog(
+                            currentUsername = currentState.profile.username,
+                            currentEmail = currentState.profile.email,
+                            isLoading = currentState.isUpdating,
+                            error = currentState.updateError,
+                            onDismiss = {
+                                viewModel.clearError()
+                                showAccountSettingsDialog = false
+                            },
+                            onSave = { newUsername ->
+                                viewModel.updateProfile(newUsername, currentState.profile.avatarUrl)
+                            },
+                            onDeleteAccount = {
+                                showAccountSettingsDialog = false
+                                showDeleteAccountConfirmation = true
+                            }
+                        )
+                    }
+
+                    if (showDeleteAccountConfirmation) {
+                        DeleteAccountConfirmationDialog(
+                            onConfirm = {
+                                showDeleteAccountConfirmation = false
+                                showDeleteAccountFinal = true
+                            },
+                            onDismiss = {
+                                showDeleteAccountConfirmation = false
+                                // Consider re-opening settings? For now, just dismiss.
+                            }
+                        )
+                    }
+
+                    if (showDeleteAccountFinal) {
+                        DeleteAccountFinalDialog(
+                            expectedUsername = currentState.profile.username,
+                            onConfirm = {
+                                // TODO: Implement delete account VM logic
+                                showDeleteAccountFinal = false
+                                onSignOut() // For now, just sign out as placeholder
+                            },
+                            onDismiss = { showDeleteAccountFinal = false }
+                        )
+                    }
+
+                    if (showSignOutConfirmation) {
+                        SignOutConfirmationDialog(
+                            onConfirm = {
+                                showSignOutConfirmation = false
+                                onSignOut()
+                            },
+                            onDismiss = { showSignOutConfirmation = false }
                         )
                     }
                 }
@@ -112,8 +206,11 @@ fun ProfileScreen(
 @Composable
 private fun ProfileContent(
     profile: UserProfile,
-    onEditClick: () -> Unit,
-    onSignOut: () -> Unit
+    achievements: List<Achievement>,
+    onAvatarEditClick: () -> Unit,
+    onSettingsClick: () -> Unit,
+    onSignOutClick: () -> Unit,
+    onJournalClick: () -> Unit
 ) {
     val scrollState = rememberScrollState()
 
@@ -124,6 +221,22 @@ private fun ProfileContent(
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Top Bar with Settings
+        Box(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            IconButton(
+                onClick = onSettingsClick,
+                modifier = Modifier.align(Alignment.TopEnd)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Account Settings",
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+
         // Avatar Section
         Box(contentAlignment = Alignment.BottomEnd) {
             if (profile.avatarUrl != null) {
@@ -155,16 +268,17 @@ private fun ProfileContent(
                 }
             }
             IconButton(
-                onClick = onEditClick,
+                onClick = onAvatarEditClick,
                 modifier = Modifier
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .size(32.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit Profile",
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(20.dp)
+                    contentDescription = "Edit Avatar",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
@@ -230,18 +344,92 @@ private fun ProfileContent(
             )
         }
 
-        Spacer(modifier = Modifier.weight(1f))
         Spacer(modifier = Modifier.height(32.dp))
 
-        OutlinedButton(
-            onClick = onSignOut,
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = MaterialTheme.colorScheme.error
+        // Discovery Journal Entry
+        Card(
+            onClick = onJournalClick,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
             ),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Book,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(
+                        text = "Discovery Journal",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = "Review your ${profile.totalPoisDiscovered} findings",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // Achievements Section
+        Text(
+            text = "Achievements",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+        )
+
+        if (achievements.isEmpty()) {
+            Text(
+                text = "Keep exploring to unlock achievements!",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+            )
+        } else {
+            AchievementsGrid(achievements)
+        }
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        OutlinedButton(
+            onClick = onSignOutClick,
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.error,
+            ),
+            modifier = Modifier.width(200.dp)
         ) {
             Text("Sign Out")
         }
+
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }
 
@@ -258,20 +446,32 @@ private fun StatCard(
         )
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Adjust font size for long values
+            val valueStyle = if (value.length > 6) {
+                MaterialTheme.typography.titleMedium
+            } else {
+                MaterialTheme.typography.titleLarge
+            }
+
             Text(
                 text = value,
-                style = MaterialTheme.typography.titleLarge,
+                style = valueStyle,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }
@@ -305,42 +505,155 @@ private fun ErrorContent(
 }
 
 @Composable
-private fun EditProfileDialog(
-    currentUsername: String,
+private fun AvatarEditDialog(
     currentAvatarUrl: String?,
+    isLoading: Boolean,
+    error: String?,
     onDismiss: () -> Unit,
-    onSave: (String, String?) -> Unit
+    onSave: (String?) -> Unit
 ) {
-    var username by remember { mutableStateOf(currentUsername) }
-    var avatarUrl by remember { mutableStateOf(currentAvatarUrl ?: "") }
+    var avatarUrl by remember(currentAvatarUrl) { mutableStateOf(currentAvatarUrl ?: "") }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Edit Profile") },
+        onDismissRequest = { if (!isLoading) onDismiss() },
+        title = { Text("Update Avatar") },
         text = {
             Column {
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it },
-                    label = { Text("Username") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+                if (error != null) {
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
                 OutlinedTextField(
                     value = avatarUrl,
                     onValueChange = { avatarUrl = it },
                     label = { Text("Avatar URL") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isLoading
                 )
             }
         },
         confirmButton = {
-            Button(
-                onClick = { onSave(username, avatarUrl.takeIf { it.isNotBlank() }) }
+            Box(contentAlignment = Alignment.Center) {
+                Button(
+                    onClick = { onSave(avatarUrl.takeIf { it.isNotBlank() }) },
+                    enabled = !isLoading
+                ) {
+                    Text("Save")
+                }
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp).padding(4.dp))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isLoading
             ) {
-                Text("Save")
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun AccountSettingsDialog(
+    currentUsername: String,
+    currentEmail: String,
+    isLoading: Boolean,
+    error: String?,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+    onDeleteAccount: () -> Unit
+) {
+    var username by remember(currentUsername) { mutableStateOf(currentUsername) }
+
+    AlertDialog(
+        onDismissRequest = { if (!isLoading) onDismiss() },
+        title = { Text("Account Settings") },
+        text = {
+            Column {
+                if (error != null) {
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text("Username") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isLoading
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = currentEmail,
+                    onValueChange = { },
+                    label = { Text("Email") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = false, // Read-only for now
+                    supportingText = { Text("Email change coming soon") }
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = onDeleteAccount,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.align(Alignment.Start)
+                ) {
+                    Text("Delete Account")
+                }
+            }
+        },
+        confirmButton = {
+            Box(contentAlignment = Alignment.Center) {
+                Button(
+                    onClick = { onSave(username) },
+                    enabled = !isLoading
+                ) {
+                    Text("Save")
+                }
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp).padding(4.dp))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isLoading
+            ) {
+                Text("Close")
+            }
+        }
+    )
+}
+
+@Composable
+private fun SignOutConfirmationDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Sign Out") },
+        text = { Text("Are you sure you want to sign out?") },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Sign Out")
             }
         },
         dismissButton = {
@@ -349,6 +662,173 @@ private fun EditProfileDialog(
             }
         }
     )
+}
+
+@Composable
+private fun DeleteAccountConfirmationDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete Account") },
+        text = {
+            Text(
+                "Are you sure you want to delete your account? This action cannot be undone and you will lose all progress and data.",
+                color = MaterialTheme.colorScheme.error
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Delete")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun DeleteAccountFinalDialog(
+    expectedUsername: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var usernameInput by remember { mutableStateOf("") }
+    val isMatch = usernameInput == expectedUsername
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Confirm Deletion") },
+        text = {
+            Column {
+                Text(
+                    "Please type your username '$expectedUsername' to confirm deletion.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = usernameInput,
+                    onValueChange = { usernameInput = it },
+                    label = { Text("Username") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = isMatch,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Confirm Delete")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun AchievementsGrid(achievements: List<Achievement>) {
+    var expanded by remember { mutableStateOf(false) }
+    val displayAchievements = if (expanded) achievements else achievements.take(6) // Show 2 rows initially
+
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        val rows = displayAchievements.chunked(3)
+        rows.forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                rowItems.forEach { achievement ->
+                    AchievementItem(
+                        achievement = achievement,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                repeat(3 - rowItems.size) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+
+        if (achievements.size > 6) {
+            TextButton(
+                onClick = { expanded = !expanded },
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (expanded) "Show Less" else "Show All (${achievements.size})")
+                    Icon(
+                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = null
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AchievementItem(
+    achievement: Achievement,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        val saturation = if (achievement.isUnlocked) 1f else 0f
+        val colorMatrix = ColorMatrix().apply { setToSaturation(saturation) }
+        val alpha = if (achievement.isUnlocked) 1f else 0.5f
+
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha))
+        ) {
+            if (achievement.iconUrl != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalPlatformContext.current)
+                        .data(achievement.iconUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = achievement.name,
+                    colorFilter = ColorFilter.colorMatrix(colorMatrix),
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    imageVector = if (achievement.isUnlocked) Icons.Default.Star else Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = if (achievement.isUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = achievement.name,
+            style = MaterialTheme.typography.labelSmall,
+            textAlign = TextAlign.Center,
+            minLines = 2,
+            maxLines = 2
+        )
+    }
 }
 
 private fun formatDistance(meters: Double): String {
