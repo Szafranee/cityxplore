@@ -1,5 +1,6 @@
 package app.cityxplore.auth.presentation
 
+import app.cityxplore.auth.domain.AuthConstants
 import app.cityxplore.auth.domain.AuthRepository
 import app.cityxplore.auth.domain.SocialProvider
 import app.cityxplore.platform.CityXploreBaseViewModel
@@ -147,7 +148,7 @@ class AuthViewModel(
      * proceeds to check profile status. Otherwise, enters email verification state.
      *
      * @param email The user's email address.
-     * @param pass The user's password (minimum 6 characters).
+     * @param pass The user's password (minimum [AuthConstants.MIN_PASSWORD_LENGTH] characters).
      */
     fun signUp(email: String, pass: String) {
         scope.launch {

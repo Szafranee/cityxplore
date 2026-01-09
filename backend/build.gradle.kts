@@ -54,6 +54,10 @@ dependencies {
     testImplementation(libs.springmockk)
     testRuntimeOnly(libs.junit.platform.launcher)
     testRuntimeOnly(libs.junit.platform.engine)
+    implementation(libs.gotrue.kt)
+    implementation(libs.storage.kt)
+    implementation(libs.ktor.client.cio)
+    implementation(libs.kotlinx.coroutines.core)
 }
 
 kotlin {

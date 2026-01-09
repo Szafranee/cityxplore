@@ -1,4 +1,5 @@
 [versions]
+gotrueKt = "2.6.1"
 hibernateCoreVersion = "6.6.29.Final"
 hibernateSpatialVersion = "6.6.29.Final"
 hypersistenceUtilsHibernateX3 = "3.14.1"
@@ -12,6 +13,7 @@ androidx-activity = "1.12.2"
 kotlinxCoroutines = "1.10.2"
 kotlinxDatetime = "0.7.1"
 kotlinxSerializationJson = "1.9.0"
+ktorClientCio = "3.3.3"
 ktorClientCore = "3.3.3"
 ktorClientDarwin = "3.3.3"
 ktorClientAuth = "3.3.3"
@@ -27,7 +29,7 @@ springmockk = "5.0.1"
 composeHotReload = "1.0.0"
 koin = "4.1.1"
 ktorSerializationJson = "3.3.3"
-supabase = "3.2.6"
+supabase = "3.3.0"
 playServicesLocation = "21.3.0"
 mapboxMaps = "11.14.0"
 coil = "3.3.0"
@@ -46,6 +48,8 @@ commonsCompress = "1.28.0"
 [libraries]
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
+gotrue-kt = { module = "io.github.jan-tennert.supabase:auth-kt", version.ref = "supabase" }
+ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktorClientCio" }
 mapbox-maps-android = { module = "com.mapbox.maps:android", version.ref = "mapboxMaps" }
 h3 = { module = "com.uber:h3", version.ref = "h3" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "androidx-activity" }
@@ -92,7 +96,8 @@ springmockk = { module = "com.ninja-squad:springmockk", version.ref = "springmoc
 koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
 koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
 koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
-supabase-gotrue = { module = "io.github.jan-tennert.supabase:auth-kt", version.ref = "supabase" }
+storage-kt = { module = "io.github.jan-tennert.supabase:storage-kt", version.ref = "supabase" }
+supabase-gotrue-kt = { module = "io.github.jan-tennert.supabase:gotrue-kt", version.ref = "gotrueKt" }
 supabase-postgrest = { module = "io.github.jan-tennert.supabase:postgrest-kt", version.ref = "supabase" }
 supabase-compose-auth = { module = "io.github.jan-tennert.supabase:compose-auth", version.ref = "supabase" }
 supabase-compose-auth-ui = { module = "io.github.jan-tennert.supabase:compose-auth-ui", version.ref = "supabase" }

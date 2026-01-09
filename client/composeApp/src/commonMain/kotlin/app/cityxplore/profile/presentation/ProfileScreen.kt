@@ -98,6 +98,7 @@ fun ProfileScreen(
     var showSignOutConfirmation by remember { mutableStateOf(false) }
     var showDeleteAccountConfirmation by remember { mutableStateOf(false) }
     var showDeleteAccountFinal by remember { mutableStateOf(false) }
+    var showDeleteAccountSuccess by remember { mutableStateOf(false) }
     var selectedAchievement by remember { mutableStateOf<Achievement?>(null) }
 
     LaunchedEffect(viewModel) {
@@ -201,12 +202,38 @@ fun ProfileScreen(
                     if (showDeleteAccountFinal) {
                         DeleteAccountFinalDialog(
                             expectedUsername = currentState.profile.username,
+                            isLoading = currentState.isUpdating,
+                            error = currentState.updateError,
                             onConfirm = {
-                                // TODO: Implement delete account VM logic
-                                showDeleteAccountFinal = false
-                                onSignOut() // For now, just sign out as a placeholder
+                                viewModel.deleteAccount(
+                                    onSuccess = {
+                                        showDeleteAccountFinal = false
+                                        showDeleteAccountSuccess = true
+                                    }
+                                )
                             },
-                            onDismiss = { showDeleteAccountFinal = false }
+                            onDismiss = {
+                                viewModel.clearError()
+                                showDeleteAccountFinal = false
+                            }
+                        )
+                    }
+
+                    if (showDeleteAccountSuccess) {
+                        AlertDialog(
+                            onDismissRequest = { }, // Force the user to click OK
+                            title = { Text("Account Deleted") },
+                            text = { Text("Your account has been successfully deleted. We are sorry to see you go.") },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        showDeleteAccountSuccess = false
+                                        onSignOut()
+                                    }
+                                ) {
+                                    Text("OK")
+                                }
+                            }
                         )
                     }
 
@@ -329,7 +356,7 @@ private fun ProfileContent(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             LinearProgressIndicator(
-                progress = { profile.trainingProgress },
+                progress = { profile.levelProgress },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(8.dp)
@@ -337,7 +364,7 @@ private fun ProfileContent(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "${profile.achievementPoints} / ${profile.nextLevelPoints} XP",
+                text = "${profile.levelProgress} / ${profile.nextLevelPoints} XP",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline
             )
@@ -404,7 +431,7 @@ private fun ProfileContent(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        text = "Review your ${profile.totalPoisDiscovered} findings",
+                        text = "Review your ${profile.totalPoisDiscovered} discoveries",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
                     )
@@ -720,6 +747,8 @@ private fun DeleteAccountConfirmationDialog(
 @Composable
 private fun DeleteAccountFinalDialog(
     expectedUsername: String,
+    isLoading: Boolean,
+    error: String?,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -727,10 +756,19 @@ private fun DeleteAccountFinalDialog(
     val isMatch = usernameInput == expectedUsername
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isLoading) onDismiss() },
         title = { Text("Confirm Deletion") },
         text = {
             Column {
+                if (error != null) {
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+
                 Text(
                     "Please type your username '$expectedUsername' to confirm deletion.",
                     style = MaterialTheme.typography.bodyMedium
@@ -741,21 +779,30 @@ private fun DeleteAccountFinalDialog(
                     onValueChange = { usernameInput = it },
                     label = { Text("Username") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isLoading
                 )
             }
         },
         confirmButton = {
-            Button(
-                onClick = onConfirm,
-                enabled = isMatch,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text("Confirm Delete")
+            Box(contentAlignment = Alignment.Center) {
+                Button(
+                    onClick = onConfirm,
+                    enabled = isMatch && !isLoading, // Disable if loading
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Confirm Delete")
+                }
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp).padding(4.dp))
+                }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isLoading
+            ) {
                 Text("Cancel")
             }
         }

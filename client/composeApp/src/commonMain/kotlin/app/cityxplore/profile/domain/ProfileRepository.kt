@@ -24,4 +24,11 @@ interface ProfileRepository {
      * @return [Result] containing the [UserProfile] on success, or exception on failure.
      */
     suspend fun getProfile(): Result<UserProfile>
+
+    /**
+     * Deletes the current user's account.
+     *
+     * @return [Result] containing [Unit] on success, or exception on failure.
+     */
+    suspend fun deleteAccount(): Result<Unit>
 }

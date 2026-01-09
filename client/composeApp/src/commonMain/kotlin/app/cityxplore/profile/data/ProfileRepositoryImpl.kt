@@ -8,6 +8,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.ServerResponseException
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.patch
@@ -17,6 +18,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.isSuccess
 import kotlinx.serialization.Serializable
 
 /**
@@ -141,6 +143,19 @@ class ProfileRepositoryImpl(
                 totalPoisDiscovered = dto.totalPoisDiscovered,
                 achievementPoints = dto.totalAchievementPoints
             )
+        }
+    }
+
+    /**
+     * Deletes the current user's account.
+     *
+     * @return [Result] containing [Unit] on success, or exception on failure.
+     */
+    override suspend fun deleteAccount(): Result<Unit> = runCatching {
+        // DELETE /api/users/me
+        val response = client.delete(API_PROFILE_ME)
+        if (!response.status.isSuccess()) {
+            throw Exception("Failed to delete account: ${response.status}")
         }
     }
 }

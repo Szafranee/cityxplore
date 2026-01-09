@@ -106,7 +106,7 @@ kotlin {
             implementation(libs.ktor.client.auth)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
-            implementation(libs.supabase.gotrue)
+            implementation(libs.supabase.gotrue.kt)
             implementation(libs.supabase.postgrest)
             implementation(libs.supabase.compose.auth)
             implementation(libs.supabase.compose.auth.ui)

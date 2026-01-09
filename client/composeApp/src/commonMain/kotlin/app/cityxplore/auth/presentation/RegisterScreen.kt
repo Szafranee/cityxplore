@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import app.cityxplore.auth.domain.AuthConstants
 import app.cityxplore.auth.domain.SocialProvider
 import cityxplore.client.composeapp.generated.resources.Res
 import cityxplore.client.composeapp.generated.resources.discord_logo
@@ -54,7 +55,7 @@ fun RegisterScreen(
 
     fun validateAndRegister() {
         val isEmailValid = email.isNotBlank() && email.contains("@")
-        val isPasswordValid = password.length >= 6
+        val isPasswordValid = password.length >= AuthConstants.MIN_PASSWORD_LENGTH
 
         emailError = !isEmailValid
         passwordError = !isPasswordValid
@@ -141,7 +142,7 @@ fun RegisterScreen(
                 leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
                 visualTransformation = PasswordVisualTransformation(),
                 isError = passwordError,
-                supportingText = { if (passwordError) Text("Password must be at least 6 characters") },
+                supportingText = { if (passwordError) Text("Password must be at least ${AuthConstants.MIN_PASSWORD_LENGTH} characters") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(

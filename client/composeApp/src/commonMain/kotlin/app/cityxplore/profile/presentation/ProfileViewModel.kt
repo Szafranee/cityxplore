@@ -127,6 +127,30 @@ class ProfileViewModel(
         }
     }
 
+    /**
+     * Deletes the user account.
+     */
+    fun deleteAccount(onSuccess: () -> Unit) {
+        val currentState = _state.value
+        if (currentState !is ProfileState.Success) return
+
+        scope.launch {
+            _state.value = currentState.copy(isUpdating = true, updateError = null)
+
+            repository.deleteAccount()
+                .onSuccess {
+                    _state.value = currentState.copy(isUpdating = false)
+                    onSuccess()
+                }
+                .onFailure { error ->
+                    _state.value = currentState.copy(
+                        isUpdating = false,
+                        updateError = error.message ?: "Failed to delete account"
+                    )
+                }
+        }
+    }
+
     private suspend fun fetchAndMergeData(): Result<Pair<UserProfile, List<Achievement>>> {
         val profileResult = repository.getProfile()
         if (profileResult.isFailure) {

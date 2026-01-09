@@ -33,7 +33,7 @@ interface AuthRepository {
      * Registers a new user with email and password.
      *
      * @param email The user's email address.
-     * @param password The user's password (minimum 6 characters).
+     * @param password The user's password (minimum [AuthConstants.MIN_PASSWORD_LENGTH] characters).
      * @return [Result] containing [Unit] on success, or exception on failure.
      */
     suspend fun signUp(email: String, password: String): Result<Unit>

@@ -29,7 +29,7 @@ data class UserProfile(
     val nextLevelPoints: Int
         get() = (level + 1) * 100
 
-    val trainingProgress: Float
+    val levelProgress: Float
         get() {
             val currentLevelBase = level * 100
             val pointsInLevel = achievementPoints - currentLevelBase

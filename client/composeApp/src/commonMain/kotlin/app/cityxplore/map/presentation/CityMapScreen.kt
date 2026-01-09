@@ -171,7 +171,7 @@ private fun UserProfileBadge(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     LinearProgressIndicator(
-                        progress = { profile.trainingProgress },
+                        progress = { profile.levelProgress },
                         modifier = Modifier
                             .width(60.dp)
                             .height(6.dp)
