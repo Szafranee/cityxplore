@@ -71,6 +71,20 @@ import coil3.request.crossfade
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
+/**
+ * Screen displaying the user's profile information, statistics, and achievements.
+ *
+ * This screen includes:
+ * - User avatar, username, and level progress.
+ * - Statistics cards (Distance, Discoveries, Points).
+ * - Navigation to Discovery Journal (placeholder).
+ * - Achievements grid with details dialogs.
+ * - Account settings (Avatar update, Account deletion).
+ * - Sign out functionality.
+ *
+ * @param onSignOut Callback invoked when the user signs out.
+ * @param viewModel The ViewModel explicitly managing the profile state.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(

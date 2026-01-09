@@ -37,6 +37,19 @@ import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 
+/**
+ * Screen displaying the interactive map with points of interest and fog of war.
+ *
+ * This screen handles:
+ * - Displaying the map via platform-specific implementation.
+ * - Showing user profile badge overlay.
+ * - Handling POI selection and displaying details via bottom sheet.
+ *
+ * @param state The current UI state of the map.
+ * @param onAction Callback for user actions on the map.
+ * @param modifier Modifier to apply to the layout.
+ * @param onProfileClick Callback invoked when the profile badge is clicked.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CityXploreMapScreen(

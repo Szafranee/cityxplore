@@ -96,7 +96,7 @@ class AchievementRepositoryImpl(
                     }
                 }
 
-                // 2. Distance based ("distance_km": 42)
+                // 2. Distance-based ("distance_km": 42)
                 if (criteriaObj.containsKey("distance_km")) {
                     val max = criteriaObj["distance_km"]?.jsonPrimitive?.content?.toFloatOrNull() ?: 0f
                     val current =
@@ -110,7 +110,7 @@ class AchievementRepositoryImpl(
                     }
                 }
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // fallback
         }
 

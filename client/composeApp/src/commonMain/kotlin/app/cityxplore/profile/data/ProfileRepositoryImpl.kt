@@ -60,14 +60,7 @@ class ProfileRepositoryImpl(
             }
 
             if (exists) {
-                val updateRequest = UserUpdateRequest(
-                    username = username,
-                    avatarUrl = avatarUrl
-                )
-                client.patch("https://api.cityxplore.app/api/users/me") {
-                    header(HttpHeaders.ContentType, ContentType.Application.Json)
-                    setBody(updateRequest)
-                }
+                performProfileUpdate(username, avatarUrl)
             } else {
                 val request = UserCreateRequest(
                     email = email,
@@ -82,24 +75,7 @@ class ProfileRepositoryImpl(
                 } catch (e: ClientRequestException) {
                     // Handle race condition: profile created concurrently by another request
                     if (e.response.status == HttpStatusCode.Conflict) {
-                        val updateRequest = UserUpdateRequest(
-                            username = username,
-                            avatarUrl = avatarUrl
-                        )
-                        try {
-                            client.patch("https://api.cityxplore.app/api/users/me") {
-                                header(HttpHeaders.ContentType, ContentType.Application.Json)
-                                setBody(updateRequest)
-                            }
-                        } catch (patchError: ClientRequestException) {
-                            if (patchError.response.status == HttpStatusCode.NotFound) {
-                                throw IllegalStateException(
-                                    "Account conflict: Email exists but ID mismatch. Please contact support to reset your account.",
-                                    patchError
-                                )
-                            }
-                            throw patchError
-                        }
+                        performProfileUpdate(username, avatarUrl, isRecovery = true)
                     } else {
                         throw e
                     }
@@ -109,30 +85,38 @@ class ProfileRepositoryImpl(
                     if (e.response.status == HttpStatusCode.InternalServerError &&
                         errorBody.contains("duplicate key value violates unique constraint")
                     ) {
-                        val updateRequest = UserUpdateRequest(
-                            username = username,
-                            avatarUrl = avatarUrl
-                        )
-                        try {
-                            client.patch("https://api.cityxplore.app/api/users/me") {
-                                header(HttpHeaders.ContentType, ContentType.Application.Json)
-                                setBody(updateRequest)
-                            }
-                        } catch (patchError: ClientRequestException) {
-                            if (patchError.response.status == HttpStatusCode.NotFound) {
-                                throw IllegalStateException(
-                                    "Account conflict: Email exists but ID mismatch. Please contact support to reset your account.",
-                                    patchError
-                                )
-                            }
-                            throw patchError
-                        }
+                        performProfileUpdate(username, avatarUrl, isRecovery = true)
                     } else {
                         throw e
                     }
                 }
             }
         }.map { }
+    }
+
+    private suspend fun performProfileUpdate(
+        username: String,
+        avatarUrl: String?,
+        isRecovery: Boolean = false
+    ) {
+        val updateRequest = UserUpdateRequest(
+            username = username,
+            avatarUrl = avatarUrl
+        )
+        try {
+            client.patch("https://api.cityxplore.app/api/users/me") {
+                header(HttpHeaders.ContentType, ContentType.Application.Json)
+                setBody(updateRequest)
+            }
+        } catch (patchError: ClientRequestException) {
+            if (isRecovery && patchError.response.status == HttpStatusCode.NotFound) {
+                throw IllegalStateException(
+                    "Account conflict: Email exists but ID mismatch. Please contact support to reset your account.",
+                    patchError
+                )
+            }
+            throw patchError
+        }
     }
 
     /**
