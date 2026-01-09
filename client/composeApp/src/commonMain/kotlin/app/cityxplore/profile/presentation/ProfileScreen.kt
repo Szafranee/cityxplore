@@ -1,6 +1,7 @@
 package app.cityxplore.profile.presentation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -83,6 +84,7 @@ fun ProfileScreen(
     var showSignOutConfirmation by remember { mutableStateOf(false) }
     var showDeleteAccountConfirmation by remember { mutableStateOf(false) }
     var showDeleteAccountFinal by remember { mutableStateOf(false) }
+    var selectedAchievement by remember { mutableStateOf<Achievement?>(null) }
 
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
@@ -125,8 +127,18 @@ fun ProfileScreen(
                             scope.launch {
                                 snackbarHostState.showSnackbar("Discovery Journal - Coming Soon!")
                             }
+                        },
+                        onAchievementClick = { achievement ->
+                            selectedAchievement = achievement
                         }
                     )
+
+                    if (selectedAchievement != null) {
+                        AchievementDetailDialog(
+                            achievement = selectedAchievement!!,
+                            onDismiss = { selectedAchievement = null }
+                        )
+                    }
 
                     if (showAvatarEditDialog) {
                         AvatarEditDialog(
@@ -182,7 +194,7 @@ fun ProfileScreen(
                             onConfirm = {
                                 // TODO: Implement delete account VM logic
                                 showDeleteAccountFinal = false
-                                onSignOut() // For now, just sign out as placeholder
+                                onSignOut() // For now, just sign out as a placeholder
                             },
                             onDismiss = { showDeleteAccountFinal = false }
                         )
@@ -210,7 +222,8 @@ private fun ProfileContent(
     onAvatarEditClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onSignOutClick: () -> Unit,
-    onJournalClick: () -> Unit
+    onJournalClick: () -> Unit,
+    onAchievementClick: (Achievement) -> Unit
 ) {
     val scrollState = rememberScrollState()
 
@@ -414,7 +427,7 @@ private fun ProfileContent(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
             )
         } else {
-            AchievementsGrid(achievements)
+            AchievementsGrid(achievements, onAchievementClick)
         }
 
         Spacer(modifier = Modifier.height(48.dp))
@@ -740,7 +753,7 @@ private fun DeleteAccountFinalDialog(
 }
 
 @Composable
-private fun AchievementsGrid(achievements: List<Achievement>) {
+private fun AchievementsGrid(achievements: List<Achievement>, onAchievementClick: (Achievement) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val displayAchievements = if (expanded) achievements else achievements.take(6) // Show 2 rows initially
 
@@ -754,7 +767,7 @@ private fun AchievementsGrid(achievements: List<Achievement>) {
                 rowItems.forEach { achievement ->
                     AchievementItem(
                         achievement = achievement,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).clickable { onAchievementClick(achievement) }
                     )
                 }
                 repeat(3 - rowItems.size) {
@@ -820,7 +833,23 @@ private fun AchievementItem(
                 )
             }
         }
+
         Spacer(modifier = Modifier.height(8.dp))
+
+        // Progress Bar
+        val progress = if (achievement.isUnlocked) 1f else achievement.progress
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth(0.8f)
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp)),
+            color = if (achievement.isUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
         Text(
             text = achievement.name,
             style = MaterialTheme.typography.labelSmall,
@@ -829,6 +858,121 @@ private fun AchievementItem(
             maxLines = 2
         )
     }
+}
+
+@Composable
+private fun AchievementDetailDialog(
+    achievement: Achievement,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = null,
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                val saturation = if (achievement.isUnlocked) 1f else 0f
+                val colorMatrix = ColorMatrix().apply { setToSaturation(saturation) }
+
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    if (achievement.iconUrl != null) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalPlatformContext.current)
+                                .data(achievement.iconUrl)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = achievement.name,
+                            colorFilter = ColorFilter.colorMatrix(colorMatrix),
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Icon(
+                            imageVector = if (achievement.isUnlocked) Icons.Default.Star else Icons.Default.Lock,
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            tint = if (achievement.isUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = achievement.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = achievement.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Progress Bar
+                val progress = if (achievement.isUnlocked) 1f else achievement.progress
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = if (achievement.isUnlocked) "Completed" else "Progress",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = achievement.progressFormatted.ifEmpty { "${(progress * 100).toInt()}%" },
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "${achievement.points} Points",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
 }
 
 private fun formatDistance(meters: Double): String {

@@ -10,5 +10,7 @@ data class Achievement(
     val iconUrl: String?,
     val points: Int,
     val isUnlocked: Boolean,
-    val unlockedAt: Instant?
+    val unlockedAt: Instant?,
+    val progress: Float = 0f, // 0.0 to 1.0
+    val progressFormatted: String = "" // e.g. "5/10" or "50%"
 )

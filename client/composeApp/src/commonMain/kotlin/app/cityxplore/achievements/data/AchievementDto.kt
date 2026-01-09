@@ -10,7 +10,8 @@ data class AchievementDto(
     val description: String,
     val category: String?,
     val iconUrl: String?,
-    val points: Int
+    val points: Int,
+    val criteria: JsonElement? = null
 )
 
 @Serializable
