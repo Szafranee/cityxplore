@@ -66,6 +66,15 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 
+/**
+ * Composable function for displaying detailed information about a POI.
+ *
+ * This content is typically shown in a bottom sheet or modal.
+ * It includes photos, metadata (discovery status, opening hours, etc.), description, and trivia.
+ *
+ * @param poi The [MapPoi] object containing the data to display.
+ * @param onToggleFavorite Callback function invoked when the favorite button is clicked. If null, the button is hidden.
+ */
 @Composable
 fun PoiDetailsContent(
     poi: MapPoi,

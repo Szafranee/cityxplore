@@ -12,14 +12,29 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/**
+ * Options for sorting journal entries.
+ */
 enum class JournalSort {
     DATE_DESC, DATE_ASC, NAME_ASC, NAME_DESC
 }
 
+/**
+ * Options for filtering journal entries.
+ */
 enum class JournalFilter {
     ALL, FAVORITES
 }
 
+/**
+ * ViewModel for the Journal screen.
+ *
+ * Manages the state of journal entries, including loading, error handling,
+ * filtering, sorting, and searching.
+ *
+ * @property getJournalEntriesUseCase Use case to fetch discovered POIs.
+ * @property toggleFavoriteUseCase Use case to toggle favorite status of a POI.
+ */
 class JournalViewModel(
     private val getJournalEntriesUseCase: GetJournalEntriesUseCase,
     private val toggleFavoriteUseCase: ToggleFavoriteUseCase
@@ -29,10 +44,20 @@ class JournalViewModel(
     private val _isLoading = MutableStateFlow(true)
     private val _error = MutableStateFlow<String?>(null)
 
+    /** Current search query for filtering entries. */
     val searchQuery = MutableStateFlow("")
+
+    /** Current filter applied to entries (e.g., Favorites only). */
     val filter = MutableStateFlow(JournalFilter.ALL)
+
+    /** Current sorting method applied to entries. */
     val sort = MutableStateFlow(JournalSort.DATE_DESC)
 
+    /**
+     * UI state exposed to the view.
+     * Combines raw entries, loading state, error state, and filter/sort/search params
+     * to produce the final filtered and sorted list of entries.
+     */
     val state: StateFlow<JournalUiState> = combine(
         _rawEntries,
         _isLoading,
@@ -68,6 +93,10 @@ class JournalViewModel(
         loadEntries()
     }
 
+    /**
+     * Loads journal entries using the [getJournalEntriesUseCase].
+     * Updates the loading and error states accordingly.
+     */
     fun loadEntries() {
         scope.launch(cityXploreDispatchers.io) {
             _isLoading.value = true
@@ -84,6 +113,12 @@ class JournalViewModel(
         }
     }
 
+    /**
+     * Toggles the favorite status of a POI.
+     * Updates the local state optimistically and then calls the use case.
+     *
+     * @param poi The POI to toggle favorite status for.
+     */
     fun toggleFavorite(poi: MapPoi) {
         scope.launch(cityXploreDispatchers.io) {
             // Optimistic update

@@ -16,12 +16,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -164,11 +164,8 @@ fun JournalScreen(
                             poi = selectedPoi!!,
                             onToggleFavorite = {
                                 onToggleFavorite(selectedPoi!!)
-                                // TODO: ogarnąć to
-                                // Update local selectedPoi state if it's the one being toggled
-                                // Note: onToggleFavorite from parent might update the LIST but not this local ref immediately
-                                // But usually list refresh triggers recomposition.
-                                // However, selectedPoi is local state. We should update it optimistically or react to list change.
+                                // Update local selectedPoi state immediately for better UX (Optimistic update).
+                                // The parent list will eventually refresh, but this ensures instant visual feedback in the modal.
                                 selectedPoi = selectedPoi!!.copy(isFavorite = !selectedPoi!!.isFavorite)
                             }
                         )
@@ -269,7 +266,7 @@ private fun JournalFilters(
                     label = { Text("Sort") },
                     leadingIcon = {
                         Icon(
-                            imageVector = Icons.Default.Sort,
+                            imageVector = Icons.AutoMirrored.Filled.Sort,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
@@ -323,7 +320,7 @@ private fun JournalEntryCard(
     Card(
         onClick = onClick,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) // Darker variant
         ),
         shape = MaterialTheme.shapes.medium,
         modifier = Modifier.fillMaxWidth()

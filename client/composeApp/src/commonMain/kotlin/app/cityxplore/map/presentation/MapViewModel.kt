@@ -106,7 +106,7 @@ class MapViewModel(
                     revealedHexagons = revealedResult.getOrDefault(emptySet()),
                     warsawHexagons = warsawResult.getOrDefault(emptySet())
                 )
-                // Trigger profile load again in case loadData finishes later
+                // Trigger profile load again if loadData finishes later
                 loadProfile()
             }
 
@@ -125,8 +125,13 @@ class MapViewModel(
         when (action) {
             MapAction.Refresh -> {
                 scope.launch(cityXploreDispatchers.io) {
+                    loadData()
+                }
+            }
+
+            MapAction.RefreshPois -> {
+                scope.launch(cityXploreDispatchers.io) {
                     loadPois()
-                    loadFogOfWar()
                 }
             }
 
@@ -167,36 +172,57 @@ class MapViewModel(
 
     /**
      * Fetches POIs with discovery status from the backend and updates the state.
-     * Sets state to [MapUiState.Loading] while fetching, then to [MapUiState.Ready]
-     * or [MapUiState.Error] based on the result.
+     * Sets state to [MapUiState.Loading] only if not already [MapUiState.Ready].
+     * Then updates to new [MapUiState.Ready] or [MapUiState.Error] based on the result.
      */
     private fun loadPois() {
         scope.launch(cityXploreDispatchers.io) {
-            // Capture the previous state before setting to Loading
-            val previousIsFollowing = when (val s = _state.value) {
-                is MapUiState.Ready -> s.isFollowingUser
-                else -> true
+            val currentState = _state.value
+
+            // Only show full loading screen if we don't have data yet
+            if (currentState !is MapUiState.Ready) {
+                _state.value = MapUiState.Loading
             }
 
-            _state.value = MapUiState.Loading
+            // Default values to fall back on if we are not in Ready state
+            var currentIsFollowing = true
+            var currentRevealedHexagons = cachedRevealedHexagons
+            var currentWarsawHexagons = cachedWarsawHexagons
+            var currentUserLocation: Location? = lastKnownLocation
+            var currentNewIds: Set<String> = emptySet()
+            val currentProfile = if (currentState is MapUiState.Ready) currentState.profile else null
+
+            if (currentState is MapUiState.Ready) {
+                currentIsFollowing = currentState.isFollowingUser
+                currentRevealedHexagons = currentState.revealedHexagons
+                currentWarsawHexagons = currentState.warsawHexagons
+                currentUserLocation = currentState.userLocation
+                currentNewIds = currentState.newlyDiscoveredPoiIds
+            }
 
             val result = getPoisUseCase()
-            _state.value = result.fold(
-                onSuccess = { pois ->
-                    MapUiState.Ready(
-                        pois = pois.map(PoiModel::toMapPoi),
-                        userLocation = lastKnownLocation,
-                        isFollowingUser = previousIsFollowing,
-                        selectedPoi = null,
-                        newlyDiscoveredPoiIds = emptySet(),
-                        revealedHexagons = cachedRevealedHexagons,
-                        warsawHexagons = cachedWarsawHexagons
-                    )
-                },
-                onFailure = { error ->
-                    MapUiState.Error(error.message ?: "Unable to load POIs")
+
+            result.onSuccess { pois ->
+                _state.value = MapUiState.Ready(
+                    pois = pois.map(PoiModel::toMapPoi),
+                    userLocation = currentUserLocation,
+                    isFollowingUser = currentIsFollowing,
+                    selectedPoi = null,
+                    newlyDiscoveredPoiIds = currentNewIds,
+                    revealedHexagons = currentRevealedHexagons,
+                    warsawHexagons = currentWarsawHexagons,
+                    profile = currentProfile
+                )
+            }
+
+            result.onFailure { error ->
+                if (currentState !is MapUiState.Ready) {
+                    _state.value = MapUiState.Error(error.message ?: "Unable to load POIs")
+                } else {
+                    // If we were ready, we just stay ready with old data (and maybe log error)
+                    println("Failed to refresh POIs: ${error.message}")
                 }
-            )
+            }
         }
     }
 

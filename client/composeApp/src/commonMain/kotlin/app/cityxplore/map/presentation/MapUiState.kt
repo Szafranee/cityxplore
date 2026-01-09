@@ -90,4 +90,7 @@ sealed interface MapAction {
      * @property poiId The ID of the POI to favorite/unfavorite.
      */
     data class ToggleFavorite(val poiId: String) : MapAction
+
+    /** User requested to refresh POI data (e.g. returning from another screen) */
+    data object RefreshPois : MapAction
 }

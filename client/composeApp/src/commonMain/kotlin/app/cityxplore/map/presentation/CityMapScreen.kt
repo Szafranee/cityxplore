@@ -24,6 +24,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,6 +60,11 @@ fun CityXploreMapScreen(
     onProfileClick: () -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState()
+
+    // Refresh map data (POIs only) when screen enters composition (e.g. returning from another tab)
+    LaunchedEffect(Unit) {
+        onAction(MapAction.RefreshPois)
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         CityMapPlatformView(
