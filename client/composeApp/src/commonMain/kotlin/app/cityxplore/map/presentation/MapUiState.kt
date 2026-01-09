@@ -2,6 +2,7 @@ package app.cityxplore.map.presentation
 
 import app.cityxplore.core.location.Location
 import app.cityxplore.map.domain.MapPoi
+import app.cityxplore.profile.domain.UserProfile
 
 /**
  * Sealed interface representing the state of the map screen.
@@ -23,6 +24,7 @@ sealed interface MapUiState {
      * @property newlyDiscoveredPoiIds Set of POI IDs that were just discovered (for showing notifications).
      * @property revealedHexagons Set of H3 hex indices that have been revealed (for Fog of War).
      * @property warsawHexagons Set of all H3 hex indices covering the Warsaw region (for Fog of War).
+     * @property profile The current user's profile data, or null if not yet loaded.
      */
     data class Ready(
         val pois: List<MapPoi>,
@@ -31,7 +33,8 @@ sealed interface MapUiState {
         val selectedPoi: MapPoi?,
         val newlyDiscoveredPoiIds: Set<String>,
         val revealedHexagons: Set<String> = emptySet(),
-        val warsawHexagons: Set<String> = emptySet()
+        val warsawHexagons: Set<String> = emptySet(),
+        val profile: UserProfile? = null
     ) : MapUiState
 
     /**

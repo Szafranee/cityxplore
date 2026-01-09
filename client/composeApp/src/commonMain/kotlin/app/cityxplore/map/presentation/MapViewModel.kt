@@ -10,6 +10,7 @@ import app.cityxplore.map.domain.PoiModel
 import app.cityxplore.map.domain.UpdateFogOfWarUseCase
 import app.cityxplore.map.domain.toMapPoi
 import app.cityxplore.platform.CityXploreBaseViewModel
+import app.cityxplore.profile.domain.ProfileRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,7 +43,8 @@ class MapViewModel(
     private val autoDiscoverUseCase: AutoDiscoverPoisUseCase,
     private val updateFogOfWarUseCase: UpdateFogOfWarUseCase,
     private val fogOfWarRepository: FogOfWarRepository,
-    private val locationService: LocationService
+    private val locationService: LocationService,
+    private val profileRepository: ProfileRepository
 ) : CityXploreBaseViewModel() {
     private val _state = MutableStateFlow<MapUiState>(MapUiState.Loading)
 
@@ -58,8 +60,58 @@ class MapViewModel(
     private var cachedRevealedHexagons: Set<String> = emptySet()
 
     init {
-        loadPois()
-        loadFogOfWar()
+        loadData()
+        startLocationTracking()
+        loadProfile()
+    }
+
+    private fun loadProfile() {
+        scope.launch {
+            val result = profileRepository.getProfile()
+            if (result.isSuccess) {
+                val profile = result.getOrThrow()
+                _state.value.let { currentState ->
+                    if (currentState is MapUiState.Ready) {
+                        _state.value = currentState.copy(profile = profile)
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Loads POI data and initialised map state.
+     * Fetches POIs and revealed hexagons, then updates the state to [MapUiState.Ready]
+     * or [MapUiState.Error] based on the result.
+     */
+    private fun loadData() {
+        scope.launch(cityXploreDispatchers.io) {
+            // Initial load
+            val poisResult = getPoisUseCase()
+            val revealedResult = fogOfWarRepository.getRevealedHexagons()
+            val warsawResult = fogOfWarRepository.getWarsawHexagons()
+
+            cachedRevealedHexagons = revealedResult.getOrElse { cachedRevealedHexagons }
+            cachedWarsawHexagons = warsawResult.getOrElse { cachedWarsawHexagons }
+
+            poisResult.onSuccess { pois ->
+                _state.value = MapUiState.Ready(
+                    pois = pois.map { it.toMapPoi() },
+                    userLocation = null,
+                    isFollowingUser = true,
+                    selectedPoi = null,
+                    newlyDiscoveredPoiIds = emptySet(),
+                    revealedHexagons = revealedResult.getOrDefault(emptySet()),
+                    warsawHexagons = warsawResult.getOrDefault(emptySet())
+                )
+                // Trigger profile load again in case loadData finishes later
+                loadProfile()
+            }
+
+            poisResult.onFailure { error ->
+                _state.value = MapUiState.Error(error.message ?: "Unable to load POIs")
+            }
+        }
     }
 
     /**

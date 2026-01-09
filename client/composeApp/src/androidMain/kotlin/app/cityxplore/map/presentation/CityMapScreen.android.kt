@@ -1,5 +1,6 @@
 package app.cityxplore.map.presentation
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.widget.Toast
@@ -57,8 +58,7 @@ actual fun CityMapPlatformView(
         is MapUiState.Ready -> ReadyMap(
             mapState = state,
             modifier = modifier,
-            onAction = onAction,
-            onProfileClick = onProfileClick
+            onAction = onAction
         )
     }
 }
@@ -82,7 +82,6 @@ private fun ReadyMap(
     mapState: MapUiState.Ready,
     modifier: Modifier,
     onAction: (MapAction) -> Unit,
-    onProfileClick: () -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -116,8 +115,8 @@ private fun ReadyMap(
     LaunchedEffect(Unit) {
         permissionLauncher.launch(
             arrayOf(
-                android.Manifest.permission.ACCESS_FINE_LOCATION,
-                android.Manifest.permission.ACCESS_COARSE_LOCATION
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
             )
         )
     }
@@ -230,14 +229,13 @@ private fun ReadyMap(
                         }
 
                         compass.updateSettings { enabled = true }
-                        scalebar.updateSettings { enabled = true }
+                        scalebar.updateSettings { enabled = false }
                         gestures.updateSettings {
                             scrollEnabled = true
                             rotateEnabled = true
                             pitchEnabled = false
                             pinchScrollEnabled = true
                         }
-
                         location.updateSettings {
                             enabled = true
                             pulsingEnabled = true
