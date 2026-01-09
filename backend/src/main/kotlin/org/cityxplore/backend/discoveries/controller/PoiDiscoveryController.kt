@@ -88,4 +88,22 @@ class PoiDiscoveryController(
 
         return ResponseEntity.ok(dto)
     }
+
+    /**
+     * Toggles the favorite status of a discovered POI for the authenticated user.
+     *
+     * @param jwt the JSON Web Token (JWT) containing the authenticated user's information
+     * @param poiId the unique identifier of the Point of Interest (POI) to toggle favorite
+     * @return a `ResponseEntity` containing the updated `UserPoiDiscoveryResponse`
+     */
+    @PostMapping("/{poiId}/favorite")
+    fun toggleFavorite(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable poiId: UUID
+    ): ResponseEntity<UserPoiDiscoveryResponse> {
+        val userId = JwtUtils.extractUserId(jwt)
+        val dto = poiDiscoveryService.toggleFavorite(userId, poiId)
+
+        return ResponseEntity.ok(dto)
+    }
 }

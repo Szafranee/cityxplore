@@ -8,6 +8,7 @@ import io.ktor.client.request.get
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Instant
@@ -74,8 +75,8 @@ class AchievementRepositoryImpl(
     }
 
     private fun calculateProgress(
-        criteria: kotlinx.serialization.json.JsonElement?,
-        progress: kotlinx.serialization.json.JsonElement?,
+        criteria: JsonElement?,
+        progress: JsonElement?,
         isUnlocked: Boolean
     ): Pair<Float, String> {
         if (isUnlocked) return 1f to "Completed"

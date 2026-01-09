@@ -49,7 +49,8 @@ val mapModule: Module = module {
             updateFogOfWarUseCase = get(),
             fogOfWarRepository = get(),
             locationService = get(),
-            profileRepository = get()
+            profileRepository = get(),
+            toggleFavoriteUseCase = get()
         )
     }
 }

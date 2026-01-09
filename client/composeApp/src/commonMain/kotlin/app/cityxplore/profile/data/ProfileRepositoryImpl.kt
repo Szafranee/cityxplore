@@ -33,6 +33,11 @@ class ProfileRepositoryImpl(
     private val supabase: SupabaseClient
 ) : ProfileRepository {
 
+    private companion object {
+        const val API_USERS = "https://api.cityxplore.app/api/users"
+        const val API_PROFILE_ME = "$API_USERS/me"
+    }
+
     /**
      * Creates or updates a user profile with the specified username and avatar URL.
      *
@@ -54,7 +59,7 @@ class ProfileRepositoryImpl(
             val email = user.email ?: throw IllegalStateException("Email not found")
 
             val exists = try {
-                client.get("https://api.cityxplore.app/api/users/me").status == HttpStatusCode.OK
+                client.get(API_PROFILE_ME).status == HttpStatusCode.OK
             } catch (_: Exception) {
                 false
             }
@@ -68,7 +73,7 @@ class ProfileRepositoryImpl(
                     avatarUrl = avatarUrl
                 )
                 try {
-                    client.post("https://api.cityxplore.app/api/users") {
+                    client.post(API_USERS) {
                         header(HttpHeaders.ContentType, ContentType.Application.Json)
                         setBody(request)
                     }
@@ -104,7 +109,7 @@ class ProfileRepositoryImpl(
             avatarUrl = avatarUrl
         )
         try {
-            client.patch("https://api.cityxplore.app/api/users/me") {
+            client.patch(API_PROFILE_ME) {
                 header(HttpHeaders.ContentType, ContentType.Application.Json)
                 setBody(updateRequest)
             }
@@ -126,7 +131,7 @@ class ProfileRepositoryImpl(
      */
     override suspend fun getProfile(): Result<UserProfile> {
         return runCatching {
-            val dto = client.get("https://api.cityxplore.app/api/users/me").body<ProfileDto>()
+            val dto = client.get(API_PROFILE_ME).body<ProfileDto>()
             UserProfile(
                 id = dto.id,
                 email = dto.email,

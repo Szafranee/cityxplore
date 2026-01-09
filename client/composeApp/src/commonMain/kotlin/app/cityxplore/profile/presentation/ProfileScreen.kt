@@ -68,7 +68,6 @@ import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import coil3.request.crossfade
-import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
 /**
@@ -89,6 +88,7 @@ import org.koin.compose.koinInject
 @Composable
 fun ProfileScreen(
     onSignOut: () -> Unit,
+    onOpenJournal: () -> Unit,
     viewModel: ProfileViewModel = koinInject()
 ) {
     val state by viewModel.state.collectAsState()
@@ -130,18 +130,14 @@ fun ProfileScreen(
                 )
 
                 is ProfileState.Success -> {
-                    val scope = rememberCoroutineScope()
+                    rememberCoroutineScope()
                     ProfileContent(
                         profile = currentState.profile,
                         achievements = currentState.achievements,
                         onAvatarEditClick = { showAvatarEditDialog = true },
                         onSettingsClick = { showAccountSettingsDialog = true },
                         onSignOutClick = { showSignOutConfirmation = true },
-                        onJournalClick = {
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Discovery Journal - Coming Soon!")
-                            }
-                        },
+                        onJournalClick = onOpenJournal,
                         onAchievementClick = { achievement ->
                             selectedAchievement = achievement
                         }

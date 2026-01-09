@@ -30,6 +30,8 @@ import app.cityxplore.auth.presentation.AuthViewModel
 import app.cityxplore.auth.presentation.EmailVerificationScreen
 import app.cityxplore.auth.presentation.LoginScreen
 import app.cityxplore.auth.presentation.RegisterScreen
+import app.cityxplore.journal.presentation.JournalScreen
+import app.cityxplore.journal.presentation.JournalViewModel
 import app.cityxplore.map.presentation.CityXploreMapScreen
 import app.cityxplore.map.presentation.MapViewModel
 import app.cityxplore.profile.presentation.OnboardingScreen
@@ -40,7 +42,7 @@ import app.cityxplore.theme.CityXploreTheme
 import coil3.compose.setSingletonImageLoaderFactory
 import org.koin.compose.koinInject
 
-private enum class CityXploreDestination { Map, Friends, Profile }
+private enum class CityXploreDestination { Map, Friends, Profile, Journal }
 private enum class AuthScreen { Login, Register }
 
 @Composable
@@ -110,17 +112,21 @@ fun AuthFlow(state: AuthState, viewModel: AuthViewModel) {
 @Composable
 fun MainAppContent(onSignOut: () -> Unit) {
     val mapViewModel: MapViewModel = koinInject()
+    val journalViewModel: JournalViewModel = koinInject()
     val mapState by mapViewModel.state.collectAsState()
+    val journalState by journalViewModel.state.collectAsState()
     var currentDestination by remember { mutableStateOf(CityXploreDestination.Map) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onBackground,
         bottomBar = {
-            CityXploreBottomBar(
-                destination = currentDestination,
-                onDestinationSelected = { currentDestination = it }
-            )
+            if (currentDestination != CityXploreDestination.Journal) {
+                CityXploreBottomBar(
+                    destination = currentDestination,
+                    onDestinationSelected = { currentDestination = it }
+                )
+            }
         }
     ) { innerPadding ->
         Box(
@@ -137,7 +143,25 @@ fun MainAppContent(onSignOut: () -> Unit) {
                 )
 
                 CityXploreDestination.Friends -> CityXplorePlaceholderScreen("Friends")
-                CityXploreDestination.Profile -> ProfileScreen(onSignOut = onSignOut)
+                CityXploreDestination.Profile -> ProfileScreen(
+                    onSignOut = onSignOut,
+                    onOpenJournal = {
+                        journalViewModel.loadEntries()
+                        currentDestination = CityXploreDestination.Journal
+                    }
+                )
+
+                CityXploreDestination.Journal -> JournalScreen(
+                    state = journalState,
+                    searchQuery = journalViewModel.searchQuery.collectAsState().value,
+                    currentFilter = journalViewModel.filter.collectAsState().value,
+                    currentSort = journalViewModel.sort.collectAsState().value,
+                    onSearchQueryChange = journalViewModel::setSearchQuery,
+                    onFilterChange = journalViewModel::setFilter,
+                    onSortChange = journalViewModel::setSort,
+                    onToggleFavorite = journalViewModel::toggleFavorite,
+                    onBack = { currentDestination = CityXploreDestination.Profile }
+                )
             }
         }
     }

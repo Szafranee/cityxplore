@@ -84,4 +84,10 @@ sealed interface MapAction {
      * @property poiId The ID of the POI whose notification should be dismissed.
      */
     data class DismissDiscoveryNotification(val poiId: String) : MapAction
+
+    /**
+     * Toggles the favorite status of a POI.
+     * @property poiId The ID of the POI to favorite/unfavorite.
+     */
+    data class ToggleFavorite(val poiId: String) : MapAction
 }

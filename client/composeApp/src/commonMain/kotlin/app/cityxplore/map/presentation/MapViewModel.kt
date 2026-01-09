@@ -3,6 +3,7 @@ package app.cityxplore.map.presentation
 import app.cityxplore.core.cityXploreDispatchers
 import app.cityxplore.core.location.Location
 import app.cityxplore.core.location.LocationService
+import app.cityxplore.journal.domain.ToggleFavoriteUseCase
 import app.cityxplore.map.domain.AutoDiscoverPoisUseCase
 import app.cityxplore.map.domain.FogOfWarRepository
 import app.cityxplore.map.domain.GetPoisWithDiscoveriesUseCase
@@ -44,7 +45,8 @@ class MapViewModel(
     private val updateFogOfWarUseCase: UpdateFogOfWarUseCase,
     private val fogOfWarRepository: FogOfWarRepository,
     private val locationService: LocationService,
-    private val profileRepository: ProfileRepository
+    private val profileRepository: ProfileRepository,
+    private val toggleFavoriteUseCase: ToggleFavoriteUseCase
 ) : CityXploreBaseViewModel() {
     private val _state = MutableStateFlow<MapUiState>(MapUiState.Loading)
 
@@ -134,6 +136,32 @@ class MapViewModel(
             MapAction.PermissionGranted -> startLocationTracking()
             is MapAction.UpdateLocation -> updateUserLocation(action.location)
             is MapAction.DismissDiscoveryNotification -> dismissDiscoveryNotification(action.poiId)
+            is MapAction.ToggleFavorite -> toggleFavorite(action.poiId)
+        }
+    }
+
+    private fun toggleFavorite(poiId: String) {
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            scope.launch(cityXploreDispatchers.io) {
+                // Optimistic update
+                val updatedPois = currentState.pois.map {
+                    if (it.id == poiId) it.copy(isFavorite = !it.isFavorite) else it
+                }
+                val updatedSelected = if (currentState.selectedPoi?.id == poiId) {
+                    currentState.selectedPoi.copy(isFavorite = !currentState.selectedPoi.isFavorite)
+                } else currentState.selectedPoi
+
+                _state.value = currentState.copy(
+                    pois = updatedPois,
+                    selectedPoi = updatedSelected
+                )
+
+                toggleFavoriteUseCase(poiId).onFailure {
+                    // Revert
+                    _state.value = currentState
+                }
+            }
         }
     }
 
@@ -226,7 +254,7 @@ class MapViewModel(
             val result = updateFogOfWarUseCase(location)
             result.onSuccess { newHexCount ->
                 if (newHexCount > 0) {
-                    // Reload revealed hexagons from repository
+                    // Reload revealed hexagons from the repository
                     loadFogOfWar()
                 }
             }
@@ -276,7 +304,7 @@ class MapViewModel(
                         println("Failed to refresh POIs after discovery: ${error.message}")
                         val currentState = _state.value
                         if (currentState is MapUiState.Ready) {
-                            // Keep current state but clear newly discovered IDs
+                            // Keep the current state but clear newly discovered IDs
                             _state.value = currentState.copy(
                                 newlyDiscoveredPoiIds = emptySet()
                             )

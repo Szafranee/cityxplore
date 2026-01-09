@@ -87,7 +87,10 @@ fun CityXploreMapScreen(
                 onDismissRequest = { onAction(MapAction.DeselectPoi) },
                 sheetState = sheetState
             ) {
-                PoiDetailsContent(poi = state.selectedPoi)
+                PoiDetailsContent(
+                    poi = state.selectedPoi,
+                    onToggleFavorite = { onAction(MapAction.ToggleFavorite(it)) }
+                )
             }
         }
     }
