@@ -78,6 +78,15 @@ class UserProfileService(
             ?.takeIf { it.isNotEmpty() }
             ?.let { user.username = it }
 
+        // Handle avatar URL update (e.g. predefined avatars)
+        // If avatar changes, try to clean up the old one if it was ours
+        patch.avatarUrl?.let { newUrl ->
+            if (newUrl != user.avatarUrl) {
+                runBlocking { deleteOldAvatar(user.avatarUrl) }
+                user.avatarUrl = newUrl
+            }
+        }
+
         val saved = try {
             userRepository.save(user)
         } catch (e: DataIntegrityViolationException) {

@@ -8,5 +8,7 @@ import jakarta.validation.constraints.Size
  */
 data class UpdateUserProfileRequest(
     @field:Size(min = 1, max = 200)
-    val username: String?
+    val username: String?,
+    @field:Size(max = 500)
+    val avatarUrl: String?
 )

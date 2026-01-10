@@ -4,12 +4,13 @@ import app.cityxplore.profile.domain.ProfileRepository
 import app.cityxplore.profile.domain.UserProfile
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.storage.storage
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.ServerResponseException
 import io.ktor.client.request.delete
+import io.ktor.client.request.forms.formData
+import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.patch
@@ -17,11 +18,11 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.isSuccess
 import kotlinx.serialization.Serializable
-import kotlin.time.Clock
 
 /**
  * Implementation of [ProfileRepository] using a Ktor HTTP client.
@@ -169,21 +170,20 @@ class ProfileRepositoryImpl(
      */
     override suspend fun uploadAvatar(imageBytes: ByteArray): Result<String> {
         return runCatching {
-            val user = supabase.auth.currentUserOrNull() ?: throw IllegalStateException("Not authenticated")
-            val userId = user.id
-            val timestamp = Clock.System.now().toEpochMilliseconds()
-            val fileName = "${userId}_$timestamp.jpg"
-            val bucket = supabase.storage.from("user-avatars")
+            val contentType = detectMimeType(imageBytes) ?: ContentType.Image.JPEG
+            val filename = "avatar.${contentType.contentSubtype}"
 
-            val path = "$userId/$fileName"
+            val response = client.submitFormWithBinaryData(
+                url = "$API_USERS/me/avatar",
+                formData = formData {
+                    append("file", imageBytes, Headers.build {
+                        append(HttpHeaders.ContentType, contentType.toString())
+                        append(HttpHeaders.ContentDisposition, "filename=\"$filename\"")
+                    })
+                }
+            ).body<ProfileDto>()
 
-            bucket.upload(path, imageBytes) {
-                upsert = true
-                // Try to detect MIME type from signature, default to JPEG
-                contentType = detectMimeType(imageBytes) ?: ContentType.Image.JPEG
-            }
-
-            bucket.publicUrl(path)
+            response.avatarUrl ?: throw IllegalStateException("Backend returned null avatar URL")
         }
     }
 

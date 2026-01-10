@@ -1,18 +1,23 @@
 package app.cityxplore.profile.presentation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,6 +28,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
@@ -56,6 +62,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.layout.ContentScale
@@ -64,6 +71,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.cityxplore.achievements.domain.Achievement
 import app.cityxplore.core.rememberAvatarPicker
+import app.cityxplore.profile.domain.ProfileConstants
 import app.cityxplore.profile.domain.UserProfile
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
@@ -136,6 +144,7 @@ fun ProfileScreen(
                     ProfileContent(
                         profile = currentState.profile,
                         achievements = currentState.achievements,
+                        isUpdating = currentState.isUpdating,
                         onAvatarEditClick = { showAvatarEditDialog = true },
                         onSettingsClick = { showAccountSettingsDialog = true },
                         onSignOutClick = { showSignOutConfirmation = true },
@@ -267,6 +276,7 @@ fun ProfileScreen(
 private fun ProfileContent(
     profile: UserProfile,
     achievements: List<Achievement>,
+    isUpdating: Boolean,
     onAvatarEditClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onSignOutClick: () -> Unit,
@@ -300,26 +310,24 @@ private fun ProfileContent(
 
         // Avatar Section
         Box(contentAlignment = Alignment.BottomEnd) {
-            if (profile.avatarUrl != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalPlatformContext.current)
-                        .data(profile.avatarUrl)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(120.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(120.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                if (profile.avatarUrl != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalPlatformContext.current)
+                            .data(profile.avatarUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = null,
@@ -327,13 +335,26 @@ private fun ProfileContent(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+
+                // Loading Overlay
+                if (isUpdating) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.4f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = Color.White)
+                    }
+                }
             }
             IconButton(
                 onClick = onAvatarEditClick,
                 modifier = Modifier
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary)
-                    .size(32.dp)
+                    .size(32.dp),
+                enabled = !isUpdating
             ) {
                 Icon(
                     imageVector = Icons.Default.Edit,
@@ -580,7 +601,7 @@ private fun AvatarEditDialog(
         onDismissRequest = { if (!isLoading) onDismiss() },
         title = { Text("Update Avatar") },
         text = {
-            Column {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 if (error != null) {
                     Text(
                         text = error,
@@ -590,38 +611,87 @@ private fun AvatarEditDialog(
                     )
                 }
 
-                Button(
-                    onClick = onPickImage,
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isLoading
-                ) {
-                    Icon(Icons.Default.Edit, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Pick Image from Gallery")
+                // Grid of options
+                Box(modifier = Modifier.height(300.dp)) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 70.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)
+                    ) {
+                        // Gallery Option
+                        item {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.clickable { onPickImage() }
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .aspectRatio(1f) // Ensure square aspect ratio
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.secondaryContainer)
+                                        .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Image,
+                                        contentDescription = "Gallery",
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                }
+                                Text("Gallery", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+
+                        // Predefined Avatars
+                        items(items = ProfileConstants.PREDEFINED_AVATARS) { avatar ->
+                            val isSelected = avatarUrl == avatar
+                            Box(
+                                modifier = Modifier
+                                    .aspectRatio(1f) // Ensure square aspect ratio
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .clickable {
+                                        if (!isLoading) {
+                                            avatarUrl = avatar
+                                            onSave(avatar)
+                                        }
+                                    }
+                                    .then(
+                                        if (isSelected) Modifier.border(
+                                            3.dp,
+                                            MaterialTheme.colorScheme.primary,
+                                            CircleShape
+                                        ) else Modifier
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalPlatformContext.current)
+                                        .data(avatar)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = null,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                        }
+                    }
                 }
             }
         },
         confirmButton = {
             Box(contentAlignment = Alignment.Center) {
-                Button(
-                    onClick = { onSave(avatarUrl.takeIf { it.isNotBlank() }) },
+                TextButton(
+                    onClick = { onDismiss() },
                     enabled = !isLoading
                 ) {
-                    Text("Save")
-                }
-                if (isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp).padding(4.dp))
+                    Text("Close")
                 }
             }
         },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                enabled = !isLoading
-            ) {
-                Text("Cancel")
-            }
-        }
+        dismissButton = {}
     )
 }
 

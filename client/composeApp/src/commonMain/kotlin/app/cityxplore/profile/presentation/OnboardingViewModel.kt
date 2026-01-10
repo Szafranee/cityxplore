@@ -57,6 +57,14 @@ class OnboardingViewModel(
      */
     val initialUsername: StateFlow<String?> = _initialUsername.asStateFlow()
 
+    private val _uploadedAvatarUrl = MutableStateFlow<String?>(null)
+
+    /**
+     * StateFlow emitting the URL of the uploaded avatar image.
+     * This is updated after a successful avatar upload.
+     */
+    val uploadedAvatarUrl = _uploadedAvatarUrl.asStateFlow()
+
     /**
      * Fetches user metadata from the Supabase authentication session.
      * Extracts the preferred username, full name, or name to suggest as an initial username.
@@ -93,6 +101,25 @@ class OnboardingViewModel(
                         it.message ?: "Failed to create profile"
                     }
                     _state.value = OnboardingState.Error(message)
+                }
+        }
+    }
+
+    /**
+     * Uploads an avatar image for the user.
+     *
+     * @param bytes The byte array of the avatar image to be uploaded.
+     */
+    fun uploadAvatar(bytes: ByteArray) {
+        scope.launch {
+            _state.value = OnboardingState.Loading
+            repository.uploadAvatar(bytes)
+                .onSuccess { url ->
+                    _uploadedAvatarUrl.value = url
+                    _state.value = OnboardingState.Idle
+                }
+                .onFailure {
+                    _state.value = OnboardingState.Error("Failed to upload avatar: ${it.message}")
                 }
         }
     }
