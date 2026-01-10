@@ -31,4 +31,12 @@ interface ProfileRepository {
      * @return [Result] containing [Unit] on success, or exception on failure.
      */
     suspend fun deleteAccount(): Result<Unit>
+
+    /**
+     * Uploads a user avatar to storage.
+     *
+     * @param imageBytes The raw bytes of the image to upload.
+     * @return [Result] containing the public URL of the uploaded avatar on success.
+     */
+    suspend fun uploadAvatar(imageBytes: ByteArray): Result<String>
 }

@@ -63,6 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.cityxplore.achievements.domain.Achievement
+import app.cityxplore.core.rememberAvatarPicker
 import app.cityxplore.profile.domain.UserProfile
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
@@ -152,6 +153,13 @@ fun ProfileScreen(
                     }
 
                     if (showAvatarEditDialog) {
+                        val avatarPicker = rememberAvatarPicker { bytes ->
+                            if (bytes != null) {
+                                viewModel.updateAvatar(bytes)
+                                showAvatarEditDialog = false
+                            }
+                        }
+
                         AvatarEditDialog(
                             currentAvatarUrl = currentState.profile.avatarUrl,
                             isLoading = currentState.isUpdating,
@@ -162,6 +170,9 @@ fun ProfileScreen(
                             },
                             onSave = { newAvatar ->
                                 viewModel.updateProfile(currentState.profile.username, newAvatar)
+                            },
+                            onPickImage = {
+                                avatarPicker.launch()
                             }
                         )
                     }
@@ -560,7 +571,8 @@ private fun AvatarEditDialog(
     isLoading: Boolean,
     error: String?,
     onDismiss: () -> Unit,
-    onSave: (String?) -> Unit
+    onSave: (String?) -> Unit,
+    onPickImage: () -> Unit
 ) {
     var avatarUrl by remember(currentAvatarUrl) { mutableStateOf(currentAvatarUrl ?: "") }
 
@@ -577,6 +589,21 @@ private fun AvatarEditDialog(
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                 }
+
+                Button(
+                    onClick = onPickImage,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isLoading
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Pick Image from Gallery")
+                }
+
+                Spacer(Modifier.height(16.dp))
+                Text("OR", modifier = Modifier.align(Alignment.CenterHorizontally))
+                Spacer(Modifier.height(16.dp))
+
                 OutlinedTextField(
                     value = avatarUrl,
                     onValueChange = { avatarUrl = it },

@@ -151,6 +151,59 @@ class ProfileViewModel(
         }
     }
 
+    /**
+     * Uploads and updates the user's avatar.
+     *
+     * @param imageBytes The image data.
+     */
+    fun updateAvatar(imageBytes: ByteArray) {
+        val currentState = _state.value
+        if (currentState !is ProfileState.Success) return
+
+        scope.launch {
+            _state.value = currentState.copy(isUpdating = true, updateError = null)
+
+            // 1. Upload avatar to storage
+            val uploadResult = repository.uploadAvatar(imageBytes)
+
+            if (uploadResult.isFailure) {
+                _state.value = currentState.copy(
+                    isUpdating = false,
+                    updateError = uploadResult.exceptionOrNull()?.message ?: "Failed to upload avatar"
+                )
+                return@launch
+            }
+
+            val publicUrl = uploadResult.getOrThrow()
+
+            // 2. Update profile with new URL
+            // Reuse existing update logic but with the new URL
+            repository.createProfile(currentState.profile.username, publicUrl)
+                .onSuccess {
+                    fetchAndMergeData()
+                        .onSuccess { (profile, achievements) ->
+                            _state.value = ProfileState.Success(
+                                profile = profile,
+                                achievements = achievements
+                            )
+                            _events.send(ProfileEvent.ProfileUpdated)
+                        }
+                        .onFailure {
+                            _state.value = currentState.copy(
+                                isUpdating = false,
+                                updateError = "Avatar uploaded but failed to refresh profile"
+                            )
+                        }
+                }
+                .onFailure { error ->
+                    _state.value = currentState.copy(
+                        isUpdating = false,
+                        updateError = error.message ?: "Failed to update profile with new avatar"
+                    )
+                }
+        }
+    }
+
     private suspend fun fetchAndMergeData(): Result<Pair<UserProfile, List<Achievement>>> {
         val profileResult = repository.getProfile()
         if (profileResult.isFailure) {
@@ -167,7 +220,7 @@ class ProfileViewModel(
         val allAchievements = allAchievementsResult.getOrDefault(emptyList())
         val myAchievements = myAchievementsResult.getOrDefault(emptyList())
 
-        // Merge lists: Update "isUnlocked" status for achievements that user has
+        // Merge lists: Update the "isUnlocked" status for achievements that the user has
         val mergedAchievements = if (allAchievements.isNotEmpty()) {
             val unlockedIds = myAchievements.map { it.id }.toSet()
             allAchievements.map { achievement ->
@@ -181,7 +234,7 @@ class ProfileViewModel(
             }
         } else {
             // Fallback to myAchievements if allAchievements call failed?
-            // Or simple empty list if both failed.
+            // Or a simple empty list if both failed.
             myAchievements
         }
 

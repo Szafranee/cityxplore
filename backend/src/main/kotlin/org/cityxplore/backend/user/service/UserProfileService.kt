@@ -2,6 +2,7 @@ package org.cityxplore.backend.user.service
 
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.runBlocking
 import org.cityxplore.backend.user.dto.UpdateUserProfileRequest
 import org.cityxplore.backend.user.dto.UserProfileResponse
@@ -31,6 +32,7 @@ class UserProfileService(
 ) {
 
     private val logger = LoggerFactory.getLogger(UserProfileService::class.java)
+    private val avatarBucket = "user-avatars" // Ensure this bucket exists in Supabase
 
     /**
      * Retrieves the profile information for a user based on their unique identifier.
@@ -91,14 +93,108 @@ class UserProfileService(
         return saved.toDto()
     }
 
+    private fun validateImageFile(bytes: ByteArray) {
+        if (bytes.isEmpty()) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "File is empty")
+        if (bytes.size > 5 * 1024 * 1024) throw ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "File is too large (max 5MB)"
+        )
+
+        // Check magic bytes for JPEG, PNG, WebP
+        // JPEG: FF D8 FF
+        // PNG: 89 50 4E 47
+        // WebP: RIFF ... WEBP
+        val isJpeg =
+            bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() && bytes[2] == 0xFF.toByte()
+        val isPng =
+            bytes.size >= 8 && bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() && bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte()
+        val isWebp = bytes.size >= 12 &&
+                bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() && bytes[2] == 'F'.code.toByte() && bytes[3] == 'F'.code.toByte() &&
+                bytes[8] == 'W'.code.toByte() && bytes[9] == 'E'.code.toByte() && bytes[10] == 'B'.code.toByte() && bytes[11] == 'P'.code.toByte()
+
+        if (!isJpeg && !isPng && !isWebp) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Invalid file format. Only JPG, PNG, and WebP are allowed."
+            )
+        }
+    }
+
+    private suspend fun deleteOldAvatar(oldUrl: String?) {
+        if (oldUrl.isNullOrBlank()) return
+        // Extract path from URL. Valid URLs:
+        // https://.../storage/v1/object/public/user-avatars/USER_ID/FILENAME
+        if (!oldUrl.contains("/$avatarBucket/")) return
+
+        val path = oldUrl.substringAfter("/$avatarBucket/")
+        if (path.isNotBlank()) {
+            try {
+                logger.info("Deleting old avatar: $path")
+                val bucket = supabaseClient.storage.from(avatarBucket)
+                bucket.delete(path)
+            } catch (e: Exception) {
+                logger.warn("Failed to delete old avatar: $oldUrl", e)
+            }
+        }
+    }
+
+    /**
+     * Uploads a user avatar to Supabase Storage and updates the user profile.
+     *
+     * @param userId The ID of the user.
+     * @param fileBytes The file content.
+     * @param fileName The original filename.
+     * @return The updated user profile.
+     */
+    @Transactional
+    fun uploadUserAvatar(userId: UUID, fileBytes: ByteArray, fileName: String): UserProfileResponse {
+        val user = userRepository.findById(userId)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
+
+        if (!user.isActive) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+        }
+
+        validateImageFile(fileBytes)
+
+        // Generate a unique path: {userId}/{timestamp}_{filename}
+        val timestamp = System.currentTimeMillis()
+        // Sanitise filename and ensure extension matches type loosely or force one?
+        // We'll keep the original extension but sanitised.
+        val safeFileName = fileName.replace("[^a-zA-Z0-9.-]".toRegex(), "_")
+        val path = "$userId/${timestamp}_${safeFileName}"
+
+        val oldAvatarUrl = user.avatarUrl
+
+        val publicUrl = try {
+            runBlocking {
+                // Delete old if exists
+                deleteOldAvatar(oldAvatarUrl)
+
+                val bucket = supabaseClient.storage.from(avatarBucket)
+                bucket.upload(path, fileBytes) {
+                    upsert = true
+                }
+                bucket.publicUrl(path)
+            }
+        } catch (e: Exception) {
+            logger.error("Failed to upload avatar to Supabase Storage", e)
+            throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to upload avatar")
+        }
+
+        user.avatarUrl = publicUrl
+        val saved = userRepository.save(user)
+        return saved.toDto()
+    }
+
     /**
      * Soft deletes a user account.
      *
-     * Sets isActive to false, sets deletedAt to now, and anonymizes sensitive data
+     * Sets isActive to false, sets deletedAt to now, and anonymises sensitive data
      * (email, username, avatar) to allow re-registration (freeing unique constraints)
      * and follow privacy requirements.
      *
-     * @param userId The unique identifier of the user to soft delete.
+     * @param userId The unique identifier of the user to softly delete.
      */
     @Transactional
     fun deleteUserAccount(userId: UUID) {
@@ -142,7 +238,7 @@ class UserProfileService(
 
         } catch (e: Exception) {
             // We log the error but do not fail the transaction. The user is soft-deleted in our DB,
-            // which prevents API access. Ideally, manual cleanup in Supabase might be needed if this fails.
+            // which prevents API access. Ideally, manual clean-up in Supabase might be needed if this fails.
             logger.error("Failed to delete user $userId from Supabase Auth. User is soft-deleted in DB.", e)
         }
     }

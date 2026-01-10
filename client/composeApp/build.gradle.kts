@@ -110,6 +110,7 @@ kotlin {
             implementation(libs.supabase.postgrest)
             implementation(libs.supabase.compose.auth)
             implementation(libs.supabase.compose.auth.ui)
+            implementation(libs.storage.kt)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor)
