@@ -599,19 +599,6 @@ private fun AvatarEditDialog(
                     Spacer(Modifier.width(8.dp))
                     Text("Pick Image from Gallery")
                 }
-
-                Spacer(Modifier.height(16.dp))
-                Text("OR", modifier = Modifier.align(Alignment.CenterHorizontally))
-                Spacer(Modifier.height(16.dp))
-
-                OutlinedTextField(
-                    value = avatarUrl,
-                    onValueChange = { avatarUrl = it },
-                    label = { Text("Avatar URL") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isLoading
-                )
             }
         },
         confirmButton = {

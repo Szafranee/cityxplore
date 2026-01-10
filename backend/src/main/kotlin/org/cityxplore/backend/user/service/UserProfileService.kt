@@ -77,7 +77,6 @@ class UserProfileService(
         patch.username?.trim()
             ?.takeIf { it.isNotEmpty() }
             ?.let { user.username = it }
-        patch.avatarUrl?.let { user.avatarUrl = it }
 
         val saved = try {
             userRepository.save(user)
