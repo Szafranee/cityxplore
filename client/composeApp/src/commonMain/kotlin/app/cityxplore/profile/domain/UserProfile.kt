@@ -22,18 +22,35 @@ data class UserProfile(
     val totalPoisDiscovered: Int,
     val achievementPoints: Int
 ) {
-    // Level calculation: 1 level per 100 points
-    val level: Int
-        get() = achievementPoints / 100
+    /**
+     * Calculates the current level and progress within that level based on [achievementPoints].
+     * Scaling: Level 0->1 needs 100 pts. Every subsequent level needs +25 pts more than the previous.
+     */
+    private val levelInfo: LevelInfo
+        get() {
+            var level = 0
+            var cost = 100
+            var remaining = achievementPoints
 
-    val nextLevelPoints: Int
-        get() = (level + 1) * 100
+            while (remaining >= cost) {
+                remaining -= cost
+                level++
+                cost += 25
+            }
+            return LevelInfo(level, remaining, cost)
+        }
+
+    val level: Int
+        get() = levelInfo.level
+
+    val xpInCurrentLevel: Int
+        get() = levelInfo.currentXP
+
+    val xpNeededForNextLevel: Int
+        get() = levelInfo.neededXP
 
     val levelProgress: Float
-        get() {
-            val currentLevelBase = level * 100
-            val pointsInLevel = achievementPoints - currentLevelBase
-            val pointsNeededForLevel = 100 // Since every level is 100 points wide
-            return pointsInLevel.toFloat() / pointsNeededForLevel.toFloat()
-        }
+        get() = if (xpNeededForNextLevel > 0) xpInCurrentLevel.toFloat() / xpNeededForNextLevel.toFloat() else 0f
+
+    private data class LevelInfo(val level: Int, val currentXP: Int, val neededXP: Int)
 }

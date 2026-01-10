@@ -406,7 +406,7 @@ private fun ProfileContent(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "${profile.levelProgress} / ${profile.nextLevelPoints} XP",
+                text = "${profile.xpInCurrentLevel} / ${profile.xpNeededForNextLevel} XP",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline
             )
@@ -751,7 +751,7 @@ private fun AccountSettingsDialog(
                     enabled = !isLoading,
                     supportingText = {
                         if (email != initialEmail) {
-                            Text("Changing email requires confirmation on new address.")
+                            Text("Changing email requires confirmation on both new and old adrresses.")
                         }
                     }
                 )
