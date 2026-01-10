@@ -39,4 +39,12 @@ interface ProfileRepository {
      * @return [Result] containing the public URL of the uploaded avatar on success.
      */
     suspend fun uploadAvatar(imageBytes: ByteArray): Result<String>
+
+    /**
+     * Initiates the email change flow.
+     *
+     * @param newEmail The new email address.
+     * @return [Result] containing Unit on success.
+     */
+    suspend fun updateEmail(newEmail: String): Result<Unit>
 }

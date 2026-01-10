@@ -213,6 +213,20 @@ class ProfileRepositoryImpl(
         }
         return null
     }
+
+    /**
+     * Initiates the email change flow.
+     *
+     * @param newEmail The new email address.
+     * @return [Result] containing Unit on success.
+     */
+    override suspend fun updateEmail(newEmail: String): Result<Unit> {
+        return runCatching {
+            supabase.auth.updateUser {
+                email = newEmail
+            }
+        }
+    }
 }
 
 /**

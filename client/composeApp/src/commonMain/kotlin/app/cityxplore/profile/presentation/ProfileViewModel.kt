@@ -9,6 +9,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -32,6 +33,7 @@ sealed interface ProfileState {
 
 sealed interface ProfileEvent {
     data object ProfileUpdated : ProfileEvent
+    data class EmailChangeInitiated(val newEmail: String) : ProfileEvent
 }
 
 /**
@@ -248,9 +250,42 @@ class ProfileViewModel(
     }
 
     fun clearError() {
-        val currentState = _state.value
-        if (currentState is ProfileState.Success) {
-            _state.value = currentState.copy(updateError = null)
+        _state.update { currentState ->
+            if (currentState is ProfileState.Success) {
+                currentState.copy(updateError = null)
+            } else {
+                currentState
+            }
+        }
+    }
+
+    /**
+     * Updates the user's email address.
+     *
+     * @param newEmail The new email address.
+     */
+    fun updateEmail(newEmail: String) {
+        val currentState = state.value
+        if (currentState !is ProfileState.Success) return
+
+        if (newEmail.isBlank() || newEmail == currentState.profile.email) return
+
+        _state.update { currentState.copy(isUpdating = true, updateError = null) }
+
+        scope.launch {
+            repository.updateEmail(newEmail)
+                .onSuccess {
+                    _state.update { currentState.copy(isUpdating = false) }
+                    _events.send(ProfileEvent.EmailChangeInitiated(newEmail))
+                }
+                .onFailure { e ->
+                    _state.update {
+                        currentState.copy(
+                            isUpdating = false,
+                            updateError = e.message ?: "Failed to update email"
+                        )
+                    }
+                }
         }
     }
 }

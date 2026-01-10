@@ -118,6 +118,13 @@ fun ProfileScreen(
                     showAccountSettingsDialog = false
                     snackbarHostState.showSnackbar("Profile updated successfully")
                 }
+
+                is ProfileEvent.EmailChangeInitiated -> {
+                    showAccountSettingsDialog = false
+                    snackbarHostState.showSnackbar(
+                        "Email update initiated. Please check new email ${event.newEmail} for confirmation."
+                    )
+                }
             }
         }
     }
@@ -198,6 +205,9 @@ fun ProfileScreen(
                             },
                             onSave = { newUsername ->
                                 viewModel.updateProfile(newUsername, currentState.profile.avatarUrl)
+                            },
+                            onChangeEmail = { newEmail ->
+                                viewModel.updateEmail(newEmail)
                             },
                             onDeleteAccount = {
                                 showAccountSettingsDialog = false
@@ -703,9 +713,12 @@ private fun AccountSettingsDialog(
     error: String?,
     onDismiss: () -> Unit,
     onSave: (String) -> Unit,
+    onChangeEmail: (String) -> Unit,
     onDeleteAccount: () -> Unit
 ) {
     var username by remember(currentUsername) { mutableStateOf(currentUsername) }
+    var email by remember(currentEmail) { mutableStateOf(currentEmail) }
+    val initialEmail = remember { currentEmail } // To track if email changed
 
     AlertDialog(
         onDismissRequest = { if (!isLoading) onDismiss() },
@@ -730,20 +743,25 @@ private fun AccountSettingsDialog(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
-                    value = currentEmail,
-                    onValueChange = { },
+                    value = email,
+                    onValueChange = { email = it },
                     label = { Text("Email") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = false, // Read-only for now
-                    supportingText = { Text("Email change coming soon") }
+                    enabled = !isLoading,
+                    supportingText = {
+                        if (email != initialEmail) {
+                            Text("Changing email requires confirmation on new address.")
+                        }
+                    }
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
                     onClick = onDeleteAccount,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier.align(Alignment.Start)
+                    modifier = Modifier.align(Alignment.Start),
+                    enabled = !isLoading
                 ) {
                     Text("Delete Account")
                 }
@@ -752,8 +770,18 @@ private fun AccountSettingsDialog(
         confirmButton = {
             Box(contentAlignment = Alignment.Center) {
                 Button(
-                    onClick = { onSave(username) },
-                    enabled = !isLoading
+                    onClick = {
+                        // Handle username change
+                        if (username != currentUsername) {
+                            onSave(username)
+                        }
+
+                        // If email changed, call email update.
+                        if (email != initialEmail && email.isNotBlank()) {
+                            onChangeEmail(email)
+                        }
+                    },
+                    enabled = !isLoading && (username != currentUsername || email != initialEmail)
                 ) {
                     Text("Save")
                 }
