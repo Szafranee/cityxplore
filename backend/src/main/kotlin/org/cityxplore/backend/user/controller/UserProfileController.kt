@@ -83,19 +83,7 @@ class UserProfileController(
         @RequestParam("file") file: MultipartFile
     ): ResponseEntity<UserProfileResponse> {
         val userId = JwtUtils.extractUserId(jwt)
-
-        // Basic validation
-        if (file.isEmpty) {
-            return ResponseEntity.badRequest().build()
-        }
-
-        val contentType = file.contentType ?: "image/jpeg"
-        if (!contentType.startsWith("image/")) {
-            return ResponseEntity.badRequest().build()
-        }
-
-        val updated = userProfileService.uploadUserAvatar(userId, file.bytes, file.originalFilename ?: "avatar")
-
+        val updated = userProfileService.uploadUserAvatar(userId, file)
         return ResponseEntity.ok(updated)
     }
 

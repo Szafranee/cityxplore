@@ -1,5 +1,4 @@
 [versions]
-gotrueKt = "2.6.1"
 hibernateCoreVersion = "6.6.29.Final"
 hibernateSpatialVersion = "6.6.29.Final"
 hypersistenceUtilsHibernateX3 = "3.14.1"
@@ -41,16 +40,17 @@ flyway-database-postgresql = "11.20.0"
 flyway-core = "11.20.0"
 kotlin-reflect = "2.3.0"
 junit-platform-launcher = "6.0.1"
-junit-platform-engine = "6.0.1"
+junit-platform-engine = "6.0.2"
 postgresql = "42.7.8"
 commonsCompress = "1.28.0"
+tika = "3.2.3"
 
 [libraries]
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
-gotrue-kt = { module = "io.github.jan-tennert.supabase:auth-kt", version.ref = "supabase" }
 ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktorClientCio" }
 mapbox-maps-android = { module = "com.mapbox.maps:android", version.ref = "mapboxMaps" }
+tika-core = { module = "org.apache.tika:tika-core", version.ref = "tika" }
 h3 = { module = "com.uber:h3", version.ref = "h3" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "androidx-activity" }
 androidx-lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycleViewmodel" }
@@ -96,8 +96,8 @@ springmockk = { module = "com.ninja-squad:springmockk", version.ref = "springmoc
 koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
 koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
 koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
-storage-kt = { module = "io.github.jan-tennert.supabase:storage-kt", version.ref = "supabase" }
-supabase-gotrue-kt = { module = "io.github.jan-tennert.supabase:gotrue-kt", version.ref = "gotrueKt" }
+supabase-gotrue-kt = { module = "io.github.jan-tennert.supabase:auth-kt", version.ref = "supabase" }
+supabase-storage-kt = { module = "io.github.jan-tennert.supabase:storage-kt", version.ref = "supabase" }
 supabase-postgrest = { module = "io.github.jan-tennert.supabase:postgrest-kt", version.ref = "supabase" }
 supabase-compose-auth = { module = "io.github.jan-tennert.supabase:compose-auth", version.ref = "supabase" }
 supabase-compose-auth-ui = { module = "io.github.jan-tennert.supabase:compose-auth-ui", version.ref = "supabase" }

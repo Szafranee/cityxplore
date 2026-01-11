@@ -4,6 +4,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.runBlocking
+import org.apache.tika.Tika
 import org.cityxplore.backend.user.dto.UpdateUserProfileRequest
 import org.cityxplore.backend.user.dto.UserProfileResponse
 import org.cityxplore.backend.user.mapper.toDto
@@ -13,8 +14,13 @@ import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
+import org.springframework.transaction.support.TransactionTemplate
+import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
-import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 /**
@@ -28,7 +34,8 @@ import java.util.UUID
 @Service
 class UserProfileService(
     private val userRepository: UserRepository,
-    private val supabaseClient: SupabaseClient
+    private val supabaseClient: SupabaseClient,
+    private val transactionTemplate: TransactionTemplate
 ) {
 
     private val logger = LoggerFactory.getLogger(UserProfileService::class.java)
@@ -82,8 +89,17 @@ class UserProfileService(
         // If avatar changes, try to clean up the old one if it was ours
         patch.avatarUrl?.let { newUrl ->
             if (newUrl != user.avatarUrl) {
-                runBlocking { deleteOldAvatar(user.avatarUrl) }
+                val oldUrl = user.avatarUrl
                 user.avatarUrl = newUrl
+
+                // Register post-commit hook to delete old avatar
+                if (TransactionSynchronizationManager.isActualTransactionActive()) {
+                    TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+                        override fun afterCommit() {
+                            runBlocking { deleteOldAvatar(oldUrl) }
+                        }
+                    })
+                }
             }
         }
 
@@ -101,33 +117,11 @@ class UserProfileService(
         return saved.toDto()
     }
 
-    private fun validateImageFile(bytes: ByteArray) {
-        if (bytes.isEmpty()) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "File is empty")
-        if (bytes.size > 5 * 1024 * 1024) throw ResponseStatusException(
-            HttpStatus.BAD_REQUEST,
-            "File is too large (max 5MB)"
-        )
-
-        // Check magic bytes for JPEG, PNG, WebP
-        // JPEG: FF D8 FF
-        // PNG: 89 50 4E 47
-        // WebP: RIFF ... WEBP
-        val isJpeg =
-            bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() && bytes[2] == 0xFF.toByte()
-        val isPng =
-            bytes.size >= 8 && bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() && bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte()
-        val isWebp = bytes.size >= 12 &&
-                bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() && bytes[2] == 'F'.code.toByte() && bytes[3] == 'F'.code.toByte() &&
-                bytes[8] == 'W'.code.toByte() && bytes[9] == 'E'.code.toByte() && bytes[10] == 'B'.code.toByte() && bytes[11] == 'P'.code.toByte()
-
-        if (!isJpeg && !isPng && !isWebp) {
-            throw ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "Invalid file format. Only JPG, PNG, and WebP are allowed."
-            )
-        }
-    }
-
+    /**
+     * Deletes the old avatar file from Supabase Storage.
+     *
+     * @param oldUrl the URL/path of the avatar to delete
+     */
     private suspend fun deleteOldAvatar(oldUrl: String?) {
         if (oldUrl.isNullOrBlank()) return
         // Extract path from URL. Valid URLs:
@@ -147,38 +141,50 @@ class UserProfileService(
     }
 
     /**
+     * Compensating action to delete a newly uploaded avatar if the DB save fails.
+     *
+     * @param url the URL of the uploaded avatar
+     */
+    private fun deleteUploadedAvatar(url: String) {
+        val path = url.substringAfter("/$avatarBucket/")
+        if (path.isNotBlank() && url.contains("/$avatarBucket/")) {
+            runBlocking {
+                try {
+                    val bucket = supabaseClient.storage.from(avatarBucket)
+                    bucket.delete(path)
+                } catch (e: Exception) {
+                    logger.warn("Failed to delete optimistically uploaded avatar: $url", e)
+                }
+            }
+        }
+    }
+
+    /**
      * Uploads a user avatar to Supabase Storage and updates the user profile.
      *
      * @param userId The ID of the user.
-     * @param fileBytes The file content.
-     * @param fileName The original filename.
+     * @param file The multipart file containing the avatar image.
      * @return The updated user profile.
      */
-    @Transactional
-    fun uploadUserAvatar(userId: UUID, fileBytes: ByteArray, fileName: String): UserProfileResponse {
-        val user = userRepository.findById(userId)
-            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
-
-        if (!user.isActive) {
+    // Removed @Transactional from here to handle IO outside DB transaction
+    fun uploadUserAvatar(userId: UUID, file: MultipartFile): UserProfileResponse {
+        val exists = userRepository.existsById(userId)
+        if (!exists) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
         }
 
-        validateImageFile(fileBytes)
+        validateAvatarFile(file)
+
+        val fileName = file.originalFilename ?: "avatar"
+        val fileBytes = file.bytes
 
         // Generate a unique path: {userId}/{timestamp}_{filename}
         val timestamp = System.currentTimeMillis()
-        // Sanitise filename and ensure extension matches type loosely or force one?
-        // We'll keep the original extension but sanitised.
         val safeFileName = fileName.replace("[^a-zA-Z0-9.-]".toRegex(), "_")
         val path = "$userId/${timestamp}_${safeFileName}"
 
-        val oldAvatarUrl = user.avatarUrl
-
         val publicUrl = try {
             runBlocking {
-                // Delete old if exists
-                deleteOldAvatar(oldAvatarUrl)
-
                 val bucket = supabaseClient.storage.from(avatarBucket)
                 bucket.upload(path, fileBytes) {
                     upsert = true
@@ -190,9 +196,66 @@ class UserProfileService(
             throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to upload avatar")
         }
 
-        user.avatarUrl = publicUrl
-        val saved = userRepository.save(user)
-        return saved.toDto()
+        return try {
+            saveUserAvatar(userId, publicUrl)
+        } catch (e: Exception) {
+            // Compensating transaction: delete uploaded file
+            deleteUploadedAvatar(publicUrl)
+            throw e
+        }
+    }
+
+    private fun validateAvatarFile(file: MultipartFile) {
+        if (file.isEmpty) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "File is empty")
+        }
+
+        val contentType = file.contentType
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid content type. Only images are allowed.")
+        }
+
+        val maxSizeBytes = 5 * 1024 * 1024
+        if (file.size > maxSizeBytes) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "File is too large. Max size is ${maxSizeBytes / (1024 * 1024)}MB."
+            )
+        }
+
+        val detectedType = try {
+            Tika().detect(file.inputStream)
+        } catch (_: Exception) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to detect file type")
+        }
+
+        if (!detectedType.startsWith("image/")) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Uploaded file is not a valid image.")
+        }
+    }
+
+    protected fun saveUserAvatar(userId: UUID, publicUrl: String): UserProfileResponse {
+        return transactionTemplate.execute { status ->
+            val user = userRepository.findById(userId)
+                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
+
+            if (!user.isActive) {
+                throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+            }
+
+            val oldAvatarUrl = user.avatarUrl
+            user.avatarUrl = publicUrl
+            val saved = userRepository.save(user)
+
+            // Register cleanup for old avatar
+            TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+                override fun afterCommit() {
+                    runBlocking { deleteOldAvatar(oldAvatarUrl) }
+                }
+            })
+
+            saved.toDto()
+        }!!
     }
 
     /**
@@ -216,17 +279,24 @@ class UserProfileService(
         val timestamp = System.currentTimeMillis()
 
         user.isActive = false
-        user.deletedAt = LocalDateTime.now()
+        // Use Instant or OffsetDateTime
+        user.deletedAt = OffsetDateTime.now(ZoneOffset.UTC)
+            .toLocalDateTime()
 
-        // 1. Free up Email constraint: use sub-addressing (alias) to keep it valid but unique-different.
-        // Original: user@example.com -> user+deleted123456@example.com
-        // This allows the user to register again with "user@example.com".
-        user.email = user.email.replace("@", "+deleted$timestamp@")
+        // 1. Free up Email constraint and avoid PII
+        // Generate anonymised address: deleted-{shortUUID}-{timestamp}@...
+        // Max length 255.
+        val shortUuid = UUID.randomUUID().toString().substring(0, 8)
+        val anonEmailLocal = "deleted-$shortUuid-$timestamp"
+        val anonDomain = "deleted.cityxplore.app"
+        val newEmail = "$anonEmailLocal@$anonDomain"
 
-        // 2. Free up Username constraint: Append suffix, ensuring we don't exceed max length (50 chars).
-        val usernameSuffix = "_del_$timestamp"
-        val maxPrefixLen = (50 - usernameSuffix.length).coerceAtLeast(0)
-        user.username = user.username.take(maxPrefixLen) + usernameSuffix
+        user.email = if (newEmail.length > 255) newEmail.take(255) else newEmail
+
+        // 2. Free up Username constraint and avoid PII
+        // "deleted-{shortId}" string truncated to username max (50).
+        val anonUsernameBase = "deleted-$shortUuid"
+        user.username = if (anonUsernameBase.length > 50) anonUsernameBase.take(50) else anonUsernameBase
 
         // 3. Remove PII
         user.avatarUrl = null
@@ -245,8 +315,6 @@ class UserProfileService(
             logger.info("User $userId successfully removed from Supabase Auth.")
 
         } catch (e: Exception) {
-            // We log the error but do not fail the transaction. The user is soft-deleted in our DB,
-            // which prevents API access. Ideally, manual clean-up in Supabase might be needed if this fails.
             logger.error("Failed to delete user $userId from Supabase Auth. User is soft-deleted in DB.", e)
         }
     }

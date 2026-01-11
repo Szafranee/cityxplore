@@ -29,7 +29,12 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
+import org.springframework.transaction.support.TransactionCallback
+import org.springframework.transaction.support.TransactionSynchronizationManager
+import org.springframework.transaction.support.TransactionTemplate
+import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
+import java.io.ByteArrayInputStream
 import java.math.BigDecimal
 import java.time.LocalDateTime
 import java.util.Optional
@@ -43,6 +48,7 @@ class UserProfileServiceTest {
     private lateinit var authPlugin: Auth
     private lateinit var adminApi: AdminApi
     private lateinit var bucketApi: BucketApi
+    private lateinit var transactionTemplate: TransactionTemplate
     private lateinit var userProfileService: UserProfileService
 
     @BeforeEach
@@ -53,17 +59,32 @@ class UserProfileServiceTest {
         authPlugin = mockk()
         adminApi = mockk()
         bucketApi = mockk()
+        transactionTemplate = mockk()
 
         // Mock Supabase plugins extension functions
+        // Ensure to mock the file class where extension properties are defined
         mockkStatic("io.github.jan.supabase.storage.StorageKt")
         mockkStatic("io.github.jan.supabase.auth.AuthKt")
 
+        // Mock Java static method
+        mockkStatic("org.springframework.transaction.support.TransactionSynchronizationManager")
+
+        // Mock extension properties
         every { supabaseClient.storage } returns storagePlugin
         every { supabaseClient.auth } returns authPlugin
         every { authPlugin.admin } returns adminApi
         every { storagePlugin.from(any()) } returns bucketApi
 
-        userProfileService = UserProfileService(userRepository, supabaseClient)
+        // Mock TransactionTemplate and TransactionSynchronizationManager
+        // Use generic casting to avoid type inference issues
+        every { transactionTemplate.execute(any<TransactionCallback<Any>>()) } answers {
+            val callback = firstArg<TransactionCallback<Any>>()
+            callback.doInTransaction(mockk())
+        }
+        every { TransactionSynchronizationManager.isActualTransactionActive() } returns true
+        every { TransactionSynchronizationManager.registerSynchronization(any()) } just Runs
+
+        userProfileService = UserProfileService(userRepository, supabaseClient, transactionTemplate)
     }
 
     @Test
@@ -380,6 +401,15 @@ class UserProfileServiceTest {
         val fileName = "avatar.jpg"
         val publicUrl = "https://supabase.co/storage/v1/object/public/user-avatars/$userId/timestamp_avatar.jpg"
 
+        val multipartFile = mockk<MultipartFile>()
+        every { multipartFile.isEmpty } returns false
+        every { multipartFile.contentType } returns "image/jpeg"
+        every { multipartFile.size } returns 1024
+        every { multipartFile.originalFilename } returns fileName
+        every { multipartFile.bytes } returns fileBytes
+        every { multipartFile.inputStream } returns ByteArrayInputStream(fileBytes)
+
+        every { userRepository.existsById(userId) } returns true
         every { userRepository.findById(userId) } returns Optional.of(user)
         every { userRepository.save(any()) } answers { firstArg() }
 
@@ -399,7 +429,7 @@ class UserProfileServiceTest {
         coEvery { bucketApi.delete(any<String>()) } just Runs // Mock delete old avatar
 
         // when
-        val result = userProfileService.uploadUserAvatar(userId, fileBytes, fileName)
+        val result = userProfileService.uploadUserAvatar(userId, multipartFile)
 
         // then
         assertEquals(publicUrl, result.avatarUrl)
@@ -417,12 +447,15 @@ class UserProfileServiceTest {
     fun `uploadUserAvatar should throw 400 for empty file`() {
         // given
         val userId = UUID.randomUUID()
-        val user = createTestUser(userId, "t@t.com", "u").apply { isActive = true }
-        every { userRepository.findById(userId) } returns Optional.of(user)
+        createTestUser(userId, "t@t.com", "u").apply { isActive = true }
+        every { userRepository.existsById(userId) } returns true
+
+        val multipartFile = mockk<MultipartFile>()
+        every { multipartFile.isEmpty } returns true
 
         // when & then
         val exception = assertThrows<ResponseStatusException> {
-            userProfileService.uploadUserAvatar(userId, byteArrayOf(), "avatar.jpg")
+            userProfileService.uploadUserAvatar(userId, multipartFile)
         }
         assertEquals(HttpStatus.BAD_REQUEST, exception.statusCode)
         assertEquals("File is empty", exception.reason)
@@ -433,15 +466,20 @@ class UserProfileServiceTest {
         // given
         val userId = UUID.randomUUID()
         val user = createTestUser(userId, "t@t.com", "u")
+        every { userRepository.existsById(userId) } returns true
         every { userRepository.findById(userId) } returns Optional.of(user)
-        val invalidBytes = "invalid".toByteArray()
+
+        "invalid".toByteArray()
+        val multipartFile = mockk<MultipartFile>()
+        every { multipartFile.isEmpty } returns false
+        every { multipartFile.contentType } returns "text/plain" // Invalid content type
 
         // when & then
         val exception = assertThrows<ResponseStatusException> {
-            userProfileService.uploadUserAvatar(userId, invalidBytes, "text.txt")
+            userProfileService.uploadUserAvatar(userId, multipartFile)
         }
         assertEquals(HttpStatus.BAD_REQUEST, exception.statusCode)
-        assertTrue(exception.reason!!.contains("Invalid file format"))
+        assertTrue(exception.reason!!.contains("Invalid content type"))
     }
 
     @Test
@@ -462,8 +500,12 @@ class UserProfileServiceTest {
         // then
         assertFalse(user.isActive)
         assertNotNull(user.deletedAt)
-        assertTrue(user.email.contains("+deleted")) // check anonymization
-        assertTrue(user.username.contains("_del_"))
+
+        // Use capturing or verification if user object is not updated in place (but it should be)
+        // If save(user) is called with modified object, it references the same object in most mocked scenarios unless copy is made.
+
+        assertTrue(user.email.startsWith("deleted-"), "Email should be anonymized, was: ${user.email}")
+        assertTrue(user.username.startsWith("deleted-"), "Username should be anonymized, was: ${user.username}")
         assertNull(user.avatarUrl)
 
         verify(exactly = 1) { userRepository.save(user) }
