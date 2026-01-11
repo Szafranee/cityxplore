@@ -1,7 +1,10 @@
 package app.cityxplore
 
 import androidx.compose.runtime.Composable
+import app.cityxplore.di.achievementsModule
 import app.cityxplore.di.authModule
+import app.cityxplore.di.h3Module
+import app.cityxplore.di.journalModule
 import app.cityxplore.di.locationModule
 import app.cityxplore.di.mapModule
 import app.cityxplore.di.networkModule
@@ -24,7 +27,10 @@ fun CityXploreRoot(
             networkModule(),
             mapModule,
             locationModule,
-            profileModule
+            profileModule,
+            achievementsModule,
+            journalModule,
+            h3Module
         )
     }) {
         HandleDeepLinks()

@@ -25,5 +25,6 @@ data class UserProfileResponse(
     val avatarUrl: String?,
     val totalDistance: BigDecimal,
     val totalPoisDiscovered: Int,
+    val totalAchievementPoints: Int,
     val createdAt: LocalDateTime?
 )

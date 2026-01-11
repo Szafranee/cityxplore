@@ -54,6 +54,11 @@ dependencies {
     testImplementation(libs.springmockk)
     testRuntimeOnly(libs.junit.platform.launcher)
     testRuntimeOnly(libs.junit.platform.engine)
+    implementation(libs.supabase.gotrue.kt)
+    implementation(libs.supabase.storage.kt)
+    implementation(libs.ktor.client.cio)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.tika.core)
 }
 
 kotlin {

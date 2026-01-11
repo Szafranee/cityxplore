@@ -2,6 +2,7 @@ package app.cityxplore.map.presentation
 
 import app.cityxplore.core.location.Location
 import app.cityxplore.map.domain.MapPoi
+import app.cityxplore.profile.domain.UserProfile
 
 /**
  * Sealed interface representing the state of the map screen.
@@ -21,13 +22,19 @@ sealed interface MapUiState {
      * @property isFollowingUser Whether the map camera should follow the user's location.
      * @property selectedPoi The currently selected POI for displaying details, or `null` if none selected.
      * @property newlyDiscoveredPoiIds Set of POI IDs that were just discovered (for showing notifications).
+     * @property revealedHexagons Set of H3 hex indices that have been revealed (for Fog of War).
+     * @property warsawHexagons Set of all H3 hex indices covering the Warsaw region (for Fog of War).
+     * @property profile The current user's profile data, or null if not yet loaded.
      */
     data class Ready(
         val pois: List<MapPoi>,
         val userLocation: Location?,
         val isFollowingUser: Boolean,
         val selectedPoi: MapPoi?,
-        val newlyDiscoveredPoiIds: Set<String>
+        val newlyDiscoveredPoiIds: Set<String>,
+        val revealedHexagons: Set<String> = emptySet(),
+        val warsawHexagons: Set<String> = emptySet(),
+        val profile: UserProfile? = null
     ) : MapUiState
 
     /**
@@ -58,6 +65,9 @@ sealed interface MapAction {
      */
     data class SelectPoi(val poiId: String) : MapAction
 
+    /** User deselected generic POI selection (closed details) */
+    data object DeselectPoi : MapAction
+
     /** The user granted location permission */
     data object PermissionGranted : MapAction
 
@@ -74,4 +84,13 @@ sealed interface MapAction {
      * @property poiId The ID of the POI whose notification should be dismissed.
      */
     data class DismissDiscoveryNotification(val poiId: String) : MapAction
+
+    /**
+     * Toggles the favorite status of a POI.
+     * @property poiId The ID of the POI to favorite/unfavorite.
+     */
+    data class ToggleFavorite(val poiId: String) : MapAction
+
+    /** User requested to refresh POI data (e.g. returning from another screen) */
+    data object RefreshPois : MapAction
 }

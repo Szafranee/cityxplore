@@ -34,6 +34,7 @@ fun getRequiredProperty(key: String): String {
 val supabaseUrl: String by lazy { getRequiredProperty("SUPABASE_URL") }
 val supabaseKey: String by lazy { getRequiredProperty("SUPABASE_KEY") }
 val mapboxPublicToken: String by lazy { getRequiredProperty("MAPBOX_PUBLIC_TOKEN") }
+val googleMapsKey: String by lazy { getRequiredProperty("GOOGLE_MAPS_KEY") }
 
 buildConfig {
     packageName("app.cityxplore")
@@ -41,14 +42,16 @@ buildConfig {
     buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
     buildConfigField("String", "SUPABASE_KEY", "\"$supabaseKey\"")
     buildConfigField("String", "MAPBOX_PUBLIC_TOKEN", "\"$mapboxPublicToken\"")
+    buildConfigField("String", "GOOGLE_MAPS_KEY", "\"$googleMapsKey\"")
+
 
     // Configure DEBUG conditionally - defaults to false for release safety
     // Can be explicitly enabled via -Pdebug.build=true
     // Automatically detects Android build type when available
-    val explicitDebugProperty = providers.gradleProperty("debug.build").orNull?.toBoolean()
-    val isDebugBuild = explicitDebugProperty ?: gradle.startParameter.taskNames.any {
-        it.contains("debug", ignoreCase = true) && !it.contains("release", ignoreCase = true)
-    }
+    val isDebugBuild = providers.gradleProperty("debug.build")
+        .map { it.toBoolean() }
+        .getOrElse(false)
+
     buildConfigField("Boolean", "DEBUG", isDebugBuild.toString())
 }
 
@@ -81,6 +84,7 @@ kotlin {
             implementation(libs.play.services.location)
             implementation(libs.kotlinx.coroutines.play.services)
             implementation(libs.mapbox.maps.android)
+            implementation(libs.h3)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -102,10 +106,11 @@ kotlin {
             implementation(libs.ktor.client.auth)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
-            implementation(libs.supabase.gotrue)
+            implementation(libs.supabase.gotrue.kt)
             implementation(libs.supabase.postgrest)
             implementation(libs.supabase.compose.auth)
             implementation(libs.supabase.compose.auth.ui)
+            implementation(libs.supabase.storage.kt)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor)
@@ -138,6 +143,9 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+        jniLibs.pickFirsts.add(
+            "lib/**/libh3-java.so"
+        )
     }
     buildTypes {
         getByName("debug") {

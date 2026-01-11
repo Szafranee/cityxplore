@@ -18,7 +18,7 @@ fun PointOfInterest.toResponseDto(): PoiResponse = PoiResponse(
     latitude = this.location?.y,
     longitude = this.location?.x,
     metadata = this.metadata,
-    imageUrls = this.imageUrls,
+    imageUrls = this.imageUrls?.toList(),
     createdAt = this.createdAt,
     updatedAt = this.updatedAt,
     isActive = this.isActive,
@@ -37,7 +37,7 @@ fun CreatePoiPublicRequest.toEntity(): PointOfInterest = PointOfInterest(
         GEOMETRY_FACTORY.createPoint(Coordinate(longitude, latitude))
     } else null,
     metadata = this.metadata,
-    imageUrls = this.imageUrls
+    imageUrls = this.imageUrls?.toTypedArray()
 )
 
 // Admin-facing mapping with explicit lat/lon and simplified metadata exposure

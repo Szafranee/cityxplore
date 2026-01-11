@@ -26,26 +26,33 @@ class UserService(
 ) {
 
     /**
-     * Fetches all users from the repository and maps them to a list of response DTOs.
+     * Fetches all ACTIVE users from the repository and maps them to a list of response DTOs.
+     * Soft-deleted users are excluded.
      *
-     * @return A list of `UserResponse` objects representing all users.
+     * @return A list of `UserResponse` objects representing all active users.
      */
     @Transactional(readOnly = true)
     fun getAll(): List<UserResponse> =
-        userRepository.findAll().toUserResponseList()
+        userRepository.findAll().filter { it.isActive }.toUserResponseList()
 
     /**
      * Retrieves a user by their unique identifier.
-     * Throws a `ResponseStatusException` with a 404 status if the user is not found.
+     * Throws a `ResponseStatusException` with a 404 status if the user is not found or inactive.
      *
      * @param id The unique identifier of the user to retrieve.
      * @return A `UserResponse` object representing the retrieved user.
      */
     @Transactional(readOnly = true)
-    fun getById(id: UUID): UserResponse =
-        userRepository.findById(id)
+    fun getById(id: UUID): UserResponse {
+        val user = userRepository.findById(id)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
-            .toUserResponse()
+
+        if (!user.isActive) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+        }
+
+        return user.toUserResponse()
+    }
 
     /**
      * Creates a new user based on the provided request data.

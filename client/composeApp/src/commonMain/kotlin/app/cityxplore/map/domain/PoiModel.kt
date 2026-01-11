@@ -13,6 +13,7 @@ package app.cityxplore.map.domain
  * @property longitude The geographic longitude coordinate.
  * @property discovered Whether the current user has discovered this POI.
  * @property category The category/type of the POI.
+ * @property isMajor Whether this is a major landmark (e.g. city's main attraction).
  */
 data class PoiModel(
     val id: String,
@@ -22,7 +23,30 @@ data class PoiModel(
     val longitude: Double,
     val discovered: Boolean,
     val category: PoiCategory,
+    val isMajor: Boolean = false,
+    val photos: List<PoiPhoto> = emptyList(),
+    val metadata: PoiMetadata = PoiMetadata(),
+    val discoveryDate: Long? = null,
+    val isFavorite: Boolean = false
 )
+
+/**
+ * Represents a photo associated with a POI, including attribution and source.
+ */
+data class PoiPhoto(
+    val url: String,
+    val source: PhotoSource,
+    val author: String? = null,
+    val license: String? = null,
+    val attributions: String? = null // Raw HTML for Google Places
+)
+
+enum class PhotoSource {
+    WIKIMEDIA,
+    GOOGLE_PLACES,
+    USER,
+    UNKNOWN
+}
 
 /**
  * Enumeration representing POI categories in the domain layer.
@@ -37,11 +61,23 @@ enum class PoiCategory {
     /** Cultural sites (museums, theatres, galleries) */
     CULTURAL,
 
+    /** Natural locations (parks, gardens, nature reserves) */
+    NATURE,
+
     /** Food and dining locations (restaurants, cafés) */
     FOOD,
 
+    /** Sports facilities (stadiums, arenas, sports centres) */
+    SPORTS,
+
+    /** Entertainment venues (cinemas, theatres, concert halls) */
+    ENTERTAINMENT,
+
     /** User-created custom POIs */
     CUSTOM,
+
+    /** Other miscellaneous POIs */
+    OTHER,
 
     /** Unknown or uncategorized POIs */
     UNKNOWN
@@ -56,20 +92,28 @@ enum class PoiCategory {
 data class UserDiscovery(
     val poiId: String,
     val discoveredAt: Long,
+    val favorite: Boolean = false
 )
 
 /**
  * Maps a [PoiModel] to a simplified [MapPoi] representation for map rendering.
- * Strips out unnecessary fields like description and category to optimise map performance.
+ * Returns a lightweight [MapPoi] including fields such as description, latitude, longitude, discovered, category, isMajor, photos, metadata, and discoveryDate.
  *
  * @return A lightweight [MapPoi] object for map visualisation.
  */
 fun PoiModel.toMapPoi() = MapPoi(
     id = id,
     name = name,
+    description = description, // specific mapping
     latitude = latitude,
     longitude = longitude,
     discovered = discovered,
+    category = category,
+    isMajor = isMajor,
+    photos = photos,
+    metadata = metadata,
+    discoveryDate = discoveryDate,
+    isFavorite = isFavorite
 )
 
 /**
@@ -78,14 +122,24 @@ fun PoiModel.toMapPoi() = MapPoi(
  *
  * @property id The unique identifier of the POI.
  * @property name The display name of the POI.
+ * @property description A detailed description of the POI, or `null` if not available.
  * @property latitude The geographic latitude coordinate.
  * @property longitude The geographic longitude coordinate.
  * @property discovered Whether the current user has discovered this POI.
+ * @property category The category/type of the POI.
+ * @property isMajor Whether this is a major landmark.
  */
 data class MapPoi(
     val id: String,
     val name: String,
+    val description: String?, // Added description
     val latitude: Double,
     val longitude: Double,
-    val discovered: Boolean
+    val discovered: Boolean,
+    val category: PoiCategory,
+    val isMajor: Boolean,
+    val photos: List<PoiPhoto> = emptyList(),
+    val metadata: PoiMetadata = PoiMetadata(),
+    val discoveryDate: Long? = null,
+    val isFavorite: Boolean = false
 )

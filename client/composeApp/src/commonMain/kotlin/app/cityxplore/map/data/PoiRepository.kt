@@ -1,7 +1,7 @@
 package app.cityxplore.map.data
 
-import app.cityxplore.map.domain.PoiCategory
 import app.cityxplore.map.domain.PoiModel
+import app.cityxplore.map.domain.UserDiscovery
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -17,7 +17,6 @@ import io.ktor.http.contentType
  * POI discovery operations.
  *
  * @see NetworkPoiRepository
- * @see FakePoiRepository
  */
 interface PoiRepository {
     /**
@@ -31,9 +30,9 @@ interface PoiRepository {
     /**
      * Fetches all POI discoveries for the current authenticated user.
      *
-     * @return [Result] containing a list of discovery IDs (POI IDs) on success, or exception on failure.
+     * @return [Result] containing a map of POI ID to discovery data on success, or exception on failure.
      */
-    suspend fun fetchUserDiscoveries(): Result<Set<String>>
+    suspend fun fetchUserDiscoveries(): Result<Map<String, UserDiscovery>>
 
     /**
      * Marks a POI as discovered by the current user.
@@ -42,6 +41,14 @@ interface PoiRepository {
      * @return [Result] containing [Unit] on success, or exception on failure (e.g., 409 if already discovered).
      */
     suspend fun discoverPoi(id: String): Result<Unit>
+
+    /**
+     * Toggles the favorite status of a POI for the current user.
+     *
+     * @param id The unique identifier of the POI to favorite or unfavorite.
+     * @return [Result] containing [Unit] on success, or exception on failure.
+     */
+    suspend fun toggleFavorite(id: String): Result<Unit>
 }
 
 /**
@@ -68,13 +75,15 @@ class NetworkPoiRepository(
     /**
      * Fetches all POI discoveries for the current user from the backend API endpoint `/api/pois/discoveries`.
      *
-     * @return [Result] containing a set of discovered POI IDs.
+     * @return [Result] containing a map of discovered POI IDs to discovery data.
      */
-    override suspend fun fetchUserDiscoveries(): Result<Set<String>> = runCatching {
+    override suspend fun fetchUserDiscoveries(): Result<Map<String, UserDiscovery>> = runCatching {
         client.get("https://api.cityxplore.app/api/pois/discoveries")
             .body<List<UserPoiDiscoveryDto>>()
-            .map { it.poiId }
-            .toSet()
+            .associate { dto ->
+                val domain = dto.toDomain()
+                domain.poiId to domain
+            }
     }
 
     /**
@@ -90,39 +99,17 @@ class NetworkPoiRepository(
             setBody(emptyMap<String, String>())
         }
     }.map { }
-}
-
-/**
- * Fake implementation of [PoiRepository] for testing and development.
- * Returns hardcoded POI data without making network requests.
- */
-class FakePoiRepository : PoiRepository {
-    /**
-     * Returns a hardcoded list of sample POIs for development/testing.
-     *
-     * @return [Result] containing sample POI data.
-     */
-    override suspend fun fetchPois(): Result<List<PoiModel>> = Result.success(
-        listOf(
-            PoiModel("1", "Old Town", "Historic square", 52.2297, 21.0122, true, PoiCategory.HISTORICAL),
-            PoiModel("2", "Vistula Park", "Green escape", 52.25, 21.00, false, PoiCategory.CULTURAL)
-        )
-    )
 
     /**
-     * Returns a hardcoded set of discovered POI IDs for development/testing.
+     * Toggles the favorite status of a POI by sending a request to the backend API endpoint `/api/pois/{id}/favorite`.
      *
-     * @return [Result] containing sample discovered POI IDs.
+     * @param id The unique identifier of the POI to favorite or unfavorite.
+     * @return [Result] containing [Unit] on success, or exception on failure.
      */
-    override suspend fun fetchUserDiscoveries(): Result<Set<String>> = Result.success(
-        setOf("1")
-    )
-
-    /**
-     * Simulates a successful POI discovery without making network requests.
-     *
-     * @param id The unique identifier of the POI to discover (ignored in fake implementation).
-     * @return [Result] containing [Unit] (always succeeds).
-     */
-    override suspend fun discoverPoi(id: String): Result<Unit> = Result.success(Unit)
+    override suspend fun toggleFavorite(id: String): Result<Unit> = runCatching {
+        client.post("https://api.cityxplore.app/api/pois/$id/favorite") {
+            contentType(ContentType.Application.Json)
+            setBody(emptyMap<String, String>())
+        }
+    }.map { }
 }

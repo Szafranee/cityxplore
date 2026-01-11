@@ -33,7 +33,7 @@ interface AuthRepository {
      * Registers a new user with email and password.
      *
      * @param email The user's email address.
-     * @param password The user's password (minimum 6 characters).
+     * @param password The user's password (minimum [AuthConstants.MIN_PASSWORD_LENGTH] characters).
      * @return [Result] containing [Unit] on success, or exception on failure.
      */
     suspend fun signUp(email: String, password: String): Result<Unit>
@@ -78,6 +78,7 @@ interface AuthRepository {
      * @return The resolved email address, or `null` if not found.
      */
     suspend fun resolveEmail(login: String): String?
+
 
     /**
      * Checks if the currently authenticated user has a profile in the backend.

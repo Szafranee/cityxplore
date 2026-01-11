@@ -8,6 +8,9 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.ServerResponseException
+import io.ktor.client.request.delete
+import io.ktor.client.request.forms.formData
+import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.patch
@@ -15,8 +18,10 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.isSuccess
 import kotlinx.serialization.Serializable
 
 /**
@@ -32,6 +37,11 @@ class ProfileRepositoryImpl(
     private val client: HttpClient,
     private val supabase: SupabaseClient
 ) : ProfileRepository {
+
+    private companion object {
+        const val API_USERS = "https://api.cityxplore.app/api/users"
+        const val API_PROFILE_ME = "$API_USERS/me"
+    }
 
     /**
      * Creates or updates a user profile with the specified username and avatar URL.
@@ -54,20 +64,13 @@ class ProfileRepositoryImpl(
             val email = user.email ?: throw IllegalStateException("Email not found")
 
             val exists = try {
-                client.get("https://api.cityxplore.app/api/users/me").status == HttpStatusCode.OK
+                client.get(API_PROFILE_ME).status == HttpStatusCode.OK
             } catch (_: Exception) {
                 false
             }
 
             if (exists) {
-                val updateRequest = UserUpdateRequest(
-                    username = username,
-                    avatarUrl = avatarUrl
-                )
-                client.patch("https://api.cityxplore.app/api/users/me") {
-                    header(HttpHeaders.ContentType, ContentType.Application.Json)
-                    setBody(updateRequest)
-                }
+                performProfileUpdate(username, avatarUrl)
             } else {
                 val request = UserCreateRequest(
                     email = email,
@@ -75,64 +78,122 @@ class ProfileRepositoryImpl(
                     avatarUrl = avatarUrl
                 )
                 try {
-                    client.post("https://api.cityxplore.app/api/users") {
+                    client.post(API_USERS) {
                         header(HttpHeaders.ContentType, ContentType.Application.Json)
                         setBody(request)
                     }
                 } catch (e: ClientRequestException) {
-                    // Handle race condition: profile created concurrently by another request
-                    if (e.response.status == HttpStatusCode.Conflict) {
-                        val updateRequest = UserUpdateRequest(
-                            username = username,
-                            avatarUrl = avatarUrl
-                        )
-                        try {
-                            client.patch("https://api.cityxplore.app/api/users/me") {
-                                header(HttpHeaders.ContentType, ContentType.Application.Json)
-                                setBody(updateRequest)
-                            }
-                        } catch (patchError: ClientRequestException) {
-                            if (patchError.response.status == HttpStatusCode.NotFound) {
-                                throw IllegalStateException(
-                                    "Account conflict: Email exists but ID mismatch. Please contact support to reset your account.",
-                                    patchError
-                                )
-                            }
-                            throw patchError
-                        }
-                    } else {
-                        throw e
-                    }
+                    handleCreateProfileError(e, username, avatarUrl)
                 } catch (e: ServerResponseException) {
-                    // Handle backend returning 500 instead of proper 409 on duplicate
-                    val errorBody = e.response.bodyAsText()
-                    if (e.response.status == HttpStatusCode.InternalServerError &&
-                        errorBody.contains("duplicate key value violates unique constraint")
-                    ) {
-                        val updateRequest = UserUpdateRequest(
-                            username = username,
-                            avatarUrl = avatarUrl
-                        )
-                        try {
-                            client.patch("https://api.cityxplore.app/api/users/me") {
-                                header(HttpHeaders.ContentType, ContentType.Application.Json)
-                                setBody(updateRequest)
-                            }
-                        } catch (patchError: ClientRequestException) {
-                            if (patchError.response.status == HttpStatusCode.NotFound) {
-                                throw IllegalStateException(
-                                    "Account conflict: Email exists but ID mismatch. Please contact support to reset your account.",
-                                    patchError
-                                )
-                            }
-                            throw patchError
-                        }
-                    } else {
-                        throw e
-                    }
+                    handleServerError(e, username, avatarUrl)
                 }
             }
         }.map { }
+    }
+
+    /**
+     * Handles client request errors (4xx) during profile creation.
+     *
+     * @param e The client request exception.
+     * @param username The username being set.
+     * @param avatarUrl The avatar URL being set.
+     * @throws UsernameAlreadyTakenException If the username is already taken.
+     */
+    private suspend fun handleCreateProfileError(
+        e: ClientRequestException,
+        username: String,
+        avatarUrl: String?
+    ) {
+        if (e.response.status == HttpStatusCode.Conflict) {
+            val errorBody = e.response.bodyAsText()
+            // Check if it's a username conflict
+            if (errorBody.contains("Username", ignoreCase = true) ||
+                errorBody.contains("username", ignoreCase = true) ||
+                errorBody.contains("already taken", ignoreCase = true)
+            ) {
+                throw UsernameAlreadyTakenException()
+            }
+            // Otherwise it's likely an email/profile race condition - try update
+            performProfileUpdate(username, avatarUrl)
+        } else {
+            throw e
+        }
+    }
+
+    /**
+     * Handles server errors (5xx) during profile creation.
+     *
+     * @param e The server response exception.
+     * @param username The username being set.
+     * @param avatarUrl The avatar URL being set.
+     * @throws UsernameAlreadyTakenException If the username constraint was violated.
+     */
+    private suspend fun handleServerError(
+        e: ServerResponseException,
+        username: String,
+        avatarUrl: String?
+    ) {
+        val errorBody = e.response.bodyAsText()
+        if (e.response.status == HttpStatusCode.InternalServerError &&
+            errorBody.contains("duplicate key value violates unique constraint")
+        ) {
+            // Check if it's username constraint
+            if (errorBody.contains("username", ignoreCase = true)) {
+                throw UsernameAlreadyTakenException()
+            }
+            // Otherwise try update (email conflict = race condition)
+            performProfileUpdate(username, avatarUrl)
+        } else {
+            throw e
+        }
+    }
+
+    /**
+     * Performs the profile update via PATCH request.
+     *
+     * Handles username conflict errors by extracting the error message from the response
+     * and throwing a [UsernameAlreadyTakenException].
+     *
+     * @param username The new username for the profile.
+     * @param avatarUrl The new avatar URL, or null to keep existing.
+     * @throws UsernameAlreadyTakenException If the username is already taken by another user.
+     */
+    private suspend fun performProfileUpdate(
+        username: String,
+        avatarUrl: String?,
+    ) {
+        val updateRequest = UserUpdateRequest(
+            username = username,
+            avatarUrl = avatarUrl
+        )
+        try {
+            client.patch(API_PROFILE_ME) {
+                header(HttpHeaders.ContentType, ContentType.Application.Json)
+                setBody(updateRequest)
+            }
+        } catch (e: ClientRequestException) {
+            if (e.response.status == HttpStatusCode.Conflict) {
+                val errorBody = e.response.bodyAsText()
+                if (errorBody.contains("Username", ignoreCase = true) ||
+                    errorBody.contains("username", ignoreCase = true) ||
+                    errorBody.contains("already taken", ignoreCase = true)
+                ) {
+                    throw UsernameAlreadyTakenException()
+                }
+            }
+            throw e
+        } catch (e: ServerResponseException) {
+            // Handle backend returning 500 for constraint violations
+            if (e.response.status == HttpStatusCode.InternalServerError) {
+                val errorBody = e.response.bodyAsText()
+                if (errorBody.contains("username", ignoreCase = true) ||
+                    errorBody.contains("constraint", ignoreCase = true)
+                ) {
+                    throw UsernameAlreadyTakenException()
+                }
+            }
+            throw e
+        }
     }
 
     /**
@@ -142,7 +203,95 @@ class ProfileRepositoryImpl(
      */
     override suspend fun getProfile(): Result<UserProfile> {
         return runCatching {
-            client.get("https://api.cityxplore.app/api/users/me").body()
+            val dto = client.get(API_PROFILE_ME).body<ProfileDto>()
+            UserProfile(
+                id = dto.id,
+                email = dto.email,
+                username = dto.username,
+                avatarUrl = dto.avatarUrl,
+                totalDistance = dto.totalDistance,
+                totalPoisDiscovered = dto.totalPoisDiscovered,
+                achievementPoints = dto.totalAchievementPoints
+            )
+        }
+    }
+
+    /**
+     * Deletes the current user's account.
+     *
+     * @return [Result] containing [Unit] on success, or exception on failure.
+     */
+    override suspend fun deleteAccount(): Result<Unit> = runCatching {
+        // DELETE /api/users/me
+        val response = client.delete(API_PROFILE_ME)
+        if (!response.status.isSuccess()) {
+            throw Exception("Failed to delete account: ${response.status}")
+        }
+    }
+
+    /**
+     * Uploads a user avatar to storage.
+     *
+     * @param imageBytes The raw bytes of the image to upload.
+     * @return [Result] containing the public URL of the uploaded avatar on success.
+     */
+    override suspend fun uploadAvatar(imageBytes: ByteArray): Result<String> {
+        return runCatching {
+            val contentType = detectMimeType(imageBytes) ?: ContentType.Image.JPEG
+            val filename = "avatar.${contentType.contentSubtype}"
+
+            val response = client.submitFormWithBinaryData(
+                url = "$API_USERS/me/avatar",
+                formData = formData {
+                    append("file", imageBytes, Headers.build {
+                        append(HttpHeaders.ContentType, contentType.toString())
+                        append(HttpHeaders.ContentDisposition, "filename=\"$filename\"")
+                    })
+                }
+            ).body<ProfileDto>()
+
+            response.avatarUrl ?: throw IllegalStateException("Backend returned null avatar URL")
+        }
+    }
+
+    private fun detectMimeType(bytes: ByteArray): ContentType? {
+        // Simple magic bytes check
+        // PNG: 89 50 4E 47 0D 0A 1A 0A
+        if (bytes.size >= 8 &&
+            bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() &&
+            bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte()
+        ) {
+            return ContentType.Image.PNG
+        }
+        // JPEG: FF D8 FF
+        if (bytes.size >= 3 &&
+            bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() && bytes[2] == 0xFF.toByte()
+        ) {
+            return ContentType.Image.JPEG
+        }
+        // WEBP: RIFF ... WEBP
+        if (bytes.size >= 12 &&
+            bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() && bytes[2] == 'F'.code.toByte() &&
+            bytes[3] == 'F'.code.toByte() &&
+            bytes[8] == 'W'.code.toByte() && bytes[9] == 'E'.code.toByte() && bytes[10] == 'B'.code.toByte() &&
+            bytes[11] == 'P'.code.toByte()
+        ) {
+            return ContentType.Image.WEBP
+        }
+        return null
+    }
+
+    /**
+     * Initiates the email change flow.
+     *
+     * @param newEmail The new email address.
+     * @return [Result] containing Unit on success.
+     */
+    override suspend fun updateEmail(newEmail: String): Result<Unit> {
+        return runCatching {
+            supabase.auth.updateUser {
+                email = newEmail
+            }
         }
     }
 }
@@ -172,3 +321,11 @@ data class UserUpdateRequest(
     val username: String,
     val avatarUrl: String? = null
 )
+
+/**
+ * Exception thrown when attempting to use a username that is already taken.
+ *
+ * This exception is used to provide clear feedback to users when they try to
+ * set a username that already exists in the system.
+ */
+class UsernameAlreadyTakenException : Exception("Username is already taken. Please choose a different one.")
