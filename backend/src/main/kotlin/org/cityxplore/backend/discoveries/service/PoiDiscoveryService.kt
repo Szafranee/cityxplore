@@ -93,4 +93,21 @@ class PoiDiscoveryService(
         userPoiRepository.findByUserIdAndPoiId(userId, poiId)
             ?.toDto()
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Discovery not found")
+
+    /**
+     * Toggles the favorite status of a discovered POI for a specific user.
+     *
+     * @param userId The unique identifier of the user.
+     * @param poiId The unique identifier of the POI.
+     * @return The updated `UserPoiDiscoveryResponse`.
+     * @throws ResponseStatusException if discovery not found.
+     */
+    @Transactional
+    fun toggleFavorite(userId: UUID, poiId: UUID): UserPoiDiscoveryResponse {
+        val discovery = userPoiRepository.findByUserIdAndPoiId(userId, poiId)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Discovery not found")
+
+        discovery.isFavorite = !discovery.isFavorite
+        return userPoiRepository.save(discovery).toDto()
+    }
 }

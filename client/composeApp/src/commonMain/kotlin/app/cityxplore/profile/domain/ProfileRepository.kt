@@ -1,7 +1,5 @@
 package app.cityxplore.profile.domain
 
-import kotlinx.serialization.Serializable
-
 /**
  * Repository interface for user profile operations.
  *
@@ -26,22 +24,27 @@ interface ProfileRepository {
      * @return [Result] containing the [UserProfile] on success, or exception on failure.
      */
     suspend fun getProfile(): Result<UserProfile>
-}
 
-/**
- * Represents a user's profile data, including statistics and personal information.
- *
- * @property id The unique identifier of the user.
- * @property username The user's chosen username.
- * @property avatarUrl The URL to the user's avatar image, or `null` if not set.
- * @property totalDistance The cumulative distance travelled by the user in meters.
- * @property totalPoisDiscovered The total number of Points of Interest discovered by the user.
- */
-@Serializable
-data class UserProfile(
-    val id: String,
-    val username: String,
-    val avatarUrl: String?,
-    val totalDistance: Double,
-    val totalPoisDiscovered: Int
-)
+    /**
+     * Deletes the current user's account.
+     *
+     * @return [Result] containing [Unit] on success, or exception on failure.
+     */
+    suspend fun deleteAccount(): Result<Unit>
+
+    /**
+     * Uploads a user avatar to storage.
+     *
+     * @param imageBytes The raw bytes of the image to upload.
+     * @return [Result] containing the public URL of the uploaded avatar on success.
+     */
+    suspend fun uploadAvatar(imageBytes: ByteArray): Result<String>
+
+    /**
+     * Initiates the email change flow.
+     *
+     * @param newEmail The new email address.
+     * @return [Result] containing Unit on success.
+     */
+    suspend fun updateEmail(newEmail: String): Result<Unit>
+}

@@ -26,7 +26,8 @@ data class PoiModel(
     val isMajor: Boolean = false,
     val photos: List<PoiPhoto> = emptyList(),
     val metadata: PoiMetadata = PoiMetadata(),
-    val discoveryDate: Long? = null
+    val discoveryDate: Long? = null,
+    val isFavorite: Boolean = false
 )
 
 /**
@@ -91,6 +92,7 @@ enum class PoiCategory {
 data class UserDiscovery(
     val poiId: String,
     val discoveredAt: Long,
+    val favorite: Boolean = false
 )
 
 /**
@@ -110,7 +112,8 @@ fun PoiModel.toMapPoi() = MapPoi(
     isMajor = isMajor,
     photos = photos,
     metadata = metadata,
-    discoveryDate = discoveryDate
+    discoveryDate = discoveryDate,
+    isFavorite = isFavorite
 )
 
 /**
@@ -137,5 +140,6 @@ data class MapPoi(
     val isMajor: Boolean,
     val photos: List<PoiPhoto> = emptyList(),
     val metadata: PoiMetadata = PoiMetadata(),
-    val discoveryDate: Long? = null
+    val discoveryDate: Long? = null,
+    val isFavorite: Boolean = false
 )

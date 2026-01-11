@@ -66,6 +66,8 @@ class FogOfWarRenderer(
             style.addSource(
                 geoJsonSource(FOG_SOURCE_ID) {
                     featureCollection(FeatureCollection.fromFeatures(emptyList()))
+                    tolerance(0.0)
+                    buffer(0)
                 }
             )
             style.addLayer(
@@ -73,12 +75,15 @@ class FogOfWarRenderer(
                     fillColor(fogColorInt)
                     fillOpacity(BASE_FOG_OPACITY)
                     fillAntialias(false)
+                    minZoom(5.0)
                 }
             )
 
             style.addSource(
                 geoJsonSource(FADING_SOURCE_ID) {
                     featureCollection(FeatureCollection.fromFeatures(emptyList()))
+                    tolerance(0.0)
+                    buffer(0)
                 }
             )
             style.addLayer(
@@ -87,6 +92,7 @@ class FogOfWarRenderer(
                     fillOpacity(0.0)
                     fillAntialias(false)
                     visibility(Visibility.VISIBLE)
+                    minZoom(5.0)
                 }
             )
 

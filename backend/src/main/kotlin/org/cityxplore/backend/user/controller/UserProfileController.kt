@@ -5,20 +5,25 @@ import org.cityxplore.backend.shared.security.JwtUtils
 import org.cityxplore.backend.user.dto.UpdateUserProfileRequest
 import org.cityxplore.backend.user.dto.UserProfileResponse
 import org.cityxplore.backend.user.service.UserProfileService
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.validation.annotation.Validated
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.multipart.MultipartFile
 
 /**
  * Controller responsible for authenticated user profile operations.
  *
- * Mirrors project standards: JWT-based user id resolution, DTOs and explicit response codes.
+ * Mirrors project standards: JWT-based user id resolution, DTOs, and explicit response codes.
  */
 @RestController
 @RequestMapping("/api/users")
@@ -36,6 +41,7 @@ class UserProfileController(
     @GetMapping("/me")
     fun getMyProfile(@AuthenticationPrincipal jwt: Jwt): UserProfileResponse {
         val userId = JwtUtils.extractUserId(jwt)
+
         return userProfileService.getUserProfile(userId)
     }
 
@@ -60,5 +66,40 @@ class UserProfileController(
         val updated = userProfileService.updateUserProfile(userId, patch)
 
         return ResponseEntity.ok(updated)
+    }
+
+    /**
+     * Uploads and updates the user's avatar.
+     *
+     * Accepts a multipart file, uploads it to Supabase Storage, and updates the user profile with the new URL.
+     *
+     * @param jwt The JWT token of the authenticated user.
+     * @param file The image file to upload.
+     * @return The updated user profile.
+     */
+    @PostMapping(value = ["/me/avatar"], consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    fun uploadAvatar(
+        @AuthenticationPrincipal jwt: Jwt,
+        @RequestParam("file") file: MultipartFile
+    ): ResponseEntity<UserProfileResponse> {
+        val userId = JwtUtils.extractUserId(jwt)
+        val updated = userProfileService.uploadUserAvatar(userId, file)
+        return ResponseEntity.ok(updated)
+    }
+
+    /**
+     * Deletes the currently authenticated user's account.
+     *
+     * This action permanently removes the user and cascades the deletion to related data.
+     *
+     * @param jwt the JSON Web Token (JWT) of the authenticated user
+     * @return a `ResponseEntity` with 204 No Content status
+     */
+    @DeleteMapping("/me")
+    fun deleteMyAccount(@AuthenticationPrincipal jwt: Jwt): ResponseEntity<Unit> {
+        val userId = JwtUtils.extractUserId(jwt)
+        userProfileService.deleteUserAccount(userId)
+
+        return ResponseEntity.noContent().build()
     }
 }

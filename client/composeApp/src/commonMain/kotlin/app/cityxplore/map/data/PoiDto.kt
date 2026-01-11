@@ -255,6 +255,7 @@ fun UserPoiDiscoveryDto.toDomain(): UserDiscovery {
     }
     return UserDiscovery(
         poiId = poiId,
-        discoveredAt = timestamp
+        discoveredAt = timestamp,
+        favorite = favorite
     )
 }

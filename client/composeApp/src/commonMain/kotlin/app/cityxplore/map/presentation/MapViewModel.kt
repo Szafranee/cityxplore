@@ -3,6 +3,7 @@ package app.cityxplore.map.presentation
 import app.cityxplore.core.cityXploreDispatchers
 import app.cityxplore.core.location.Location
 import app.cityxplore.core.location.LocationService
+import app.cityxplore.journal.domain.ToggleFavoriteUseCase
 import app.cityxplore.map.domain.AutoDiscoverPoisUseCase
 import app.cityxplore.map.domain.FogOfWarRepository
 import app.cityxplore.map.domain.GetPoisWithDiscoveriesUseCase
@@ -10,6 +11,7 @@ import app.cityxplore.map.domain.PoiModel
 import app.cityxplore.map.domain.UpdateFogOfWarUseCase
 import app.cityxplore.map.domain.toMapPoi
 import app.cityxplore.platform.CityXploreBaseViewModel
+import app.cityxplore.profile.domain.ProfileRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,7 +44,9 @@ class MapViewModel(
     private val autoDiscoverUseCase: AutoDiscoverPoisUseCase,
     private val updateFogOfWarUseCase: UpdateFogOfWarUseCase,
     private val fogOfWarRepository: FogOfWarRepository,
-    private val locationService: LocationService
+    private val locationService: LocationService,
+    private val profileRepository: ProfileRepository,
+    private val toggleFavoriteUseCase: ToggleFavoriteUseCase
 ) : CityXploreBaseViewModel() {
     private val _state = MutableStateFlow<MapUiState>(MapUiState.Loading)
 
@@ -58,8 +62,58 @@ class MapViewModel(
     private var cachedRevealedHexagons: Set<String> = emptySet()
 
     init {
-        loadPois()
-        loadFogOfWar()
+        loadData()
+        startLocationTracking()
+        loadProfile()
+    }
+
+    private fun loadProfile() {
+        scope.launch {
+            val result = profileRepository.getProfile()
+            if (result.isSuccess) {
+                val profile = result.getOrThrow()
+                _state.value.let { currentState ->
+                    if (currentState is MapUiState.Ready) {
+                        _state.value = currentState.copy(profile = profile)
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Loads POI data and initialised map state.
+     * Fetches POIs and revealed hexagons, then updates the state to [MapUiState.Ready]
+     * or [MapUiState.Error] based on the result.
+     */
+    private fun loadData() {
+        scope.launch(cityXploreDispatchers.io) {
+            // Initial load
+            val poisResult = getPoisUseCase()
+            val revealedResult = fogOfWarRepository.getRevealedHexagons()
+            val warsawResult = fogOfWarRepository.getWarsawHexagons()
+
+            cachedRevealedHexagons = revealedResult.getOrElse { cachedRevealedHexagons }
+            cachedWarsawHexagons = warsawResult.getOrElse { cachedWarsawHexagons }
+
+            poisResult.onSuccess { pois ->
+                _state.value = MapUiState.Ready(
+                    pois = pois.map { it.toMapPoi() },
+                    userLocation = null,
+                    isFollowingUser = true,
+                    selectedPoi = null,
+                    newlyDiscoveredPoiIds = emptySet(),
+                    revealedHexagons = revealedResult.getOrDefault(emptySet()),
+                    warsawHexagons = warsawResult.getOrDefault(emptySet())
+                )
+                // Trigger profile load again if loadData finishes later
+                loadProfile()
+            }
+
+            poisResult.onFailure { error ->
+                _state.value = MapUiState.Error(error.message ?: "Unable to load POIs")
+            }
+        }
     }
 
     /**
@@ -71,8 +125,13 @@ class MapViewModel(
         when (action) {
             MapAction.Refresh -> {
                 scope.launch(cityXploreDispatchers.io) {
+                    loadData()
+                }
+            }
+
+            MapAction.RefreshPois -> {
+                scope.launch(cityXploreDispatchers.io) {
                     loadPois()
-                    loadFogOfWar()
                 }
             }
 
@@ -82,41 +141,101 @@ class MapViewModel(
             MapAction.PermissionGranted -> startLocationTracking()
             is MapAction.UpdateLocation -> updateUserLocation(action.location)
             is MapAction.DismissDiscoveryNotification -> dismissDiscoveryNotification(action.poiId)
+            is MapAction.ToggleFavorite -> toggleFavorite(action.poiId)
+        }
+    }
+
+    private fun toggleFavorite(poiId: String) {
+        scope.launch(cityXploreDispatchers.io) {
+            val currentState = _state.value
+            if (currentState is MapUiState.Ready) {
+                // Optimistic update
+                val updatedPois = currentState.pois.map {
+                    if (it.id == poiId) it.copy(isFavorite = !it.isFavorite) else it
+                }
+                val updatedSelected = if (currentState.selectedPoi?.id == poiId) {
+                    currentState.selectedPoi.copy(isFavorite = !currentState.selectedPoi.isFavorite)
+                } else currentState.selectedPoi
+
+                _state.value = currentState.copy(
+                    pois = updatedPois,
+                    selectedPoi = updatedSelected
+                )
+
+                toggleFavoriteUseCase(poiId).onFailure {
+                    // Revert only specific changes on the fresh state
+                    val freshState = _state.value
+                    if (freshState is MapUiState.Ready) {
+                        val revertedPois = freshState.pois.map {
+                            if (it.id == poiId) it.copy(isFavorite = !it.isFavorite) else it
+                        }
+                        val revertedSelected = if (freshState.selectedPoi?.id == poiId) {
+                            freshState.selectedPoi.copy(isFavorite = !freshState.selectedPoi.isFavorite)
+                        } else freshState.selectedPoi
+
+                        _state.value = freshState.copy(
+                            pois = revertedPois,
+                            selectedPoi = revertedSelected
+                        )
+                    }
+                }
+            }
         }
     }
 
     /**
      * Fetches POIs with discovery status from the backend and updates the state.
-     * Sets state to [MapUiState.Loading] while fetching, then to [MapUiState.Ready]
-     * or [MapUiState.Error] based on the result.
+     * Sets state to [MapUiState.Loading] only if not already [MapUiState.Ready].
+     * Then updates to new [MapUiState.Ready] or [MapUiState.Error] based on the result.
      */
     private fun loadPois() {
         scope.launch(cityXploreDispatchers.io) {
-            // Capture the previous state before setting to Loading
-            val previousIsFollowing = when (val s = _state.value) {
-                is MapUiState.Ready -> s.isFollowingUser
-                else -> true
+            val currentState = _state.value
+
+            // Only show full loading screen if we don't have data yet
+            if (currentState !is MapUiState.Ready) {
+                _state.value = MapUiState.Loading
             }
 
-            _state.value = MapUiState.Loading
+            // Default values to fall back on if we are not in Ready state
+            var currentIsFollowing = true
+            var currentRevealedHexagons = cachedRevealedHexagons
+            var currentWarsawHexagons = cachedWarsawHexagons
+            var currentUserLocation: Location? = lastKnownLocation
+            var currentNewIds: Set<String> = emptySet()
+            val currentProfile = if (currentState is MapUiState.Ready) currentState.profile else null
+
+            if (currentState is MapUiState.Ready) {
+                currentIsFollowing = currentState.isFollowingUser
+                currentRevealedHexagons = currentState.revealedHexagons
+                currentWarsawHexagons = currentState.warsawHexagons
+                currentUserLocation = currentState.userLocation
+                currentNewIds = currentState.newlyDiscoveredPoiIds
+            }
 
             val result = getPoisUseCase()
-            _state.value = result.fold(
-                onSuccess = { pois ->
-                    MapUiState.Ready(
-                        pois = pois.map(PoiModel::toMapPoi),
-                        userLocation = lastKnownLocation,
-                        isFollowingUser = previousIsFollowing,
-                        selectedPoi = null,
-                        newlyDiscoveredPoiIds = emptySet(),
-                        revealedHexagons = cachedRevealedHexagons,
-                        warsawHexagons = cachedWarsawHexagons
-                    )
-                },
-                onFailure = { error ->
-                    MapUiState.Error(error.message ?: "Unable to load POIs")
+
+            result.onSuccess { pois ->
+                _state.value = MapUiState.Ready(
+                    pois = pois.map(PoiModel::toMapPoi),
+                    userLocation = currentUserLocation,
+                    isFollowingUser = currentIsFollowing,
+                    selectedPoi = null,
+                    newlyDiscoveredPoiIds = currentNewIds,
+                    revealedHexagons = currentRevealedHexagons,
+                    warsawHexagons = currentWarsawHexagons,
+                    profile = currentProfile
+                )
+            }
+
+            result.onFailure { error ->
+                if (currentState !is MapUiState.Ready) {
+                    _state.value = MapUiState.Error(error.message ?: "Unable to load POIs")
+                } else {
+                    // If we were ready, we just stay ready with old data (and maybe log error)
+                    println("Failed to refresh POIs: ${error.message}")
                 }
-            )
+            }
         }
     }
 
@@ -174,7 +293,7 @@ class MapViewModel(
             val result = updateFogOfWarUseCase(location)
             result.onSuccess { newHexCount ->
                 if (newHexCount > 0) {
-                    // Reload revealed hexagons from repository
+                    // Reload revealed hexagons from the repository
                     loadFogOfWar()
                 }
             }
@@ -224,7 +343,7 @@ class MapViewModel(
                         println("Failed to refresh POIs after discovery: ${error.message}")
                         val currentState = _state.value
                         if (currentState is MapUiState.Ready) {
-                            // Keep current state but clear newly discovered IDs
+                            // Keep the current state but clear newly discovered IDs
                             _state.value = currentState.copy(
                                 newlyDiscoveredPoiIds = emptySet()
                             )

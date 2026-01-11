@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MoneyOff
@@ -37,6 +39,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -63,15 +66,25 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 
+/**
+ * Composable function for displaying detailed information about a POI.
+ *
+ * This content is typically shown in a bottom sheet or modal.
+ * It includes photos, metadata (discovery status, opening hours, etc.), description, and trivia.
+ *
+ * @param poi The [MapPoi] object containing the data to display.
+ * @param onToggleFavorite Callback function invoked when the favorite button is clicked. If null, the button is hidden.
+ */
 @Composable
 fun PoiDetailsContent(
     poi: MapPoi,
-    modifier: Modifier = Modifier,
+    onToggleFavorite: ((String) -> Unit)? = null
 ) {
+    val scrollState = rememberScrollState()
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scrollState)
             .padding(horizontal = 24.dp, vertical = 16.dp)
             .navigationBarsPadding()
     ) {
@@ -124,30 +137,30 @@ fun PoiDetailsContent(
             )
         }
 
+        // Header
         Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            PoiCategoryMarker(
-                poi = poi,
-                size = 64.dp
+            Icon(
+                imageVector = getCategoryIcon(poi.category),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(32.dp)
             )
-            Spacer(modifier = Modifier.size(16.dp))
-            Column {
-                Text(
-                    text = poi.name,
-                    style = MaterialTheme.typography.headlineSmall
-                )
-                Text(
-                    text = poi.category.name,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-                if (poi.metadata.address != null) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = poi.metadata.address,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                text = poi.name,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
+            )
+            if (onToggleFavorite != null) {
+                IconButton(onClick = { onToggleFavorite(poi.id) }) {
+                    Icon(
+                        imageVector = if (poi.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = if (poi.isFavorite) "Unfavorite" else "Favorite",
+                        tint = if (poi.isFavorite) Color.Red else MaterialTheme.colorScheme.onSurface
                     )
                 }
             }

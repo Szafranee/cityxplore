@@ -1,9 +1,14 @@
 package app.cityxplore.presentation
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Map
@@ -23,15 +28,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.cityxplore.auth.presentation.AuthState
 import app.cityxplore.auth.presentation.AuthViewModel
 import app.cityxplore.auth.presentation.EmailVerificationScreen
 import app.cityxplore.auth.presentation.LoginScreen
 import app.cityxplore.auth.presentation.RegisterScreen
+import app.cityxplore.journal.presentation.JournalScreen
+import app.cityxplore.journal.presentation.JournalViewModel
 import app.cityxplore.map.presentation.CityXploreMapScreen
 import app.cityxplore.map.presentation.MapViewModel
+import app.cityxplore.platform.BackHandler
 import app.cityxplore.profile.presentation.OnboardingScreen
 import app.cityxplore.profile.presentation.ProfileScreen
 import app.cityxplore.theme.AppColors
@@ -40,7 +50,7 @@ import app.cityxplore.theme.CityXploreTheme
 import coil3.compose.setSingletonImageLoaderFactory
 import org.koin.compose.koinInject
 
-private enum class CityXploreDestination { Map, Friends, Profile }
+private enum class CityXploreDestination { Map, Friends, Profile, Journal }
 private enum class AuthScreen { Login, Register }
 
 @Composable
@@ -110,17 +120,32 @@ fun AuthFlow(state: AuthState, viewModel: AuthViewModel) {
 @Composable
 fun MainAppContent(onSignOut: () -> Unit) {
     val mapViewModel: MapViewModel = koinInject()
+    val journalViewModel: JournalViewModel = koinInject()
     val mapState by mapViewModel.state.collectAsState()
+    val journalState by journalViewModel.state.collectAsState()
     var currentDestination by remember { mutableStateOf(CityXploreDestination.Map) }
+
+    // Handle back navigation for screens other than Map
+    // JournalScreen has its own BackHandler, but we can have a global one too if we coordinate.
+    // However, since JournalScreen is instantiated conditionally, its BackHandler is only active then.
+    // For Friends and Profile, they don't have BackHandler, so we add one here.
+    // If we are on Profile or Friends, back should go to Map.
+    if (currentDestination == CityXploreDestination.Profile || currentDestination == CityXploreDestination.Friends) {
+        BackHandler {
+            currentDestination = CityXploreDestination.Map
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onBackground,
         bottomBar = {
-            CityXploreBottomBar(
-                destination = currentDestination,
-                onDestinationSelected = { currentDestination = it }
-            )
+            if (currentDestination != CityXploreDestination.Journal) {
+                CityXploreBottomBar(
+                    destination = currentDestination,
+                    onDestinationSelected = { currentDestination = it }
+                )
+            }
         }
     ) { innerPadding ->
         Box(
@@ -128,16 +153,68 @@ fun MainAppContent(onSignOut: () -> Unit) {
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-            when (currentDestination) {
-                CityXploreDestination.Map -> CityXploreMapScreen(
-                    state = mapState,
-                    onAction = mapViewModel::onAction,
-                    modifier = Modifier.fillMaxSize(),
-                    onProfileClick = { currentDestination = CityXploreDestination.Profile }
-                )
+            // Keep MapScreen always in composition to avoid reloading Mapbox/Fog of War
+            // Use alpha/visibility to hide it when not active (or z-order)
+            // Since MapView is heavy, this is better for UX but consumes more memory.
+            currentDestination == CityXploreDestination.Map
 
-                CityXploreDestination.Friends -> CityXplorePlaceholderScreen("Friends")
-                CityXploreDestination.Profile -> ProfileScreen(onSignOut = onSignOut)
+            // Render MapScreen if it's the current destination OR if we want to caching it.
+            // Using a Box to stack them. Map is always at bottom (index 0).
+            // But if we just put it in the Box, it will be covered by others if they have opaque background.
+            // We need to ensure we don't dispose it.
+
+            // Map is always rendered, but we can control if other screens are on top.
+            // However, Mapbox native view might have Z-ordering issues on Android.
+            // Let's try rendering it always, but conditionally rendering others on top.
+
+            CityXploreMapScreen(
+                state = mapState,
+                onAction = mapViewModel::onAction,
+                modifier = Modifier.fillMaxSize(),
+                // If map is not visible, we can maybe disable interactions?
+                // But generally, keeping it in the tree is enough.
+                onProfileClick = { currentDestination = CityXploreDestination.Profile }
+            )
+
+            // Overlay other screens
+            when (currentDestination) {
+                CityXploreDestination.Map -> { /* Already rendered below */
+                }
+
+                CityXploreDestination.Friends -> {
+                    // Need to ensure background is opaque
+                    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+                        CityXplorePlaceholderScreen("Friends")
+                    }
+                }
+
+                CityXploreDestination.Profile -> {
+                    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+                        ProfileScreen(
+                            onSignOut = onSignOut,
+                            onOpenJournal = {
+                                journalViewModel.loadEntries()
+                                currentDestination = CityXploreDestination.Journal
+                            }
+                        )
+                    }
+                }
+
+                CityXploreDestination.Journal -> {
+                    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+                        JournalScreen(
+                            state = journalState,
+                            searchQuery = journalViewModel.searchQuery.collectAsState().value,
+                            currentFilter = journalViewModel.filter.collectAsState().value,
+                            currentSort = journalViewModel.sort.collectAsState().value,
+                            onSearchQueryChange = journalViewModel::setSearchQuery,
+                            onFilterChange = journalViewModel::setFilter,
+                            onSortChange = journalViewModel::setSort,
+                            onToggleFavorite = journalViewModel::toggleFavorite,
+                            onBack = { currentDestination = CityXploreDestination.Profile }
+                        )
+                    }
+                }
             }
         }
     }
@@ -154,19 +231,21 @@ private fun CityXploreBottomBar(
     ) {
         val navItemColors = NavigationBarItemDefaults.colors(
             selectedIconColor = AppColors.green,
-            unselectedIconColor = AppColors.green,
-            selectedTextColor = AppColors.white,
-            unselectedTextColor = AppColors.white,
-            indicatorColor = MaterialTheme.colorScheme.surface
+            unselectedIconColor = Color.White,
+            selectedTextColor = AppColors.green,
+            unselectedTextColor = Color.White,
+            indicatorColor = MaterialTheme.colorScheme.surface // Or Color.Transparent if we want to hide the pill
         )
+
         NavigationBarItem(
             selected = destination == CityXploreDestination.Map,
             onClick = { onDestinationSelected(CityXploreDestination.Map) },
             colors = navItemColors,
             icon = {
                 Icon(
-                    imageVector = Icons.Outlined.Map,
-                    contentDescription = "Discover"
+                    imageVector = if (destination == CityXploreDestination.Map) Icons.Filled.Map else Icons.Outlined.Map,
+                    contentDescription = "Discover",
+                    modifier = Modifier.size(30.dp)
                 )
             },
             label = {
@@ -174,7 +253,6 @@ private fun CityXploreBottomBar(
                     text = "Explore",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.W600,
-                    color = AppColors.white
                 )
             }
         )
@@ -184,8 +262,9 @@ private fun CityXploreBottomBar(
             colors = navItemColors,
             icon = {
                 Icon(
-                    imageVector = Icons.Outlined.Group,
-                    contentDescription = "Friends"
+                    imageVector = if (destination == CityXploreDestination.Friends) Icons.Filled.Group else Icons.Outlined.Group,
+                    contentDescription = "Friends",
+                    modifier = Modifier.size(30.dp)
                 )
             },
             label = {
@@ -193,7 +272,6 @@ private fun CityXploreBottomBar(
                     text = "Friends",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.W600,
-                    color = AppColors.white
                 )
             }
         )
@@ -203,8 +281,9 @@ private fun CityXploreBottomBar(
             colors = navItemColors,
             icon = {
                 Icon(
-                    imageVector = Icons.Outlined.AccountCircle,
-                    contentDescription = "Profile"
+                    imageVector = if (destination == CityXploreDestination.Profile) Icons.Filled.AccountCircle else Icons.Outlined.AccountCircle,
+                    contentDescription = "Profile",
+                    modifier = Modifier.size(30.dp)
                 )
             },
             label = {
@@ -212,7 +291,6 @@ private fun CityXploreBottomBar(
                     text = "Profile",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.W600,
-                    color = AppColors.white
                 )
             }
         )

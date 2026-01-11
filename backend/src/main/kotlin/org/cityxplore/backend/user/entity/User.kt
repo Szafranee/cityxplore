@@ -48,7 +48,7 @@ data class User(
     @field:Email
     @field:Size(max = 254)
     @Column(nullable = false, unique = true, length = 254)
-    val email: String,
+    var email: String,
 
     @field:NotBlank
     @field:Size(min = 3, max = 50)
@@ -76,7 +76,10 @@ data class User(
     var isActive: Boolean = true,
 
     @Column(name = "total_achievement_points", nullable = false)
-    var totalAchievementPoints: Int = 0
+    var totalAchievementPoints: Int = 0,
+
+    @Column(name = "deleted_at")
+    var deletedAt: LocalDateTime? = null
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

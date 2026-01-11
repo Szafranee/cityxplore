@@ -71,19 +71,31 @@ class AuthRepositoryImpl(
 
     /**
      * Registers a new user with email and password using Supabase Auth.
+     *
      * The user will receive a verification email before they can sign in.
+     *
+     * **Note**: Supabase does not return an error for duplicate emails for security reasons.
+     * Instead, it returns a user object with an empty `identities` list. This method
+     * detects this case and returns an appropriate error.
      *
      * @param email The user's email address.
      * @param password The user's password (minimum 6 characters).
-     * @return [Result] containing [Unit] on success, or exception on failure.
+     * @return [Result] containing [Unit] on success, or [EmailAlreadyRegisteredException] if
+     *         the email is already registered.
      */
     override suspend fun signUp(email: String, password: String): Result<Unit> {
         return try {
-            auth.signUpWith(Email) {
+            val result = auth.signUpWith(Email) {
                 this.email = email
                 this.password = password
             }
-            Result.success(Unit)
+            // Supabase returns user with empty identities list if email already exists
+            // instead of returning an error (for security/privacy reasons)
+            if (result?.identities.isNullOrEmpty()) {
+                Result.failure(EmailAlreadyRegisteredException())
+            } else {
+                Result.success(Unit)
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -214,3 +226,11 @@ class AuthRepositoryImpl(
  */
 @Serializable
 data class UserEmailDto(val email: String)
+
+/**
+ * Exception thrown when attempting to register with an email that is already in use.
+ *
+ * This exception is used to provide clear feedback to users when they try to sign up
+ * with an email address that already exists in the authentication system.
+ */
+class EmailAlreadyRegisteredException : Exception("An account with this email already exists.")
