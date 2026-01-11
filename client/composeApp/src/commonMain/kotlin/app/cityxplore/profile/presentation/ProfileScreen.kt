@@ -699,6 +699,9 @@ private fun AvatarEditDialog(
                 ) {
                     Text("Close")
                 }
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                }
             }
         },
         dismissButton = {}

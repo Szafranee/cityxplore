@@ -83,31 +83,84 @@ class ProfileRepositoryImpl(
                         setBody(request)
                     }
                 } catch (e: ClientRequestException) {
-                    // Handle race condition: profile created concurrently by another request
-                    if (e.response.status == HttpStatusCode.Conflict) {
-                        performProfileUpdate(username, avatarUrl, isRecovery = true)
-                    } else {
-                        throw e
-                    }
+                    handleCreateProfileError(e, username, avatarUrl)
                 } catch (e: ServerResponseException) {
-                    // Handle backend returning 500 instead of proper 409 on duplicate
-                    val errorBody = e.response.bodyAsText()
-                    if (e.response.status == HttpStatusCode.InternalServerError &&
-                        errorBody.contains("duplicate key value violates unique constraint")
-                    ) {
-                        performProfileUpdate(username, avatarUrl, isRecovery = true)
-                    } else {
-                        throw e
-                    }
+                    handleServerError(e, username, avatarUrl)
                 }
             }
         }.map { }
     }
 
+    /**
+     * Handles client request errors (4xx) during profile creation.
+     *
+     * @param e The client request exception.
+     * @param username The username being set.
+     * @param avatarUrl The avatar URL being set.
+     * @throws UsernameAlreadyTakenException If the username is already taken.
+     */
+    private suspend fun handleCreateProfileError(
+        e: ClientRequestException,
+        username: String,
+        avatarUrl: String?
+    ) {
+        if (e.response.status == HttpStatusCode.Conflict) {
+            val errorBody = e.response.bodyAsText()
+            // Check if it's a username conflict
+            if (errorBody.contains("Username", ignoreCase = true) ||
+                errorBody.contains("username", ignoreCase = true) ||
+                errorBody.contains("already taken", ignoreCase = true)
+            ) {
+                throw UsernameAlreadyTakenException()
+            }
+            // Otherwise it's likely an email/profile race condition - try update
+            performProfileUpdate(username, avatarUrl)
+        } else {
+            throw e
+        }
+    }
+
+    /**
+     * Handles server errors (5xx) during profile creation.
+     *
+     * @param e The server response exception.
+     * @param username The username being set.
+     * @param avatarUrl The avatar URL being set.
+     * @throws UsernameAlreadyTakenException If the username constraint was violated.
+     */
+    private suspend fun handleServerError(
+        e: ServerResponseException,
+        username: String,
+        avatarUrl: String?
+    ) {
+        val errorBody = e.response.bodyAsText()
+        if (e.response.status == HttpStatusCode.InternalServerError &&
+            errorBody.contains("duplicate key value violates unique constraint")
+        ) {
+            // Check if it's username constraint
+            if (errorBody.contains("username", ignoreCase = true)) {
+                throw UsernameAlreadyTakenException()
+            }
+            // Otherwise try update (email conflict = race condition)
+            performProfileUpdate(username, avatarUrl)
+        } else {
+            throw e
+        }
+    }
+
+    /**
+     * Performs the profile update via PATCH request.
+     *
+     * Handles username conflict errors by extracting the error message from the response
+     * and throwing a [UsernameAlreadyTakenException].
+     *
+     * @param username The new username for the profile.
+     * @param avatarUrl The new avatar URL, or null to keep existing.
+     * @throws UsernameAlreadyTakenException If the username is already taken by another user.
+     */
     private suspend fun performProfileUpdate(
         username: String,
         avatarUrl: String?,
-        isRecovery: Boolean = false
     ) {
         val updateRequest = UserUpdateRequest(
             username = username,
@@ -118,14 +171,28 @@ class ProfileRepositoryImpl(
                 header(HttpHeaders.ContentType, ContentType.Application.Json)
                 setBody(updateRequest)
             }
-        } catch (patchError: ClientRequestException) {
-            if (isRecovery && patchError.response.status == HttpStatusCode.NotFound) {
-                throw IllegalStateException(
-                    "Account conflict: Email exists but ID mismatch. Please contact support to reset your account.",
-                    patchError
-                )
+        } catch (e: ClientRequestException) {
+            if (e.response.status == HttpStatusCode.Conflict) {
+                val errorBody = e.response.bodyAsText()
+                if (errorBody.contains("Username", ignoreCase = true) ||
+                    errorBody.contains("username", ignoreCase = true) ||
+                    errorBody.contains("already taken", ignoreCase = true)
+                ) {
+                    throw UsernameAlreadyTakenException()
+                }
             }
-            throw patchError
+            throw e
+        } catch (e: ServerResponseException) {
+            // Handle backend returning 500 for constraint violations
+            if (e.response.status == HttpStatusCode.InternalServerError) {
+                val errorBody = e.response.bodyAsText()
+                if (errorBody.contains("username", ignoreCase = true) ||
+                    errorBody.contains("constraint", ignoreCase = true)
+                ) {
+                    throw UsernameAlreadyTakenException()
+                }
+            }
+            throw e
         }
     }
 
@@ -254,3 +321,11 @@ data class UserUpdateRequest(
     val username: String,
     val avatarUrl: String? = null
 )
+
+/**
+ * Exception thrown when attempting to use a username that is already taken.
+ *
+ * This exception is used to provide clear feedback to users when they try to
+ * set a username that already exists in the system.
+ */
+class UsernameAlreadyTakenException : Exception("Username is already taken. Please choose a different one.")

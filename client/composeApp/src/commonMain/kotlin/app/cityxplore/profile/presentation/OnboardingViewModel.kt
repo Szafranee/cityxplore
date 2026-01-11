@@ -1,11 +1,10 @@
 package app.cityxplore.profile.presentation
 
 import app.cityxplore.platform.CityXploreBaseViewModel
+import app.cityxplore.profile.data.UsernameAlreadyTakenException
 import app.cityxplore.profile.domain.ProfileRepository
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
-import io.ktor.client.plugins.ClientRequestException
-import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,6 +28,16 @@ sealed interface OnboardingState {
 }
 
 /**
+ * Sealed interface representing the state of avatar upload.
+ */
+sealed interface AvatarUploadState {
+    data object Idle : AvatarUploadState
+    data object Loading : AvatarUploadState
+    data object Success : AvatarUploadState
+    data class Error(val message: String) : AvatarUploadState
+}
+
+/**
  * ViewModel managing user onboarding and profile creation.
  *
  * This ViewModel handles the initial profile setup for new users, including
@@ -49,6 +58,13 @@ class OnboardingViewModel(
      */
     val state = _state.asStateFlow()
 
+    private val _uploadState = MutableStateFlow<AvatarUploadState>(AvatarUploadState.Idle)
+
+    /**
+     * StateFlow emitting the current avatar upload state.
+     */
+    val uploadState = _uploadState.asStateFlow()
+
     private val _initialUsername = MutableStateFlow<String?>(null)
 
     /**
@@ -57,13 +73,8 @@ class OnboardingViewModel(
      */
     val initialUsername: StateFlow<String?> = _initialUsername.asStateFlow()
 
-    private val _uploadedAvatarUrl = MutableStateFlow<String?>(null)
-
-    /**
-     * StateFlow emitting the URL of the uploaded avatar image.
-     * This is updated after a successful avatar upload.
-     */
-    val uploadedAvatarUrl = _uploadedAvatarUrl.asStateFlow()
+    /** Pending avatar bytes to be uploaded after profile creation. */
+    private var pendingAvatarBytes: ByteArray? = null
 
     /**
      * Fetches user metadata from the Supabase authentication session.
@@ -82,45 +93,79 @@ class OnboardingViewModel(
     }
 
     /**
-     * Creates a user profile with the specified username and optional avatar URL.
+     * Stores the avatar bytes to be uploaded during profile creation.
+     */
+    fun setAvatar(bytes: ByteArray?) {
+        pendingAvatarBytes = bytes
+        // Pending bytes will be uploaded after profile creation
+    }
+
+    /**
+     * Creates a user profile with the specified username.
+     * If a custom avatar was selected, it handles the creation -> upload -> update flow.
      *
      * @param username The desired username for the profile.
-     * @param avatarUrl The optional URL to the user's avatar image.
+     * @param selectedAvatarUrl URL of a predefined avatar (if no custom one selected) or null.
      */
-    fun createProfile(username: String, avatarUrl: String?) {
+    fun createProfile(username: String, selectedAvatarUrl: String?) {
         scope.launch {
             _state.value = OnboardingState.Loading
-            repository.createProfile(username, avatarUrl)
-                .onSuccess {
+
+            // 1. Create Profile first
+            // If we have pending bytes, we use null for avatar initially.
+            // If we don't have pending bytes, we use the selected predefined URL (or null).
+            val initialAvatarUrl = if (pendingAvatarBytes != null) null else selectedAvatarUrl
+
+            val createResult = repository.createProfile(username, initialAvatarUrl)
+
+            createResult.onFailure {
+                handleError(it)
+                return@launch
+            }
+
+            // 2. If we have a custom avatar to upload, do it now (User exists)
+            if (pendingAvatarBytes != null) {
+                _uploadState.value = AvatarUploadState.Loading
+                val uploadResult = repository.uploadAvatar(pendingAvatarBytes!!)
+
+                uploadResult.onFailure {
+                    // Profile created but avatar failed.
+                    _uploadState.value = AvatarUploadState.Error("Profile created, but avatar upload failed.")
+                    // Even if avatar fails, the profile is created, so we can consider onboarding success 
+                    // or ask user to retry upload (but we don't have retry logic for just upload here).
+                    // For now, proceed.
                     _state.value = OnboardingState.Success
+                    return@launch
                 }
-                .onFailure {
-                    val message = if (it is ClientRequestException && it.response.status == HttpStatusCode.Conflict) {
-                        "Username or email already taken."
-                    } else {
-                        it.message ?: "Failed to create profile"
-                    }
-                    _state.value = OnboardingState.Error(message)
+
+                val uploadedUrl = uploadResult.getOrThrow()
+
+                // 3. Update Profile with new Avatar URL
+                val updateResult = repository.createProfile(username, uploadedUrl)
+                if (updateResult.isFailure) {
+                    _uploadState.value = AvatarUploadState.Error("Avatar uploaded but profile update failed.")
+                } else {
+                    _uploadState.value = AvatarUploadState.Success
                 }
+            }
+
+            _state.value = OnboardingState.Success
         }
     }
 
     /**
-     * Uploads an avatar image for the user.
+     * Handles errors that occur during profile creation.
      *
-     * @param bytes The byte array of the avatar image to be uploaded.
+     * Provides user-friendly messages for common error cases such as
+     * username conflicts.
+     *
+     * @param error The exception that occurred during profile creation.
      */
-    fun uploadAvatar(bytes: ByteArray) {
-        scope.launch {
-            _state.value = OnboardingState.Loading
-            repository.uploadAvatar(bytes)
-                .onSuccess { url ->
-                    _uploadedAvatarUrl.value = url
-                    _state.value = OnboardingState.Idle
-                }
-                .onFailure {
-                    _state.value = OnboardingState.Error("Failed to upload avatar: ${it.message}")
-                }
+    private fun handleError(error: Throwable) {
+        val message = when (error) {
+            is UsernameAlreadyTakenException -> error.message ?: "Username is already taken"
+            else -> error.message ?: "Failed to create profile"
         }
+        _state.value = OnboardingState.Error(message)
     }
 }

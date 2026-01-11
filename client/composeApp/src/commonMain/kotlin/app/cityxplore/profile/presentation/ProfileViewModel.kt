@@ -3,6 +3,7 @@ package app.cityxplore.profile.presentation
 import app.cityxplore.achievements.domain.Achievement
 import app.cityxplore.achievements.domain.AchievementRepository
 import app.cityxplore.platform.CityXploreBaseViewModel
+import app.cityxplore.profile.data.UsernameAlreadyTakenException
 import app.cityxplore.profile.domain.ProfileRepository
 import app.cityxplore.profile.domain.UserProfile
 import kotlinx.coroutines.channels.Channel
@@ -89,7 +90,14 @@ class ProfileViewModel(
     }
 
     /**
-     * Updates the user's profile with new data.
+     * Updates the user's profile with new username and/or avatar.
+     *
+     * Validates that the username is not blank before attempting the update.
+     * Handles [UsernameAlreadyTakenException] specially to provide clear feedback
+     * to the user when they try to use a taken username.
+     *
+     * @param username The new username for the profile.
+     * @param avatarUrl The new avatar URL, or null to keep the existing avatar.
      */
     fun updateProfile(username: String, avatarUrl: String?) {
         val currentState = _state.value
@@ -121,11 +129,25 @@ class ProfileViewModel(
                         }
                 }
                 .onFailure { error ->
+                    val errorMessage = parseProfileError(error)
                     _state.value = currentState.copy(
                         isUpdating = false,
-                        updateError = error.message ?: "Failed to update profile"
+                        updateError = errorMessage
                     )
                 }
+        }
+    }
+
+    /**
+     * Parses profile-related errors into user-friendly messages.
+     *
+     * @param error The exception thrown during profile operations.
+     * @return A user-friendly error message suitable for display.
+     */
+    private fun parseProfileError(error: Throwable): String {
+        return when (error) {
+            is UsernameAlreadyTakenException -> error.message ?: "Username is already taken"
+            else -> error.message ?: "Failed to update profile"
         }
     }
 

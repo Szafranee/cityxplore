@@ -1,5 +1,6 @@
 package app.cityxplore.auth.presentation
 
+import app.cityxplore.auth.data.EmailAlreadyRegisteredException
 import app.cityxplore.auth.domain.AuthConstants
 import app.cityxplore.auth.domain.AuthRepository
 import app.cityxplore.auth.domain.SocialProvider
@@ -144,8 +145,12 @@ class AuthViewModel(
 
     /**
      * Registers a new user with email and password.
+     *
      * If the user is immediately authenticated (no email verification required),
      * proceeds to check profile status. Otherwise, enters email verification state.
+     *
+     * **Note**: Supabase does not return an error for duplicate emails for security reasons.
+     * The repository layer handles this by checking the returned `identities` list.
      *
      * @param email The user's email address.
      * @param pass The user's password (minimum [AuthConstants.MIN_PASSWORD_LENGTH] characters).
@@ -153,6 +158,7 @@ class AuthViewModel(
     fun signUp(email: String, pass: String) {
         scope.launch {
             _state.value = AuthState.Loading
+
             repository.signUp(email, pass)
                 .onSuccess {
                     if (repository.isAuthenticated()) {
@@ -221,10 +227,18 @@ class AuthViewModel(
     /**
      * Parses authentication errors into user-friendly messages.
      *
+     * Handles common authentication errors including network issues, invalid credentials,
+     * duplicate accounts, and configuration problems.
+     *
      * @param error The exception thrown during authentication.
-     * @return A user-friendly error message.
+     * @return A user-friendly error message suitable for display to the user.
      */
     private fun parseAuthError(error: Throwable): String {
+        // Handle specific exception types first
+        if (error is EmailAlreadyRegisteredException) {
+            return error.message ?: "An account with this email already exists."
+        }
+
         val msg = error.message ?: return "An unknown error occurred"
         return when {
             msg.contains("invalid_grant", ignoreCase = true) || msg.contains(
@@ -232,7 +246,9 @@ class AuthViewModel(
                 ignoreCase = true
             ) -> "Invalid email or password."
 
-            msg.contains("user_already_exists", ignoreCase = true) -> "User already exists."
+            msg.contains("user_already_exists", ignoreCase = true) ||
+                    msg.contains("already exists", ignoreCase = true) -> "An account with this email already exists."
+
             msg.contains("placeholder.supabase.co", ignoreCase = true) -> "Invalid Supabase URL configuration."
             msg.contains("hostname", ignoreCase = true) || msg.contains(
                 "ConnectException",

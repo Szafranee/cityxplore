@@ -146,9 +146,9 @@ class MapViewModel(
     }
 
     private fun toggleFavorite(poiId: String) {
-        val currentState = _state.value
-        if (currentState is MapUiState.Ready) {
-            scope.launch(cityXploreDispatchers.io) {
+        scope.launch(cityXploreDispatchers.io) {
+            val currentState = _state.value
+            if (currentState is MapUiState.Ready) {
                 // Optimistic update
                 val updatedPois = currentState.pois.map {
                     if (it.id == poiId) it.copy(isFavorite = !it.isFavorite) else it
@@ -163,8 +163,21 @@ class MapViewModel(
                 )
 
                 toggleFavoriteUseCase(poiId).onFailure {
-                    // Revert
-                    _state.value = currentState
+                    // Revert only specific changes on the fresh state
+                    val freshState = _state.value
+                    if (freshState is MapUiState.Ready) {
+                        val revertedPois = freshState.pois.map {
+                            if (it.id == poiId) it.copy(isFavorite = !it.isFavorite) else it
+                        }
+                        val revertedSelected = if (freshState.selectedPoi?.id == poiId) {
+                            freshState.selectedPoi.copy(isFavorite = !freshState.selectedPoi.isFavorite)
+                        } else freshState.selectedPoi
+
+                        _state.value = freshState.copy(
+                            pois = revertedPois,
+                            selectedPoi = revertedSelected
+                        )
+                    }
                 }
             }
         }

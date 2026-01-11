@@ -25,13 +25,13 @@ import org.koin.dsl.module
  *   LogLevel.INFO for production to avoid exposing sensitive data
  * - **Bearer Token Authentication**: Automatically injects the current Supabase JWT token
  *   into the Authorization header for every request to the backend API
- * - **Error Handling**: Allows callers to inspect response status and handle 4xx/5xx errors gracefully
+ * - **Error Handling**: Throws exceptions for 4xx (ClientRequestException) and 5xx (ServerResponseException) responses
  *
  * The token injection happens dynamically on each request, ensuring support for
  * account switching and automatic token refresh.
  *
- * **Note**: `expectSuccess` is set to `false` to allow callers to handle non-2xx responses.
- * Repository implementations should check `response.status` and map errors to domain-specific
+ * **Note**: `expectSuccess` is set to `true` so that non-2xx responses throw exceptions.
+ * Repository implementations should catch these exceptions and map them to domain-specific
  * error types with user-friendly messages.
  *
  * @see app.cityxplore.di.authModule
@@ -40,7 +40,7 @@ fun networkModule(): Module = module {
     single {
         val supabase = get<SupabaseClient>()
         HttpClient(get<HttpClientEngine>()) {
-            expectSuccess = false
+            expectSuccess = true
             install(ContentNegotiation) {
                 json(Json {
                     ignoreUnknownKeys = true

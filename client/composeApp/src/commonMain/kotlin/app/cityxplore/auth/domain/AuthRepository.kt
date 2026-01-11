@@ -79,6 +79,7 @@ interface AuthRepository {
      */
     suspend fun resolveEmail(login: String): String?
 
+
     /**
      * Checks if the currently authenticated user has a profile in the backend.
      *

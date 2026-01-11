@@ -53,19 +53,15 @@ fun OnboardingScreen(
     viewModel: OnboardingViewModel = koinInject()
 ) {
     val state by viewModel.state.collectAsState()
+    val uploadState by viewModel.uploadState.collectAsState()
     var username by remember { mutableStateOf("") }
-    var selectedAvatar by remember { mutableStateOf<String?>(null) }
-    val uploadedAvatarUrl by viewModel.uploadedAvatarUrl.collectAsState()
-
-    LaunchedEffect(uploadedAvatarUrl) {
-        if (uploadedAvatarUrl != null) {
-            selectedAvatar = uploadedAvatarUrl
-        }
-    }
+    // Holds either a String (URL) or ByteArray (Local Image)
+    var selectedAvatar by remember { mutableStateOf<Any?>(null) }
 
     val avatarPicker = rememberAvatarPicker { bytes ->
         if (bytes != null) {
-            viewModel.uploadAvatar(bytes)
+            selectedAvatar = bytes
+            viewModel.setAvatar(bytes)
         }
     }
 
@@ -130,9 +126,8 @@ fun OnboardingScreen(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            // Show loading if uploading custom avatar (OnboardingState.Loading covers this for createProfile,
-            // but for uploadAvatar we also set state to Loading.
-            if (state is OnboardingState.Loading && selectedAvatar == null) {
+            // Show loading if uploading a custom avatar
+            if (uploadState is AvatarUploadState.Loading) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         }
@@ -143,7 +138,8 @@ fun OnboardingScreen(
             value = username,
             onValueChange = { username = it },
             label = { Text("Username") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            isError = state is OnboardingState.Error
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -156,7 +152,7 @@ fun OnboardingScreen(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.fillMaxWidth(),
             // Content padding ensures the first/last items aren't stuck to the edge
-            // and allows next item to 'peek'
+            // and allows the next item to 'peek'
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp)
         ) {
             item {
@@ -206,7 +202,10 @@ fun OnboardingScreen(
                             .size(70.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surface)
-                            .clickable { selectedAvatar = avatar }
+                            .clickable {
+                                selectedAvatar = avatar
+                                viewModel.setAvatar(null)
+                            }
                             .then(
                                 if (isSelected) Modifier.border(
                                     3.dp,
@@ -250,7 +249,10 @@ fun OnboardingScreen(
             CircularProgressIndicator()
         } else {
             Button(
-                onClick = { viewModel.createProfile(username, selectedAvatar) },
+                onClick = {
+                    val avatarUrl = selectedAvatar as? String
+                    viewModel.createProfile(username, avatarUrl)
+                },
                 enabled = username.isNotBlank() && selectedAvatar != null,
                 modifier = Modifier.fillMaxWidth()
             ) {
