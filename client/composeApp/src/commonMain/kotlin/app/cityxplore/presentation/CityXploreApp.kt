@@ -171,9 +171,7 @@ fun MainAppContent(onSignOut: () -> Unit) {
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-            // Keep MapScreen always in composition to avoid reloading Mapbox/Fog of War
-            currentDestination.value == CityXploreDestination.Map
-
+            // MapScreen is always kept in composition to avoid reloading Mapbox/Fog of War
             CityXploreMapScreen(
                 state = mapState,
                 onAction = mapViewModel::onAction,

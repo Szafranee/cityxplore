@@ -56,17 +56,20 @@ class SocialRepositoryImpl(
         val currentUserId = authRepository.getCurrentUserId() ?: throw Exception("Not authenticated")
         val dtos = client.get("https://api.cityxplore.app/api/friends/blocked").body<List<FriendshipDto>>()
 
+        // Fetch global ranking once to reuse for all profile lookups
+        val rankingMap = fetchGlobalRankingMap()
+
         // Enrich blocked users with profile information
         val enriched = dtos.map { dto ->
             val domain = dto.toDomain()
             try {
                 val otherUserId = if (dto.requesterId == currentUserId) dto.addresseeId else dto.requesterId
-                val profileResult = getFriendProfile(otherUserId)
-                profileResult.getOrNull()?.let { profile ->
+                val profile = rankingMap[otherUserId]
+                profile?.let {
                     domain.copy(
                         otherUserId = otherUserId,
-                        otherUserName = profile.username,
-                        otherUserAvatar = profile.avatarUrl
+                        otherUserName = it.username,
+                        otherUserAvatar = it.avatarUrl
                     )
                 } ?: domain.copy(otherUserId = otherUserId)
             } catch (_: Exception) {
@@ -86,21 +89,21 @@ class SocialRepositoryImpl(
     override suspend fun refreshFriends(): Result<Unit> = runCatching {
         val currentUserId = authRepository.getCurrentUserId() ?: throw Exception("Not authenticated")
 
-        // We fetch the raw friendship list (ids only) to manage the friend list state.
+        // Fetch the raw friendship list and global ranking once
         val dtos = client.get("https://api.cityxplore.app/api/friends").body<List<FriendshipDto>>()
+        val rankingMap = fetchGlobalRankingMap()
 
-        // Enrich
+        // Enrich using the cached ranking map
         val enriched = dtos.map { dto ->
             val domain = dto.toDomain()
             try {
-                // Identify the other user
                 val otherUserId = if (dto.requesterId == currentUserId) dto.addresseeId else dto.requesterId
-                val profileResult = getFriendProfile(otherUserId)
-                profileResult.getOrNull()?.let { profile ->
+                val profile = rankingMap[otherUserId]
+                profile?.let {
                     domain.copy(
                         otherUserId = otherUserId,
-                        otherUserName = profile.username,
-                        otherUserAvatar = profile.avatarUrl
+                        otherUserName = it.username,
+                        otherUserAvatar = it.avatarUrl
                     )
                 } ?: domain.copy(otherUserId = otherUserId)
             } catch (_: Exception) {
@@ -115,19 +118,18 @@ class SocialRepositoryImpl(
     override suspend fun refreshPendingRequests(): Result<Unit> = runCatching {
         val dtos = client.get("https://api.cityxplore.app/api/friends/pending").body<List<FriendshipDto>>()
 
-        // The pending requests endpoint returns minimal DTOs (IDs only).
-        // To display a meaningful UI (who is inviting me?), we must enrich this data
-        // by fetching the inviter's profile details separately.
+        // Fetch global ranking once for all profile lookups
+        val rankingMap = fetchGlobalRankingMap()
+
+        // Enrich pending requests with requester profile information
         val enriched = dtos.map { dto ->
             val domain = dto.toDomain()
             try {
-                // If I see a pending request, the 'requester' is the one who sent it.
-                val profileResult = getFriendProfile(dto.requesterId)
-                profileResult.getOrNull()?.let { profile ->
-                    domain.copy(otherUserName = profile.username, otherUserAvatar = profile.avatarUrl)
+                val profile = rankingMap[dto.requesterId]
+                profile?.let {
+                    domain.copy(otherUserName = it.username, otherUserAvatar = it.avatarUrl)
                 } ?: domain
             } catch (_: Exception) {
-                // Return basic info if profile fetch fails to avoid blocking the whole list
                 domain
             }
         }
@@ -207,6 +209,15 @@ class SocialRepositoryImpl(
         response["blocked"] ?: false
     }
 
+    /**
+     * Fetches the global ranking once and returns it as a map for efficient lookups.
+     * This prevents N separate API calls when enriching multiple friendships.
+     */
+    private suspend fun fetchGlobalRankingMap(): Map<String, RankingEntry> {
+        val response = client.get("https://api.cityxplore.app/api/rankings/global").body<List<RankingEntryDto>>()
+        return response.associate { it.userId to it.toDomain() }
+    }
+
     // Mappers
     private fun FriendshipDto.toDomain(): Friendship {
         // Robust date parsing is needed because backend timestamp formats
@@ -235,7 +246,9 @@ class SocialRepositoryImpl(
             id = id,
             requesterId = requesterId,
             addresseeId = addresseeId,
-            status = FriendshipStatus.valueOf(status.uppercase()),
+            status = enumValues<FriendshipStatus>().firstOrNull {
+                it.name.equals(status, ignoreCase = true)
+            } ?: FriendshipStatus.UNKNOWN,
             blockedBy = blockedBy,
             createdAt = created,
             updatedAt = updated,

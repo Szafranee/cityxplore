@@ -31,7 +31,7 @@ class AchievementController(
     /**
      * Retrieve all available achievements.
      *
-     * @param
+     * @param jwt the JWT token from the Authorization header used for user authentication/authorization
      * @return A list of AchievementResponse representing every achievement defined in the system.
      */
     @GetMapping

@@ -66,12 +66,7 @@ class FriendshipService(
                 }
 
                 FriendshipStatus.BLOCKED -> {
-                    // Determine who blocked whom to provide a better error message
-                    val youBlockedThem = existingFriendship.requesterId == requesterId ||
-                            existingFriendship.addresseeId == requesterId
-                    val message = if (youBlockedThem && existingFriendship.requesterId == requesterId) {
-                        "You have blocked this user. Please unblock them first."
-                    } else if (youBlockedThem && existingFriendship.addresseeId == requesterId) {
+                    val message = if (existingFriendship.blockedBy == requesterId) {
                         "You have blocked this user. Please unblock them first."
                     } else {
                         "This user has blocked you."

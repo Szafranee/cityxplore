@@ -34,10 +34,10 @@ class RankingRepository(
                     u.avatar_url,
                     COALESCE(u.total_pois_discovered, 0) AS total_pois_discovered,
                     COALESCE(u.total_distance, 0) AS total_distance,
-                    u.total_achievement_points AS total_achievement_points,
+                    COALESCE(u.total_achievement_points, 0) AS total_achievement_points,
                     (COALESCE(u.total_pois_discovered, 0) * ?) + 
                     (COALESCE(u.total_distance, 0) * ?) + 
-                    (u.total_achievement_points * ?) AS score,
+                    (COALESCE(u.total_achievement_points, 0) * ?) AS score,
                     ROW_NUMBER() OVER (ORDER BY 
                         (COALESCE(u.total_pois_discovered, 0) * ?) + 
                         (COALESCE(u.total_distance, 0) * ?) + 
@@ -104,10 +104,10 @@ class RankingRepository(
                     u.avatar_url,
                     COALESCE(u.total_pois_discovered, 0) AS total_pois_discovered,
                     COALESCE(u.total_distance, 0) AS total_distance,
-                    u.total_achievement_points AS total_achievement_points,
+                    COALESCE(u.total_achievement_points, 0) AS total_achievement_points,
                     (COALESCE(u.total_pois_discovered, 0) * ?) + 
                     (COALESCE(u.total_distance, 0) * ?) + 
-                    (u.total_achievement_points * ?) AS score,
+                    (COALESCE(u.total_achievement_points, 0) * ?) AS score,
                     ROW_NUMBER() OVER (ORDER BY 
                         (COALESCE(u.total_pois_discovered, 0) * ?) + 
                         (COALESCE(u.total_distance, 0) * ?) + 
@@ -165,7 +165,7 @@ class RankingRepository(
                     u.id AS user_id,
                     (COALESCE(u.total_pois_discovered, 0) * ?) + 
                     (COALESCE(u.total_distance, 0) * ?) + 
-                    (u.total_achievement_points * ?) AS score
+                    (COALESCE(u.total_achievement_points, 0) * ?) AS score
                 FROM users u
                 WHERE u.is_active = true
             ),
@@ -176,10 +176,10 @@ class RankingRepository(
                     u.avatar_url,
                     COALESCE(u.total_pois_discovered, 0) AS total_pois_discovered,
                     COALESCE(u.total_distance, 0) AS total_distance,
-                    u.total_achievement_points AS total_achievement_points,
+                    COALESCE(u.total_achievement_points, 0) AS total_achievement_points,
                     (COALESCE(u.total_pois_discovered, 0) * ?) + 
                     (COALESCE(u.total_distance, 0) * ?) + 
-                    (u.total_achievement_points * ?) AS score
+                    (COALESCE(u.total_achievement_points, 0) * ?) AS score
                 FROM users u
                 WHERE u.id = ?::uuid AND u.is_active = true
             )

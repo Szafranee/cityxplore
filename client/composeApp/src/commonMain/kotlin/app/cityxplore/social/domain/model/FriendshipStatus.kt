@@ -4,5 +4,6 @@ enum class FriendshipStatus {
     PENDING,
     ACCEPTED,
     DECLINED,
-    BLOCKED
+    BLOCKED,
+    UNKNOWN
 }
