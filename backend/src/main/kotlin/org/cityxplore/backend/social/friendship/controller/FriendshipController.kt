@@ -154,6 +154,41 @@ class FriendshipController(
     }
 
     /**
+     * Retrieves a list of users blocked by the authenticated user.
+     *
+     * @param jwt The JSON Web Token (JWT) of the authenticated user.
+     * @return A list of `FriendshipResponse` objects representing blocked users.
+     */
+    @GetMapping("/blocked")
+    fun getBlockedUsers(
+        @AuthenticationPrincipal jwt: Jwt
+    ): List<FriendshipResponse> {
+        val userId = JwtUtils.extractUserId(jwt)
+
+        return friendshipService.getBlockedUsers(userId)
+    }
+
+    /**
+     * Checks if the authenticated user is blocked by another user.
+     *
+     * This is used to determine if the authenticated user can view another user's profile.
+     *
+     * @param jwt The JSON Web Token (JWT) of the authenticated user.
+     * @param otherUserId The UUID of the other user to check.
+     * @return A map with a "blocked" key indicating if the authenticated user is blocked.
+     */
+    @GetMapping("/blocked/{otherUserId}")
+    fun checkIfBlocked(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable otherUserId: UUID
+    ): Map<String, Boolean> {
+        val userId = JwtUtils.extractUserId(jwt)
+        val isBlocked = friendshipService.isBlockedBy(userId, otherUserId)
+
+        return mapOf("blocked" to isBlocked)
+    }
+
+    /**
      * Deletes a friendship relation for the authenticated user.
      *
      * This endpoint permanently removes the friendship from the database.

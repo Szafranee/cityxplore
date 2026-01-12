@@ -65,10 +65,19 @@ class FriendshipService(
                     return FriendshipMapper.toResponse(updated)
                 }
 
-                FriendshipStatus.BLOCKED -> throw ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Cannot send invitation to this user"
-                )
+                FriendshipStatus.BLOCKED -> {
+                    // Determine who blocked whom to provide a better error message
+                    val youBlockedThem = existingFriendship.requesterId == requesterId ||
+                            existingFriendship.addresseeId == requesterId
+                    val message = if (youBlockedThem && existingFriendship.requesterId == requesterId) {
+                        "You have blocked this user. Please unblock them first."
+                    } else if (youBlockedThem && existingFriendship.addresseeId == requesterId) {
+                        "You have blocked this user. Please unblock them first."
+                    } else {
+                        "This user has blocked you."
+                    }
+                    throw ResponseStatusException(HttpStatus.FORBIDDEN, message)
+                }
             }
         }
 
@@ -186,6 +195,18 @@ class FriendshipService(
             .map { FriendshipMapper.toResponse(it) }
 
     /**
+     * Retrieves a list of users blocked by the specified user.
+     *
+     * @param userId The unique identifier of the user who blocked others.
+     * @return A list of `FriendshipResponse` objects representing blocked friendships.
+     */
+    @Transactional(readOnly = true)
+    fun getBlockedUsers(userId: UUID): List<FriendshipResponse> =
+        friendshipRepository
+            .findAllByRequesterIdOrAddresseeIdAndStatus(userId, userId, FriendshipStatus.BLOCKED)
+            .map { FriendshipMapper.toResponse(it) }
+
+    /**
      * Deletes a friendship relation for the current user.
      *
      * The user must be either the requester or addressee of the friendship.
@@ -271,5 +292,21 @@ class FriendshipService(
         val saved = friendshipRepository.save(friendship)
 
         return FriendshipMapper.toResponse(saved)
+    }
+
+    /**
+     * Checks if the viewer is blocked by the profile owner.
+     *
+     * This is used to determine if a user can view another user's profile.
+     * Returns true if there is a BLOCKED friendship where the profileOwnerId blocked the viewerId.
+     *
+     * @param viewerId The ID of the user trying to view the profile.
+     * @param profileOwnerId The ID of the profile owner.
+     * @return true if the viewer is blocked by the profile owner, false otherwise.
+     */
+    @Transactional(readOnly = true)
+    fun isBlockedBy(viewerId: UUID, profileOwnerId: UUID): Boolean {
+        val friendship = friendshipRepository.findInEitherDirection(viewerId, profileOwnerId)
+        return friendship?.status == FriendshipStatus.BLOCKED
     }
 }

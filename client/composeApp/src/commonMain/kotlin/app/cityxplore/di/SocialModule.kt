@@ -1,6 +1,7 @@
 package app.cityxplore.di
 
 import app.cityxplore.social.data.repository.SocialRepositoryImpl
+import app.cityxplore.social.domain.GetBlockedUsersUseCase
 import app.cityxplore.social.domain.GetFriendsRankingUseCase
 import app.cityxplore.social.domain.GetFriendsUseCase
 import app.cityxplore.social.domain.GetGlobalRankingUseCase
@@ -26,6 +27,7 @@ val socialModule = module {
     factory { GetFriendsRankingUseCase(repository = get()) }
     factory { GetFriendsUseCase(repository = get()) }
     factory { GetPendingRequestsUseCase(repository = get()) }
+    factory { GetBlockedUsersUseCase(repository = get()) }
     factory { SendFriendInviteUseCase(repository = get()) }
     factory { RespondToFriendInviteUseCase(repository = get()) }
     factory { ManageFriendshipUseCase(repository = get()) }
@@ -37,6 +39,7 @@ val socialModule = module {
             getFriendsRankingUseCase = get(),
             getFriendsUseCase = get(),
             getPendingRequestsUseCase = get(),
+            getBlockedUsersUseCase = get(),
             sendFriendInviteUseCase = get(),
             respondToFriendInviteUseCase = get(),
             manageFriendshipUseCase = get()

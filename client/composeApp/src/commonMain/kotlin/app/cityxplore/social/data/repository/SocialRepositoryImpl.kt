@@ -53,8 +53,27 @@ class SocialRepositoryImpl(
     override fun getBlockedUsers(): Flow<List<Friendship>> = _blockedUsers.asStateFlow()
 
     override suspend fun refreshBlockedUsers(): Result<Unit> = runCatching {
-        // Placeholder for future backend support
-        _blockedUsers.update { emptyList() }
+        val currentUserId = authRepository.getCurrentUserId() ?: throw Exception("Not authenticated")
+        val dtos = client.get("https://api.cityxplore.app/api/friends/blocked").body<List<FriendshipDto>>()
+
+        // Enrich blocked users with profile information
+        val enriched = dtos.map { dto ->
+            val domain = dto.toDomain()
+            try {
+                val otherUserId = if (dto.requesterId == currentUserId) dto.addresseeId else dto.requesterId
+                val profileResult = getFriendProfile(otherUserId)
+                profileResult.getOrNull()?.let { profile ->
+                    domain.copy(
+                        otherUserId = otherUserId,
+                        otherUserName = profile.username,
+                        otherUserAvatar = profile.avatarUrl
+                    )
+                } ?: domain.copy(otherUserId = otherUserId)
+            } catch (_: Exception) {
+                domain
+            }
+        }
+        _blockedUsers.update { enriched }
     }
 
     override suspend fun refreshFriendsRanking(): Result<Unit> = runCatching {
@@ -180,6 +199,12 @@ class SocialRepositoryImpl(
             )
         }
         dto.toDomain()
+    }
+
+    override suspend fun checkIfBlocked(otherUserId: String): Result<Boolean> = runCatching {
+        val response = client.get("https://api.cityxplore.app/api/friends/blocked/$otherUserId")
+            .body<Map<String, Boolean>>()
+        response["blocked"] ?: false
     }
 
     // Mappers

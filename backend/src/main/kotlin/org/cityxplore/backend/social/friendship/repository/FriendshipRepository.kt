@@ -48,6 +48,21 @@ interface FriendshipRepository : JpaRepository<Friendship, UUID> {
     fun findAllPendingByAddresseeId(addresseeId: UUID): List<Friendship>
 
     /**
+     * Finds all friendships for a specific user with a given status.
+     *
+     * @param requesterId The UUID of the requester.
+     * @param addresseeId The UUID of the addressee.
+     * @param status The friendship status (e.g. BLOCKED).
+     * @return A list of Friendship entities matching the criteria.
+     */
+    @Query("SELECT f FROM Friendship f WHERE (f.requesterId = :requesterId OR f.addresseeId = :addresseeId) AND f.status = :status")
+    fun findAllByRequesterIdOrAddresseeIdAndStatus(
+        requesterId: UUID,
+        addresseeId: UUID,
+        status: org.cityxplore.backend.social.friendship.entity.FriendshipStatus
+    ): List<Friendship>
+
+    /**
      * Checks if two users have an accepted friendship.
      *
      * @param userA the UUID of the first user

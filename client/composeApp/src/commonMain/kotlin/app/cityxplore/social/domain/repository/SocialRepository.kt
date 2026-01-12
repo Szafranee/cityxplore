@@ -31,4 +31,7 @@ interface SocialRepository {
 
     // Helper to resolve user details for a friendship (if not embedded)
     suspend fun getFriendProfile(userId: String): Result<RankingEntry> // Reusing RankingEntry or specific UserProfile model
+
+    // Check if the user is blocked
+    suspend fun checkIfBlocked(otherUserId: String): Result<Boolean>
 }

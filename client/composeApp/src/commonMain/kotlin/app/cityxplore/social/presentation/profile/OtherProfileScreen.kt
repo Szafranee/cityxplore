@@ -73,6 +73,7 @@ sealed interface OtherProfileState {
         val achievements: List<Achievement> = emptyList()
     ) : OtherProfileState
 
+    data object Blocked : OtherProfileState  // User is blocked by profile owner
     data class Error(val message: String) : OtherProfileState
 }
 
@@ -103,15 +104,38 @@ class OtherProfileViewModel(
     fun loadProfile(userId: String) {
         viewModelScope.launch {
             _state.value = OtherProfileState.Loading
-            socialRepository.getFriendProfile(userId)
-                .onSuccess { profile ->
-                    // Fetch achievements for this user (now supported by backend)
-                    val achievements = achievementRepository.getUserAchievements(userId)
-                        .getOrElse { emptyList() }
-                    _state.value = OtherProfileState.Success(profile, achievements)
+
+            // First check if we're blocked by this user
+            socialRepository.checkIfBlocked(userId)
+                .onSuccess { isBlocked ->
+                    if (isBlocked) {
+                        _state.value = OtherProfileState.Blocked
+                        return@launch
+                    }
+
+                    // Not blocked, proceed to load profile
+                    socialRepository.getFriendProfile(userId)
+                        .onSuccess { profile ->
+                            // Fetch achievements for this user (now supported by backend)
+                            val achievements = achievementRepository.getUserAchievements(userId)
+                                .getOrElse { emptyList() }
+                            _state.value = OtherProfileState.Success(profile, achievements)
+                        }
+                        .onFailure { error ->
+                            _state.value = OtherProfileState.Error(error.message ?: "Failed to load profile")
+                        }
                 }
                 .onFailure { error ->
-                    _state.value = OtherProfileState.Error(error.message ?: "Failed to load profile")
+                    // If we can't check block status, still try to load profile
+                    socialRepository.getFriendProfile(userId)
+                        .onSuccess { profile ->
+                            val achievements = achievementRepository.getUserAchievements(userId)
+                                .getOrElse { emptyList() }
+                            _state.value = OtherProfileState.Success(profile, achievements)
+                        }
+                        .onFailure {
+                            _state.value = OtherProfileState.Error(error.message ?: "Failed to load profile")
+                        }
                 }
         }
     }
@@ -164,6 +188,7 @@ fun OtherProfileScreen(
         ) {
             when (val currentState = state) {
                 is OtherProfileState.Loading -> CircularProgressIndicator()
+                is OtherProfileState.Blocked -> BlockedContent(onBack)
                 is OtherProfileState.Error -> ErrorContent(
                     message = currentState.message,
                     onRetry = { viewModel.loadProfile(userId) }
@@ -176,6 +201,45 @@ fun OtherProfileScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * Content shown when user is blocked by the profile owner.
+ */
+@Composable
+private fun BlockedContent(onBack: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Lock,
+            contentDescription = null,
+            modifier = Modifier.size(64.dp),
+            tint = MaterialTheme.colorScheme.error
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "Profile Blocked",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "This user has blocked you. You cannot view their profile.",
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        TextButton(onClick = onBack) {
+            Text("Go Back")
         }
     }
 }

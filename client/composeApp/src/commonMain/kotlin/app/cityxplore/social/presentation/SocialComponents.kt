@@ -166,6 +166,7 @@ fun RankingItem(entry: RankingEntry, onUserSelected: (String) -> Unit) {
 fun FriendsListContent(
     friends: List<Friendship>,
     pendingRequests: List<Friendship>,
+    blockedUsers: List<Friendship>,
     onAccept: (String) -> Unit,
     onDecline: (String) -> Unit,
     onDelete: (String) -> Unit,
@@ -213,11 +214,96 @@ fun FriendsListContent(
                 )
             }
         }
+
+        if (blockedUsers.isNotEmpty()) {
+            item {
+                HorizontalDivider()
+            }
+            item {
+                Text(
+                    "Blocked Users",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+            items(blockedUsers) { blocked ->
+                BlockedUserItem(
+                    friendship = blocked,
+                    onUnblock = onUnblock
+                )
+            }
+        }
     }
 }
 
 private fun Friendship.otherUserId(): String =
     otherUserId ?: requesterId
+
+/**
+ * Component for displaying a blocked user with an unblock option.
+ */
+@Composable
+fun BlockedUserItem(
+    friendship: Friendship,
+    onUnblock: (String) -> Unit
+) {
+    var showConfirmDialog by remember { mutableStateOf(false) }
+
+    Card {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                AsyncImage(
+                    model = friendship.otherUserAvatar,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color.Gray),
+                    contentScale = ContentScale.Crop,
+                    error = rememberVectorPainter(Icons.Default.Person)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(friendship.otherUserName ?: "User", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Blocked",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
+            TextButton(onClick = { showConfirmDialog = true }) {
+                Text("Unblock")
+            }
+        }
+    }
+
+    if (showConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showConfirmDialog = false },
+            title = { Text("Unblock User?") },
+            text = { Text("Do you want to unblock ${friendship.otherUserName ?: "this user"}?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showConfirmDialog = false
+                    onUnblock(friendship.id)
+                }) {
+                    Text("Unblock")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
 
 @Composable
 fun FriendRequestItem(

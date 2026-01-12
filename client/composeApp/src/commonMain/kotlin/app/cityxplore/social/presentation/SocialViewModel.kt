@@ -2,6 +2,7 @@ package app.cityxplore.social.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.cityxplore.social.domain.GetBlockedUsersUseCase
 import app.cityxplore.social.domain.GetFriendsRankingUseCase
 import app.cityxplore.social.domain.GetFriendsUseCase
 import app.cityxplore.social.domain.GetGlobalRankingUseCase
@@ -49,7 +50,8 @@ sealed interface FriendsUiState {
     data object Loading : FriendsUiState
     data class Content(
         val friends: List<Friendship>,
-        val pendingRequests: List<Friendship>
+        val pendingRequests: List<Friendship>,
+        val blockedUsers: List<Friendship>
     ) : FriendsUiState
 
     data class Error(val message: String) : FriendsUiState
@@ -66,6 +68,7 @@ class SocialViewModel(
     private val getFriendsRankingUseCase: GetFriendsRankingUseCase,
     private val getFriendsUseCase: GetFriendsUseCase,
     private val getPendingRequestsUseCase: GetPendingRequestsUseCase,
+    private val getBlockedUsersUseCase: GetBlockedUsersUseCase,
     private val sendFriendInviteUseCase: SendFriendInviteUseCase,
     private val respondToFriendInviteUseCase: RespondToFriendInviteUseCase,
     private val manageFriendshipUseCase: ManageFriendshipUseCase
@@ -109,20 +112,21 @@ class SocialViewModel(
 
     /**
      * StateFlow representing the current state of the Friends tab.
-     * Combines friends list and pending requests.
+     * Combines friends list, pending requests, and blocked users.
      */
     val friendsState: StateFlow<FriendsUiState> = combine(
         getFriendsUseCase(),
         getPendingRequestsUseCase(),
+        getBlockedUsersUseCase(),
         _isFriendsLoading,
         _friendsError
-    ) { friends, pending, isLoading, error ->
-        if (isLoading && friends.isEmpty() && pending.isEmpty()) {
+    ) { friends, pending, blocked, isLoading, error ->
+        if (isLoading && friends.isEmpty() && pending.isEmpty() && blocked.isEmpty()) {
             FriendsUiState.Loading
         } else if (error != null) {
             FriendsUiState.Error(error)
         } else {
-            FriendsUiState.Content(friends, pending)
+            FriendsUiState.Content(friends, pending, blocked)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FriendsUiState.Loading)
 
@@ -163,8 +167,9 @@ class SocialViewModel(
 
             val friendsResult = getFriendsUseCase.refresh()
             val pendingResult = getPendingRequestsUseCase.refresh()
+            val blockedResult = getBlockedUsersUseCase.refresh()
 
-            if (friendsResult.isFailure || pendingResult.isFailure) {
+            if (friendsResult.isFailure || pendingResult.isFailure || blockedResult.isFailure) {
                 _friendsError.value = "Failed to load friends"
                 _uiEvents.send(SocialUiEvent.ShowMessage("Could not update friends list"))
             }

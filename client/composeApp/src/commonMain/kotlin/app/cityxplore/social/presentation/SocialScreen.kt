@@ -173,6 +173,7 @@ fun FriendsTab(
             FriendsListContent(
                 friends = state.friends,
                 pendingRequests = state.pendingRequests,
+                blockedUsers = state.blockedUsers,
                 onAccept = onAccept,
                 onDecline = onDecline,
                 onDelete = onDelete,
