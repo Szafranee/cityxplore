@@ -64,7 +64,6 @@ class MapViewModel(
     init {
         loadData()
         startLocationTracking()
-        loadProfile()
     }
 
     private fun loadProfile() {

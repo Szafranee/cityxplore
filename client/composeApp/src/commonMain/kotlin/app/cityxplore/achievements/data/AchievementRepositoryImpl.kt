@@ -13,9 +13,27 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Instant
 
+/**
+ * Implementation of [AchievementRepository] using a Ktor HTTP client.
+ *
+ * This repository communicates with the backend API to fetch achievement data,
+ * including user-specific achievements and global achievement definitions.
+ *
+ * @param client Ktor HTTP client for making API requests.
+ */
 class AchievementRepositoryImpl(
     private val client: HttpClient
 ) : AchievementRepository {
+
+    /**
+     * Retrieves the achievements for the currently authenticated user.
+     *
+     * Fetches from `/api/achievements/mine` endpoint and maps DTOs to domain models.
+     * Parses unlock timestamps and calculates progress based on criteria.
+     *
+     * @return Result containing a list of [Achievement] objects with user's progress,
+     *         or a failure if the request fails.
+     */
     override suspend fun getMyAchievements(): Result<List<Achievement>> = runCatching {
         val dtos = client.get("https://api.cityxplore.app/api/achievements/mine").body<List<UserAchievementDto>>()
         dtos.map { dto ->
@@ -53,6 +71,15 @@ class AchievementRepositoryImpl(
         }
     }
 
+    /**
+     * Retrieves all available achievement definitions from the backend.
+     *
+     * Fetches from `/api/achievements` endpoint. Returns achievements without user-specific
+     * progress data (marked as not unlocked by default).
+     *
+     * @return Result containing a list of all [Achievement] definitions,
+     *         or a failure if the request fails.
+     */
     override suspend fun getAllAchievements(): Result<List<Achievement>> = runCatching {
         val dtos = client.get("https://api.cityxplore.app/api/achievements").body<List<AchievementDto>>()
         dtos.map { dto ->
@@ -74,6 +101,65 @@ class AchievementRepositoryImpl(
         }
     }
 
+    /**
+     * Retrieves achievements for a specific user by their user ID.
+     *
+     * Fetches from `/api/achievements/user/{userId}` endpoint. This endpoint requires
+     * authentication but allows viewing other users' achievements.
+     *
+     * @param userId The unique identifier of the user whose achievements to fetch.
+     * @return Result containing a list of [Achievement] objects for the specified user,
+     *         or a failure if the request fails or user is not found.
+     */
+    override suspend fun getUserAchievements(userId: String): Result<List<Achievement>> = runCatching {
+        val dtos =
+            client.get("https://api.cityxplore.app/api/achievements/user/$userId").body<List<UserAchievementDto>>()
+        dtos.map { dto ->
+            val unlockedAt = dto.achievedAt?.let { str ->
+                try {
+                    Instant.parse(str)
+                } catch (_: Exception) {
+                    try {
+                        LocalDateTime.parse(str).toInstant(TimeZone.UTC)
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+            }
+
+            val (progress, formatted) = calculateProgress(
+                dto.achievement.criteria,
+                dto.progress,
+                dto.achievedAt != null
+            )
+
+            Achievement(
+                id = dto.achievement.id,
+                name = dto.achievement.name,
+                description = dto.achievement.description,
+                category = dto.achievement.category,
+                iconUrl = dto.achievement.iconUrl,
+                points = dto.achievement.points,
+                isUnlocked = dto.achievedAt != null,
+                unlockedAt = unlockedAt,
+                progress = progress,
+                progressFormatted = formatted
+            )
+        }
+    }
+
+    /**
+     * Calculates achievement progress based on criteria and current progress data.
+     *
+     * Supports different types of achievement criteria:
+     * - Count-based achievements (e.g. "discover 50 POIs")
+     * - Distance-based achievements (e.g. "travel 42 km")
+     *
+     * @param criteria JSON element containing the achievement criteria from backend.
+     * @param progress JSON element containing the user's current progress data.
+     * @param isUnlocked Whether the achievement is already unlocked (returns 1.0 if true).
+     * @return Pair of progress value (0.0-1.0) and formatted string (e.g., "25/50" or "10/42 km").
+     */
     private fun calculateProgress(
         criteria: JsonElement?,
         progress: JsonElement?,

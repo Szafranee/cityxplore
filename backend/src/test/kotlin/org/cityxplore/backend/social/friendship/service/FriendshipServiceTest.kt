@@ -174,7 +174,8 @@ class FriendshipServiceTest {
             id = UUID.randomUUID(),
             requesterId = requesterId,
             addresseeId = addresseeId,
-            status = FriendshipStatus.BLOCKED
+            status = FriendshipStatus.BLOCKED,
+            blockedBy = addresseeId // The addressee blocked the requester
         )
         every { friendshipRepository.findInEitherDirection(requesterId, addresseeId) } returns existingFriendship
 
@@ -184,7 +185,34 @@ class FriendshipServiceTest {
         }
 
         assertEquals(HttpStatus.FORBIDDEN, exception.statusCode)
-        assertTrue(exception.reason!!.contains("Cannot send invitation"))
+        assertNotNull(exception.reason)
+        assertEquals("This user has blocked you.", exception.reason)
+    }
+
+    @Test
+    fun `sendInvite should throw FORBIDDEN when requester has blocked the addressee`() {
+        // Given
+        val requesterId = UUID.randomUUID()
+        val addresseeId = UUID.randomUUID()
+        val request = FriendshipRequest(addresseeId)
+
+        val existingFriendship = Friendship(
+            id = UUID.randomUUID(),
+            requesterId = requesterId,
+            addresseeId = addresseeId,
+            status = FriendshipStatus.BLOCKED,
+            blockedBy = requesterId // The requester blocked the addressee
+        )
+        every { friendshipRepository.findInEitherDirection(requesterId, addresseeId) } returns existingFriendship
+
+        // When & Then
+        val exception = assertThrows(ResponseStatusException::class.java) {
+            friendshipService.sendInvite(requesterId, request)
+        }
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.statusCode)
+        assertNotNull(exception.reason)
+        assertEquals("You have blocked this user. Please unblock them first.", exception.reason)
     }
 
     // ========== acceptInvite Tests ==========

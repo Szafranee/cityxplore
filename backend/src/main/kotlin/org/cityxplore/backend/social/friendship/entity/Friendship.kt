@@ -32,6 +32,9 @@ data class Friendship(
     @Enumerated(EnumType.STRING)
     var status: FriendshipStatus = FriendshipStatus.PENDING,
 
+    @Column(name = "blocked_by")
+    var blockedBy: UUID? = null,
+
     @Column(name = "created_at")
     val createdAt: LocalDateTime = LocalDateTime.now(),
 

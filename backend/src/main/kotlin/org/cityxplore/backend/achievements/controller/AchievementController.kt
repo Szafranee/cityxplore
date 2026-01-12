@@ -31,11 +31,15 @@ class AchievementController(
     /**
      * Retrieve all available achievements.
      *
+     * @param jwt the JWT token from the Authorization header used for user authentication/authorization
      * @return A list of AchievementResponse representing every achievement defined in the system.
      */
     @GetMapping
-    fun getAllAchievements(): List<AchievementResponse> =
-        achievementService.getAllAchievements()
+    fun getAllAchievements(@AuthenticationPrincipal jwt: Jwt): List<AchievementResponse> {
+        JwtUtils.extractUserId(jwt) // Validates that user is authenticated
+
+        return achievementService.getAllAchievements()
+    }
 
     /**
      * Retrieves the achievements for the authenticated user.
@@ -46,6 +50,25 @@ class AchievementController(
     @GetMapping("/mine")
     fun getUserAchievements(@AuthenticationPrincipal jwt: Jwt): List<UserAchievementResponse> {
         val userId = JwtUtils.extractUserId(jwt)
+
+        return achievementService.getUserAchievements(userId)
+    }
+
+    /**
+     * Retrieves the achievements for a specific user by their ID.
+     * Requires authentication - only authenticated users can view other users' achievements.
+     *
+     * @param jwt The authenticated user's JWT (required for authorization).
+     * @param userId The UUID of the user whose achievements to retrieve.
+     * @return A list of UserAchievementResponse belonging to the specified user.
+     */
+    @GetMapping("/user/{userId}")
+    fun getUserAchievementsByUserId(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable userId: UUID
+    ): List<UserAchievementResponse> {
+        // User must be authenticated to view other users' achievements
+        JwtUtils.extractUserId(jwt) // Validates that user is authenticated
 
         return achievementService.getUserAchievements(userId)
     }

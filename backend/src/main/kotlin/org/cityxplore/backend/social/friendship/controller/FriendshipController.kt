@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -35,7 +36,7 @@ class FriendshipController(
      *
      * This endpoint allows an authenticated user to send a friendship invitation to another user.
      * The user ID of the sender is extracted from the JWT, and the recipient user ID is provided
-     * in the request payload. The method ensures that no conflicting state (e.g., existing friendships
+     * in the request payload. The method ensures that no conflicting state (e.g. existing friendships
      * or pending requests) exists before creating the invitation.
      *
      * @param jwt the JSON Web Token (JWT) of the authenticated user sending the invite
@@ -150,5 +151,108 @@ class FriendshipController(
         val userId = JwtUtils.extractUserId(jwt)
 
         return friendshipService.getPendingInvites(userId)
+    }
+
+    /**
+     * Retrieves a list of users blocked by the authenticated user.
+     *
+     * @param jwt The JSON Web Token (JWT) of the authenticated user.
+     * @return A list of `FriendshipResponse` objects representing blocked users.
+     */
+    @GetMapping("/blocked")
+    fun getBlockedUsers(
+        @AuthenticationPrincipal jwt: Jwt
+    ): List<FriendshipResponse> {
+        val userId = JwtUtils.extractUserId(jwt)
+
+        return friendshipService.getBlockedUsers(userId)
+    }
+
+    /**
+     * Checks if the authenticated user is blocked by another user.
+     *
+     * This is used to determine if the authenticated user can view another user's profile.
+     *
+     * @param jwt The JSON Web Token (JWT) of the authenticated user.
+     * @param otherUserId The UUID of the other user to check.
+     * @return A map with a "blocked" key indicating if the authenticated user is blocked.
+     */
+    @GetMapping("/blocked/{otherUserId}")
+    fun checkIfBlocked(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable otherUserId: UUID
+    ): Map<String, Boolean> {
+        val userId = JwtUtils.extractUserId(jwt)
+        val isBlocked = friendshipService.isBlockedBy(userId, otherUserId)
+
+        return mapOf("blocked" to isBlocked)
+    }
+
+    /**
+     * Deletes a friendship relation for the authenticated user.
+     *
+     * This endpoint permanently removes the friendship from the database.
+     * The authenticated user must be either the requester or addressee of the friendship.
+     *
+     * @param jwt The JSON Web Token (JWT) of the authenticated user.
+     * @param friendshipId The UUID of the friendship to delete.
+     * @return A ResponseEntity with no content (204) on success.
+     * @throws org.springframework.web.server.ResponseStatusException with 404 if friendship not found,
+     *         or 403 if the user does not have access to this friendship.
+     */
+    @DeleteMapping("/{friendshipId}")
+    fun deleteFriend(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable friendshipId: UUID
+    ): ResponseEntity<Void> {
+        val userId = JwtUtils.extractUserId(jwt)
+        friendshipService.deleteFriend(userId, friendshipId)
+
+        return ResponseEntity.noContent().build()
+    }
+
+    /**
+     * Blocks a user by setting the friendship status to BLOCKED.
+     *
+     * This prevents further interaction between the users while keeping
+     * the friendship record in the database.
+     *
+     * @param jwt The JSON Web Token (JWT) of the authenticated user.
+     * @param friendshipId The UUID of the friendship to block.
+     * @return A ResponseEntity containing the updated [FriendshipResponse] with BLOCKED status.
+     * @throws org.springframework.web.server.ResponseStatusException with 404 if friendship not found,
+     *         403 if the user does not have access, or 409 if already blocked.
+     */
+    @PostMapping("/{friendshipId}/block")
+    fun blockFriend(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable friendshipId: UUID
+    ): ResponseEntity<FriendshipResponse> {
+        val userId = JwtUtils.extractUserId(jwt)
+        val result = friendshipService.blockFriend(userId, friendshipId)
+
+        return ResponseEntity.ok(result)
+    }
+
+    /**
+     * Unblocks a previously blocked user by restoring friendship to ACCEPTED status.
+     *
+     * This allows normal interaction between users again after unblocking.
+     *
+     * @param jwt The JSON Web Token (JWT) of the authenticated user.
+     * @param friendshipId The UUID of the friendship to unblock.
+     * @return A ResponseEntity containing the updated [FriendshipResponse] with ACCEPTED status.
+     * @throws org.springframework.web.server.ResponseStatusException with 404 if friendship not found,
+     *         403 if the user does not have access, or 409 if not currently blocked.
+     */
+    @PostMapping("/{friendshipId}/unblock")
+    fun unblockFriend(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable friendshipId: UUID
+    ): ResponseEntity<FriendshipResponse> {
+        val userId = JwtUtils.extractUserId(jwt)
+        val result = friendshipService.unblockFriend(userId, friendshipId)
+
+        return ResponseEntity.ok(result)
     }
 }

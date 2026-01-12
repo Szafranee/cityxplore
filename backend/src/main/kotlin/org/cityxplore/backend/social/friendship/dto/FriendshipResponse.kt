@@ -12,6 +12,7 @@ data class FriendshipResponse(
     val requesterId: UUID,
     val addresseeId: UUID,
     val status: FriendshipStatus,
+    val blockedBy: UUID? = null,
     val createdAt: LocalDateTime,
     val updatedAt: LocalDateTime
 )
