@@ -156,6 +156,11 @@ fun FriendsTab(
     onUnblock: (String) -> Unit,
     onUserSelected: (String) -> Unit
 ) {
+    val authRepository: app.cityxplore.auth.domain.AuthRepository = koinInject()
+    val currentUserId by androidx.compose.runtime.produceState("") {
+        value = authRepository.getCurrentUserId() ?: ""
+    }
+
     when (state) {
         is FriendsUiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
@@ -174,6 +179,7 @@ fun FriendsTab(
                 friends = state.friends,
                 pendingRequests = state.pendingRequests,
                 blockedUsers = state.blockedUsers,
+                currentUserId = currentUserId,
                 onAccept = onAccept,
                 onDecline = onDecline,
                 onDelete = onDelete,

@@ -18,10 +18,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -108,7 +112,7 @@ fun RankingListContent(
  * Displays a single row ITEM in the ranking list.
  *
  * @param entry The ranking entry to display.
- * @param onUserSelected Callback when user is clicked, receives userId
+ * @param onUserSelected Callback when a user is clicked, receives userId
  */
 @Composable
 fun RankingItem(entry: RankingEntry, onUserSelected: (String) -> Unit) {
@@ -167,6 +171,7 @@ fun FriendsListContent(
     friends: List<Friendship>,
     pendingRequests: List<Friendship>,
     blockedUsers: List<Friendship>,
+    currentUserId: String,
     onAccept: (String) -> Unit,
     onDecline: (String) -> Unit,
     onDelete: (String) -> Unit,
@@ -207,6 +212,7 @@ fun FriendsListContent(
             items(friends) { friend ->
                 FriendItem(
                     friendship = friend,
+                    currentUserId = currentUserId,
                     onDelete = onDelete,
                     onBlock = onBlock,
                     onUnblock = onUnblock,
@@ -342,6 +348,7 @@ fun FriendRequestItem(
 @Composable
 fun FriendItem(
     friendship: Friendship,
+    currentUserId: String,
     onDelete: (String) -> Unit,
     onBlock: (String) -> Unit,
     onUnblock: (String) -> Unit,
@@ -351,11 +358,13 @@ fun FriendItem(
     var confirmAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     val scope = rememberCoroutineScope()
 
+    val isBlockedByMe = friendship.status == FriendshipStatus.BLOCKED && friendship.blockedBy == currentUserId
+
     Card(
         modifier = Modifier.clickable { onClick() }
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -364,7 +373,7 @@ fun FriendItem(
                     model = friendship.otherUserAvatar,
                     contentDescription = null,
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(50.dp)
                         .clip(CircleShape)
                         .background(Color.Gray),
                     contentScale = ContentScale.Crop,
@@ -372,8 +381,8 @@ fun FriendItem(
                 )
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
-                    Text(friendship.otherUserName ?: "User", style = MaterialTheme.typography.bodyLarge)
-                    if (friendship.status == FriendshipStatus.BLOCKED) {
+                    Text(friendship.otherUserName ?: "User", style = MaterialTheme.typography.titleMedium)
+                    if (isBlockedByMe) {
                         Text(
                             "Blocked",
                             style = MaterialTheme.typography.bodySmall,
@@ -391,6 +400,9 @@ fun FriendItem(
                 DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                     DropdownMenuItem(
                         text = { Text("View profile") },
+                        leadingIcon = {
+                            Icon(Icons.Default.AccountCircle, contentDescription = null)
+                        },
                         onClick = {
                             menuExpanded = false
                             onClick()
@@ -398,22 +410,33 @@ fun FriendItem(
                     )
                     DropdownMenuItem(
                         text = { Text("Remove friend") },
+                        leadingIcon = {
+                            Icon(Icons.Default.PersonRemove, contentDescription = null)
+                        },
                         onClick = {
                             menuExpanded = false
                             confirmAction = { onDelete(friendship.id) }
                         }
                     )
-                    if (friendship.status == FriendshipStatus.BLOCKED) {
+                    // Pokazuj Unblock TYLKO jeśli TO MY zablokowaliśmy
+                    if (isBlockedByMe) {
                         DropdownMenuItem(
                             text = { Text("Unblock") },
+                            leadingIcon = {
+                                Icon(Icons.Default.LockOpen, contentDescription = null)
+                            },
                             onClick = {
                                 menuExpanded = false
                                 confirmAction = { onUnblock(friendship.id) }
                             }
                         )
-                    } else {
+                    } else if (friendship.status != FriendshipStatus.BLOCKED) {
+                        // Pokazuj Block TYLKO jeśli nie jest zablokowany
                         DropdownMenuItem(
                             text = { Text("Block") },
+                            leadingIcon = {
+                                Icon(Icons.Default.Block, contentDescription = null)
+                            },
                             onClick = {
                                 menuExpanded = false
                                 confirmAction = { onBlock(friendship.id) }

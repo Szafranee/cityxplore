@@ -236,6 +236,7 @@ class SocialRepositoryImpl(
             requesterId = requesterId,
             addresseeId = addresseeId,
             status = FriendshipStatus.valueOf(status.uppercase()),
+            blockedBy = blockedBy,
             createdAt = created,
             updatedAt = updated,
             otherUserAvatar = null,

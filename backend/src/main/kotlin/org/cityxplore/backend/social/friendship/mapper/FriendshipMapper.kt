@@ -17,6 +17,7 @@ object FriendshipMapper {
         requesterId = entity.requesterId,
         addresseeId = entity.addresseeId,
         status = entity.status,
+        blockedBy = entity.blockedBy,
         createdAt = entity.createdAt,
         updatedAt = entity.updatedAt
     )

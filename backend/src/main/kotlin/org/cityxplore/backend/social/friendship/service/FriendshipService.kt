@@ -204,6 +204,7 @@ class FriendshipService(
     fun getBlockedUsers(userId: UUID): List<FriendshipResponse> =
         friendshipRepository
             .findAllByRequesterIdOrAddresseeIdAndStatus(userId, userId, FriendshipStatus.BLOCKED)
+            .filter { it.blockedBy == userId }
             .map { FriendshipMapper.toResponse(it) }
 
     /**
@@ -255,6 +256,7 @@ class FriendshipService(
         }
 
         friendship.status = FriendshipStatus.BLOCKED
+        friendship.blockedBy = currentUserId // Zapisujemy kto zablokował
         friendship.updatedAt = LocalDateTime.now()
         val saved = friendshipRepository.save(friendship)
 
@@ -286,8 +288,14 @@ class FriendshipService(
             throw ResponseStatusException(HttpStatus.CONFLICT, "User is not blocked")
         }
 
+        // Only the user who blocked can unblock
+        if (friendship.blockedBy != currentUserId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "You did not block this user")
+        }
+
         // Restore to ACCEPTED status after unblocking
         friendship.status = FriendshipStatus.ACCEPTED
+        friendship.blockedBy = null
         friendship.updatedAt = LocalDateTime.now()
         val saved = friendshipRepository.save(friendship)
 
@@ -302,11 +310,12 @@ class FriendshipService(
      *
      * @param viewerId The ID of the user trying to view the profile.
      * @param profileOwnerId The ID of the profile owner.
-     * @return true if the viewer is blocked by the profile owner, false otherwise.
+     * @return true if viewer is blocked by profile owner, false otherwise.
      */
     @Transactional(readOnly = true)
     fun isBlockedBy(viewerId: UUID, profileOwnerId: UUID): Boolean {
         val friendship = friendshipRepository.findInEitherDirection(viewerId, profileOwnerId)
-        return friendship?.status == FriendshipStatus.BLOCKED
+        // Viewer jest zablokowany TYLKO jeśli status = BLOCKED i profileOwnerId jest tym który zablokował
+        return friendship?.status == FriendshipStatus.BLOCKED && friendship.blockedBy == profileOwnerId
     }
 }

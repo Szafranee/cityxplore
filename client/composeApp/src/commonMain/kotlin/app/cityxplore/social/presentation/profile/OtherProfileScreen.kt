@@ -540,49 +540,67 @@ private fun AchievementItem(
 }
 
 // Level calculation helpers (same as UserProfile)
+/**
+ * Calculates the user's level based on total achievement points.
+ * Uses the same formula as UserProfile: Level 0->1 needs 100 pts, every subsequent level needs +25 pts more.
+ */
 private fun calculateLevel(points: Int): Int {
-    var level = 1
-    var xpRequired = 100
-    var totalXpForLevel = 0
-    while (points >= totalXpForLevel + xpRequired) {
-        totalXpForLevel += xpRequired
+    var level = 0
+    var cost = 100
+    var remaining = points
+
+    while (remaining >= cost) {
+        remaining -= cost
         level++
-        xpRequired = (xpRequired * 1.5).toInt()
+        cost += 25
     }
     return level
 }
 
+/**
+ * Calculates the progress percentage within the current level (0.0 to 1.0).
+ */
 private fun calculateLevelProgress(points: Int): Float {
-    var level = 1
-    var xpRequired = 100
-    var totalXpForLevel = 0
-    while (points >= totalXpForLevel + xpRequired) {
-        totalXpForLevel += xpRequired
+    var level = 0
+    var cost = 100
+    var remaining = points
+
+    while (remaining >= cost) {
+        remaining -= cost
         level++
-        xpRequired = (xpRequired * 1.5).toInt()
+        cost += 25
     }
-    val xpInCurrentLevel = points - totalXpForLevel
-    return xpInCurrentLevel.toFloat() / xpRequired.toFloat()
+
+    // remaining = XP at the current level, cost = XP needed for the next level
+    return if (cost > 0) remaining.toFloat() / cost.toFloat() else 0f
 }
 
+/**
+ * Calculates XP accumulated at the current level.
+ */
 private fun calculateXpInCurrentLevel(points: Int): Int {
-    var xpRequired = 100
-    var totalXpForLevel = 0
-    while (points >= totalXpForLevel + xpRequired) {
-        totalXpForLevel += xpRequired
-        xpRequired = (xpRequired * 1.5).toInt()
+    var cost = 100
+    var remaining = points
+
+    while (remaining >= cost) {
+        remaining -= cost
+        cost += 25
     }
-    return points - totalXpForLevel
+    return remaining
 }
 
+/**
+ * Calculates XP needed for the next level.
+ */
 private fun calculateXpNeededForNextLevel(points: Int): Int {
-    var xpRequired = 100
-    var totalXpForLevel = 0
-    while (points >= totalXpForLevel + xpRequired) {
-        totalXpForLevel += xpRequired
-        xpRequired = (xpRequired * 1.5).toInt()
+    var cost = 100
+    var remaining = points
+
+    while (remaining >= cost) {
+        remaining -= cost
+        cost += 25
     }
-    return xpRequired
+    return cost
 }
 
 private fun formatDistance(meters: Double): String {

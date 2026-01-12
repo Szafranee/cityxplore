@@ -8,6 +8,7 @@ data class FriendshipDto(
     val requesterId: String,
     val addresseeId: String,
     val status: String,
+    val blockedBy: String? = null,
     val createdAt: String,
     val updatedAt: String
 )

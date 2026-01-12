@@ -7,10 +7,10 @@ data class Friendship(
     val requesterId: String,
     val addresseeId: String,
     val status: FriendshipStatus,
+    val blockedBy: String? = null,
     val createdAt: LocalDateTime,
     val updatedAt: LocalDateTime,
-    // Helper fields for UI that might be enriched later, but for now strict to backend response + maybe display logic
     val otherUserId: String? = null, // Resolved ID of the other user in the friendship
-    val otherUserAvatar: String? = null, // Will be populated if possible
+    val otherUserAvatar: String? = null,
     val otherUserName: String? = null
 )
