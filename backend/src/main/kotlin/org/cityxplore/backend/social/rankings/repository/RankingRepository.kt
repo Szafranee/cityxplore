@@ -27,37 +27,24 @@ class RankingRepository(
         achievementWeight: Double
     ): List<RankingEntry> {
         val sql = """
-            WITH user_stats AS (
+            WITH ranked_users AS (
                 SELECT 
                     u.id AS user_id,
                     u.username,
                     u.avatar_url,
                     COALESCE(u.total_pois_discovered, 0) AS total_pois_discovered,
                     COALESCE(u.total_distance, 0) AS total_distance,
-                    COALESCE(SUM(a.points), 0) AS total_achievement_points
-                FROM users u
-                LEFT JOIN user_achievements ua ON u.id = ua.user_id
-                LEFT JOIN achievements a ON ua.achievement_id = a.id
-                WHERE u.is_active = true
-                GROUP BY u.id, u.username, u.avatar_url, u.total_pois_discovered, u.total_distance
-            ),
-            ranked_users AS (
-                SELECT 
-                    user_id,
-                    username,
-                    avatar_url,
-                    total_pois_discovered,
-                    total_distance,
-                    total_achievement_points,
-                    (total_pois_discovered * ?) + 
-                    (total_distance * ?) + 
-                    (total_achievement_points * ?) AS score,
+                    u.total_achievement_points AS total_achievement_points,
+                    (COALESCE(u.total_pois_discovered, 0) * ?) + 
+                    (COALESCE(u.total_distance, 0) * ?) + 
+                    (u.total_achievement_points * ?) AS score,
                     ROW_NUMBER() OVER (ORDER BY 
-                        (total_pois_discovered * ?) + 
-                        (total_distance * ?) + 
-                        (total_achievement_points * ?) DESC
+                        (COALESCE(u.total_pois_discovered, 0) * ?) + 
+                        (COALESCE(u.total_distance, 0) * ?) + 
+                        (COALESCE(u.total_achievement_points, 0) * ?) DESC
                     ) AS rank
-                FROM user_stats
+                FROM users u
+                WHERE u.is_active = true
             )
             SELECT * FROM ranked_users
             ORDER BY rank
@@ -110,38 +97,25 @@ class RankingRepository(
                 UNION
                 SELECT ?::uuid AS friend_id
             ),
-            user_stats AS (
+            ranked_users AS (
                 SELECT 
                     u.id AS user_id,
                     u.username,
                     u.avatar_url,
                     COALESCE(u.total_pois_discovered, 0) AS total_pois_discovered,
                     COALESCE(u.total_distance, 0) AS total_distance,
-                    COALESCE(SUM(a.points), 0) AS total_achievement_points
+                    u.total_achievement_points AS total_achievement_points,
+                    (COALESCE(u.total_pois_discovered, 0) * ?) + 
+                    (COALESCE(u.total_distance, 0) * ?) + 
+                    (u.total_achievement_points * ?) AS score,
+                    ROW_NUMBER() OVER (ORDER BY 
+                        (COALESCE(u.total_pois_discovered, 0) * ?) + 
+                        (COALESCE(u.total_distance, 0) * ?) + 
+                        (COALESCE(u.total_achievement_points, 0) * ?) DESC
+                    ) AS rank
                 FROM users u
                 INNER JOIN friends f ON u.id = f.friend_id
-                LEFT JOIN user_achievements ua ON u.id = ua.user_id
-                LEFT JOIN achievements a ON ua.achievement_id = a.id
                 WHERE u.is_active = true
-                GROUP BY u.id, u.username, u.avatar_url, u.total_pois_discovered, u.total_distance
-            ),
-            ranked_users AS (
-                SELECT 
-                    user_id,
-                    username,
-                    avatar_url,
-                    total_pois_discovered,
-                    total_distance,
-                    total_achievement_points,
-                    (total_pois_discovered * ?) + 
-                    (total_distance * ?) + 
-                    (total_achievement_points * ?) AS score,
-                    ROW_NUMBER() OVER (ORDER BY 
-                        (total_pois_discovered * ?) + 
-                        (total_distance * ?) + 
-                        (total_achievement_points * ?) DESC
-                    ) AS rank
-                FROM user_stats
             )
             SELECT * FROM ranked_users
             ORDER BY rank
@@ -186,41 +160,28 @@ class RankingRepository(
         achievementWeight: Double
     ): RankingEntry? {
         val sql = """
-            WITH user_stats AS (
+            WITH all_scores AS (
+                SELECT 
+                    u.id AS user_id,
+                    (COALESCE(u.total_pois_discovered, 0) * ?) + 
+                    (COALESCE(u.total_distance, 0) * ?) + 
+                    (u.total_achievement_points * ?) AS score
+                FROM users u
+                WHERE u.is_active = true
+            ),
+            target_user AS (
                 SELECT 
                     u.id AS user_id,
                     u.username,
                     u.avatar_url,
                     COALESCE(u.total_pois_discovered, 0) AS total_pois_discovered,
                     COALESCE(u.total_distance, 0) AS total_distance,
-                    COALESCE(SUM(a.points), 0) AS total_achievement_points
+                    u.total_achievement_points AS total_achievement_points,
+                    (COALESCE(u.total_pois_discovered, 0) * ?) + 
+                    (COALESCE(u.total_distance, 0) * ?) + 
+                    (u.total_achievement_points * ?) AS score
                 FROM users u
-                LEFT JOIN user_achievements ua ON u.id = ua.user_id
-                LEFT JOIN achievements a ON ua.achievement_id = a.id
-                WHERE u.is_active = true
-                GROUP BY u.id, u.username, u.avatar_url, u.total_pois_discovered, u.total_distance
-            ),
-            all_scores AS (
-                SELECT 
-                    user_id,
-                    (total_pois_discovered * ?) + 
-                    (total_distance * ?) + 
-                    (total_achievement_points * ?) AS score
-                FROM user_stats
-            ),
-            target_user AS (
-                SELECT 
-                    us.user_id,
-                    us.username,
-                    us.avatar_url,
-                    us.total_pois_discovered,
-                    us.total_distance,
-                    us.total_achievement_points,
-                    (us.total_pois_discovered * ?) + 
-                    (us.total_distance * ?) + 
-                    (us.total_achievement_points * ?) AS score
-                FROM user_stats us
-                WHERE us.user_id = ?::uuid
+                WHERE u.id = ?::uuid AND u.is_active = true
             )
             SELECT 
                 tu.user_id,

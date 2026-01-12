@@ -44,13 +44,28 @@ import app.cityxplore.map.presentation.MapViewModel
 import app.cityxplore.platform.BackHandler
 import app.cityxplore.profile.presentation.OnboardingScreen
 import app.cityxplore.profile.presentation.ProfileScreen
+import app.cityxplore.social.presentation.SocialScreen
+import app.cityxplore.social.presentation.profile.OtherProfileScreen
 import app.cityxplore.theme.AppColors
-import app.cityxplore.theme.CityXplorePalette
 import app.cityxplore.theme.CityXploreTheme
 import coil3.compose.setSingletonImageLoaderFactory
 import org.koin.compose.koinInject
 
-private enum class CityXploreDestination { Map, Friends, Profile, Journal }
+private sealed interface CityXploreDestination {
+    data object Map : CityXploreDestination
+    data class Friends(
+        val initialTab: Int = 0, // 0 = Friends, 1 = Rankings
+        val rankingSubTab: Int = 0 // 0 = Global, 1 = Friends (used when initialTab = 1)
+    ) : CityXploreDestination
+
+    data object Profile : CityXploreDestination
+    data object Journal : CityXploreDestination
+    data class OtherProfile(
+        val userId: String,
+        val previousDestination: CityXploreDestination = Friends()
+    ) : CityXploreDestination
+}
+
 private enum class AuthScreen { Login, Register }
 
 @Composable
@@ -123,16 +138,19 @@ fun MainAppContent(onSignOut: () -> Unit) {
     val journalViewModel: JournalViewModel = koinInject()
     val mapState by mapViewModel.state.collectAsState()
     val journalState by journalViewModel.state.collectAsState()
-    var currentDestination by remember { mutableStateOf(CityXploreDestination.Map) }
 
-    // Handle back navigation for screens other than Map
-    // JournalScreen has its own BackHandler, but we can have a global one too if we coordinate.
-    // However, since JournalScreen is instantiated conditionally, its BackHandler is only active then.
-    // For Friends and Profile, they don't have BackHandler, so we add one here.
-    // If we are on Profile or Friends, back should go to Map.
-    if (currentDestination == CityXploreDestination.Profile || currentDestination == CityXploreDestination.Friends) {
+    val currentDestination = remember { mutableStateOf<CityXploreDestination>(CityXploreDestination.Map) }
+
+    if (currentDestination.value == CityXploreDestination.Profile || currentDestination.value is CityXploreDestination.Friends) {
         BackHandler {
-            currentDestination = CityXploreDestination.Map
+            currentDestination.value = CityXploreDestination.Map
+        }
+    }
+
+    if (currentDestination.value is CityXploreDestination.OtherProfile) {
+        val otherProfile = currentDestination.value as CityXploreDestination.OtherProfile
+        BackHandler {
+            currentDestination.value = otherProfile.previousDestination
         }
     }
 
@@ -140,10 +158,10 @@ fun MainAppContent(onSignOut: () -> Unit) {
         containerColor = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onBackground,
         bottomBar = {
-            if (currentDestination != CityXploreDestination.Journal) {
+            if (currentDestination.value != CityXploreDestination.Journal) {
                 CityXploreBottomBar(
-                    destination = currentDestination,
-                    onDestinationSelected = { currentDestination = it }
+                    destination = currentDestination.value,
+                    onDestinationSelected = { currentDestination.value = it }
                 )
             }
         }
@@ -154,37 +172,34 @@ fun MainAppContent(onSignOut: () -> Unit) {
                 .fillMaxSize()
         ) {
             // Keep MapScreen always in composition to avoid reloading Mapbox/Fog of War
-            // Use alpha/visibility to hide it when not active (or z-order)
-            // Since MapView is heavy, this is better for UX but consumes more memory.
-            currentDestination == CityXploreDestination.Map
-
-            // Render MapScreen if it's the current destination OR if we want to caching it.
-            // Using a Box to stack them. Map is always at bottom (index 0).
-            // But if we just put it in the Box, it will be covered by others if they have opaque background.
-            // We need to ensure we don't dispose it.
-
-            // Map is always rendered, but we can control if other screens are on top.
-            // However, Mapbox native view might have Z-ordering issues on Android.
-            // Let's try rendering it always, but conditionally rendering others on top.
+            currentDestination.value == CityXploreDestination.Map
 
             CityXploreMapScreen(
                 state = mapState,
                 onAction = mapViewModel::onAction,
                 modifier = Modifier.fillMaxSize(),
-                // If map is not visible, we can maybe disable interactions?
-                // But generally, keeping it in the tree is enough.
-                onProfileClick = { currentDestination = CityXploreDestination.Profile }
+                onProfileClick = { currentDestination.value = CityXploreDestination.Profile }
             )
 
-            // Overlay other screens
-            when (currentDestination) {
-                CityXploreDestination.Map -> { /* Already rendered below */
-                }
+            when (currentDestination.value) {
+                CityXploreDestination.Map -> Unit
 
-                CityXploreDestination.Friends -> {
-                    // Need to ensure background is opaque
+                is CityXploreDestination.Friends -> {
+                    val friendsDest = currentDestination.value as CityXploreDestination.Friends
                     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-                        CityXplorePlaceholderScreen("Friends")
+                        SocialScreen(
+                            initialTab = friendsDest.initialTab,
+                            initialRankingSubTab = friendsDest.rankingSubTab,
+                            onUserSelected = { userId, fromRankings, isGlobalRanking ->
+                                currentDestination.value = CityXploreDestination.OtherProfile(
+                                    userId = userId,
+                                    previousDestination = CityXploreDestination.Friends(
+                                        initialTab = if (fromRankings) 1 else 0,
+                                        rankingSubTab = if (fromRankings && !isGlobalRanking) 1 else 0
+                                    )
+                                )
+                            }
+                        )
                     }
                 }
 
@@ -194,7 +209,7 @@ fun MainAppContent(onSignOut: () -> Unit) {
                             onSignOut = onSignOut,
                             onOpenJournal = {
                                 journalViewModel.loadEntries()
-                                currentDestination = CityXploreDestination.Journal
+                                currentDestination.value = CityXploreDestination.Journal
                             }
                         )
                     }
@@ -211,7 +226,17 @@ fun MainAppContent(onSignOut: () -> Unit) {
                             onFilterChange = journalViewModel::setFilter,
                             onSortChange = journalViewModel::setSort,
                             onToggleFavorite = journalViewModel::toggleFavorite,
-                            onBack = { currentDestination = CityXploreDestination.Profile }
+                            onBack = { currentDestination.value = CityXploreDestination.Profile }
+                        )
+                    }
+                }
+
+                is CityXploreDestination.OtherProfile -> {
+                    val otherProfileDest = currentDestination.value as CityXploreDestination.OtherProfile
+                    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+                        OtherProfileScreen(
+                            userId = otherProfileDest.userId,
+                            onBack = { currentDestination.value = otherProfileDest.previousDestination }
                         )
                     }
                 }
@@ -234,7 +259,7 @@ private fun CityXploreBottomBar(
             unselectedIconColor = Color.White,
             selectedTextColor = AppColors.green,
             unselectedTextColor = Color.White,
-            indicatorColor = MaterialTheme.colorScheme.surface // Or Color.Transparent if we want to hide the pill
+            indicatorColor = MaterialTheme.colorScheme.surface
         )
 
         NavigationBarItem(
@@ -257,12 +282,12 @@ private fun CityXploreBottomBar(
             }
         )
         NavigationBarItem(
-            selected = destination == CityXploreDestination.Friends,
-            onClick = { onDestinationSelected(CityXploreDestination.Friends) },
+            selected = destination is CityXploreDestination.Friends,
+            onClick = { onDestinationSelected(CityXploreDestination.Friends()) },
             colors = navItemColors,
             icon = {
                 Icon(
-                    imageVector = if (destination == CityXploreDestination.Friends) Icons.Filled.Group else Icons.Outlined.Group,
+                    imageVector = if (destination is CityXploreDestination.Friends) Icons.Filled.Group else Icons.Outlined.Group,
                     contentDescription = "Friends",
                     modifier = Modifier.size(30.dp)
                 )
@@ -293,17 +318,6 @@ private fun CityXploreBottomBar(
                     fontWeight = FontWeight.W600,
                 )
             }
-        )
-    }
-}
-
-@Composable
-private fun CityXplorePlaceholderScreen(title: String) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        Text(
-            text = "$title screen",
-            style = MaterialTheme.typography.titleMedium,
-            color = CityXplorePalette.TextMuted
         )
     }
 }

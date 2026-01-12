@@ -10,6 +10,7 @@ import app.cityxplore.di.mapModule
 import app.cityxplore.di.networkModule
 import app.cityxplore.di.profileModule
 import app.cityxplore.di.providePlatformEngine
+import app.cityxplore.di.socialModule
 import app.cityxplore.platform.HandleDeepLinks
 import app.cityxplore.presentation.CityXploreApp
 import org.koin.compose.KoinApplication
@@ -29,6 +30,7 @@ fun CityXploreRoot(
             locationModule,
             profileModule,
             achievementsModule,
+            socialModule,
             journalModule,
             h3Module
         )

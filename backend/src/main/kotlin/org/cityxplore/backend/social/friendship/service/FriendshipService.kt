@@ -27,7 +27,7 @@ class FriendshipService(
      * Sends a friendship invitation request from one user to another.
      *
      * This method checks for existing relationships or pending requests between the two users.
-     * If a conflict is detected (e.g., already friends, a pending request exists, etc.),
+     * If a conflict is detected (e.g. already friends, a pending request exists, etc.),
      * it throws an appropriate exception.
      *
      * @param requesterId the UUID of the user sending the invite
@@ -148,7 +148,7 @@ class FriendshipService(
      * @param currentUserId the ID of the user requesting the friendship details
      * @param friendshipId the unique identifier of the friendship to retrieve
      * @return a FriendshipResponse containing the friendship details
-     * @throws ResponseStatusException if the friendship does not exist or user has no access
+     * @throws ResponseStatusException if the friendship does not exist or the user has no access
      */
     @Transactional(readOnly = true)
     fun getFriendshipById(currentUserId: UUID, friendshipId: UUID): FriendshipResponse {
@@ -184,4 +184,92 @@ class FriendshipService(
         friendshipRepository
             .findAllPendingByAddresseeId(userId)
             .map { FriendshipMapper.toResponse(it) }
+
+    /**
+     * Deletes a friendship relation for the current user.
+     *
+     * The user must be either the requester or addressee of the friendship.
+     * This permanently removes the friendship record from the database.
+     *
+     * @param currentUserId The ID of the user requesting the deletion.
+     * @param friendshipId The ID of the friendship to delete.
+     * @throws ResponseStatusException with 404 if friendship does not exist,
+     *         or 403 if the user does not have access to this friendship.
+     */
+    @Transactional
+    fun deleteFriend(currentUserId: UUID, friendshipId: UUID) {
+        val friendship = friendshipRepository.findById(friendshipId)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Friendship not found") }
+
+        if (friendship.requesterId != currentUserId && friendship.addresseeId != currentUserId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this friendship")
+        }
+
+        friendshipRepository.delete(friendship)
+    }
+
+    /**
+     * Blocks a user by setting the friendship status to BLOCKED.
+     *
+     * Only the current user can block the other user. The friendship status
+     * is updated to BLOCKED, preventing further interaction.
+     *
+     * @param currentUserId The ID of the user who wants to block.
+     * @param friendshipId The ID of the friendship to block.
+     * @return A [FriendshipResponse] representing the blocked friendship.
+     * @throws ResponseStatusException with 404 if friendship does not exist,
+     *         403 if the user does not have access, or 409 if already blocked.
+     */
+    @Transactional
+    fun blockFriend(currentUserId: UUID, friendshipId: UUID): FriendshipResponse {
+        val friendship = friendshipRepository.findById(friendshipId)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Friendship not found") }
+
+        if (friendship.requesterId != currentUserId && friendship.addresseeId != currentUserId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this friendship")
+        }
+
+        if (friendship.status == FriendshipStatus.BLOCKED) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "User is already blocked")
+        }
+
+        friendship.status = FriendshipStatus.BLOCKED
+        friendship.updatedAt = LocalDateTime.now()
+        val saved = friendshipRepository.save(friendship)
+
+        return FriendshipMapper.toResponse(saved)
+    }
+
+    /**
+     * Unblocks a user by restoring the friendship status to ACCEPTED.
+     *
+     * Only the user who blocked can unblock. The friendship status is changed
+     * from BLOCKED back to ACCEPTED, allowing normal interaction again.
+     *
+     * @param currentUserId The ID of the user who wants to unblock.
+     * @param friendshipId The ID of the friendship to unblock.
+     * @return A [FriendshipResponse] representing the unblocked friendship.
+     * @throws ResponseStatusException with 404 if friendship does not exist,
+     *         403 if the user does not have access, or 409 if not currently blocked.
+     */
+    @Transactional
+    fun unblockFriend(currentUserId: UUID, friendshipId: UUID): FriendshipResponse {
+        val friendship = friendshipRepository.findById(friendshipId)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Friendship not found") }
+
+        if (friendship.requesterId != currentUserId && friendship.addresseeId != currentUserId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this friendship")
+        }
+
+        if (friendship.status != FriendshipStatus.BLOCKED) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "User is not blocked")
+        }
+
+        // Restore to ACCEPTED status after unblocking
+        friendship.status = FriendshipStatus.ACCEPTED
+        friendship.updatedAt = LocalDateTime.now()
+        val saved = friendshipRepository.save(friendship)
+
+        return FriendshipMapper.toResponse(saved)
+    }
 }
