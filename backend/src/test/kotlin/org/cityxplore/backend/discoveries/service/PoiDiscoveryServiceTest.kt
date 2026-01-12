@@ -3,6 +3,7 @@ package org.cityxplore.backend.discoveries.service
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.cityxplore.backend.achievements.service.AchievementEvaluationService
 import org.cityxplore.backend.discoveries.entity.UserPoiDiscovery
 import org.cityxplore.backend.discoveries.repository.UserPoiDiscoveryRepository
 import org.cityxplore.backend.poi.repository.PointOfInterestRepository
@@ -24,6 +25,7 @@ class PoiDiscoveryServiceTest {
     private lateinit var poiRepository: PointOfInterestRepository
     private lateinit var userPoiRepository: UserPoiDiscoveryRepository
     private lateinit var userRepository: UserRepository
+    private lateinit var achievementEvaluationService: AchievementEvaluationService
     private lateinit var poiDiscoveryService: PoiDiscoveryService
 
     @BeforeEach
@@ -31,10 +33,12 @@ class PoiDiscoveryServiceTest {
         poiRepository = mockk()
         userPoiRepository = mockk()
         userRepository = mockk()
+        achievementEvaluationService = mockk()
         poiDiscoveryService = PoiDiscoveryService(
             poiRepository,
             userPoiRepository,
-            userRepository
+            userRepository,
+            achievementEvaluationService
         )
     }
 
@@ -54,6 +58,7 @@ class PoiDiscoveryServiceTest {
         every { poiRepository.existsById(poiId) } returns true
         every { userPoiRepository.save(any()) } returns discovery
         every { userRepository.incrementPoisDiscovered(userId) } returns 1
+        every { achievementEvaluationService.evaluateDiscoveryAchievements(userId) } returns emptyList()
 
         // When
         val result = poiDiscoveryService.discoverPoi(userId, poiId)
@@ -246,6 +251,7 @@ class PoiDiscoveryServiceTest {
         every { poiRepository.existsById(poiId) } returns true
         every { userPoiRepository.save(any()) } returns discovery
         every { userRepository.incrementPoisDiscovered(userId) } returns 1
+        every { achievementEvaluationService.evaluateDiscoveryAchievements(any()) } returns emptyList()
 
         // When
         val result = poiDiscoveryService.discoverPoi(userId, poiId)

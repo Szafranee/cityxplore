@@ -1,5 +1,6 @@
 package org.cityxplore.backend.discoveries.service
 
+import org.cityxplore.backend.achievements.service.AchievementEvaluationService
 import org.cityxplore.backend.discoveries.dto.UserPoiDiscoveryResponse
 import org.cityxplore.backend.discoveries.entity.UserPoiDiscovery
 import org.cityxplore.backend.discoveries.mapper.toDto
@@ -7,6 +8,7 @@ import org.cityxplore.backend.discoveries.mapper.toDtoList
 import org.cityxplore.backend.discoveries.repository.UserPoiDiscoveryRepository
 import org.cityxplore.backend.poi.repository.PointOfInterestRepository
 import org.cityxplore.backend.user.repository.UserRepository
+import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -20,18 +22,22 @@ import java.util.UUID
  *
  * @property poiRepository Repository used to interact with the persistence layer for Point of Interest (POI) data.
  * @property userPoiRepository Repository used to manage the relationships between users and discovered POIs.
+ * @property achievementEvaluationService Service for evaluating achievements after discoveries.
  */
 @Service
 class PoiDiscoveryService(
     private val poiRepository: PointOfInterestRepository,
     private val userPoiRepository: UserPoiDiscoveryRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val achievementEvaluationService: AchievementEvaluationService
 ) {
+    private val logger = LoggerFactory.getLogger(javaClass)
 
     /**
      * Marks a Point of Interest (POI) as discovered for a specific user. The method ensures that the POI
      * exists and has not yet been discovered by the user before adding the discovery.
-     * After a successful discovery, increments the user's totalPoisDiscovered counter.
+     * After a successful discovery, increments the user's totalPoisDiscovered counter
+     * and evaluates discovery-based achievements.
      * If the POI does not exist, a `ResponseStatusException` with a 404 status is thrown.
      * If the user has already discovered the POI, a `ResponseStatusException`
      * with a 409 status is thrown.
@@ -62,6 +68,17 @@ class PoiDiscoveryService(
         val updated = userRepository.incrementPoisDiscovered(userId)
         if (updated == 0) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+        }
+
+        // Evaluate discovery-based achievements
+        val newAchievements = achievementEvaluationService.evaluateDiscoveryAchievements(userId)
+        if (newAchievements.isNotEmpty()) {
+            logger.info(
+                "User {} earned {} new achievement(s) after discovering POI {}",
+                userId,
+                newAchievements.size,
+                poiId
+            )
         }
 
         return discovery.toDto()

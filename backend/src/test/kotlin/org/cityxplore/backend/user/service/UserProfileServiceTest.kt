@@ -548,6 +548,61 @@ class UserProfileServiceTest {
         coVerify(exactly = 1) { adminApi.deleteUser(userId.toString()) }
     }
 
+    // ========== addDistance Tests ==========
+
+    @Test
+    fun `addDistance should increment user total distance`() {
+        // given
+        val userId = UUID.randomUUID()
+        val user = createTestUser(userId, "test@example.com", "testuser")
+        val distanceMeters = 150.0
+
+        every { userRepository.incrementDistance(userId, any()) } returns 1
+        every { userRepository.findById(userId) } returns Optional.of(user)
+
+        // when
+        val result = userProfileService.addDistance(userId, distanceMeters)
+
+        // then
+        verify { userRepository.incrementDistance(userId, any()) }
+        assertNotNull(result)
+        assertEquals(userId, result.id)
+    }
+
+    @Test
+    fun `addDistance should throw NOT_FOUND when user does not exist`() {
+        // given
+        val userId = UUID.randomUUID()
+        val distanceMeters = 100.0
+
+        every { userRepository.incrementDistance(userId, any()) } returns 0
+
+        // when & then
+        val exception = assertThrows<ResponseStatusException> {
+            userProfileService.addDistance(userId, distanceMeters)
+        }
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.statusCode)
+        assertEquals("User not found", exception.reason)
+    }
+
+    @Test
+    fun `addDistance should round distance to 2 decimal places`() {
+        // given
+        val userId = UUID.randomUUID()
+        val user = createTestUser(userId, "test@example.com", "testuser")
+        val distanceMeters = 123.456789
+
+        every { userRepository.incrementDistance(userId, BigDecimal.valueOf(123.46)) } returns 1
+        every { userRepository.findById(userId) } returns Optional.of(user)
+
+        // when
+        userProfileService.addDistance(userId, distanceMeters)
+
+        // then
+        verify { userRepository.incrementDistance(userId, BigDecimal.valueOf(123.46)) }
+    }
+
     private fun createTestUser(
         id: UUID,
         email: String,

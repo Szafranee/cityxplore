@@ -19,6 +19,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -235,7 +237,7 @@ class UserProfileService(
     }
 
     protected fun saveUserAvatar(userId: UUID, publicUrl: String): UserProfileResponse {
-        return transactionTemplate.execute { status ->
+        return transactionTemplate.execute { _ ->
             val user = userRepository.findById(userId)
                 .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
 
@@ -317,5 +319,29 @@ class UserProfileService(
         } catch (e: Exception) {
             logger.error("Failed to delete user $userId from Supabase Auth. User is soft-deleted in DB.", e)
         }
+    }
+
+    /**
+     * Adds travelled distance to a user's total distance.
+     *
+     * This method increments the user's totalDistance counter. The distance should be
+     * validated before calling this method (max 500m per request for anti-cheat).
+     *
+     * @param userId The unique identifier of the user.
+     * @param distanceMeters The distance to add in meters.
+     * @return The updated user profile.
+     * @throws ResponseStatusException if the user is not found.
+     */
+    @Transactional
+    fun addDistance(userId: UUID, distanceMeters: Double): UserProfileResponse {
+        val distance = BigDecimal.valueOf(distanceMeters).setScale(2, RoundingMode.HALF_UP)
+
+        val updated = userRepository.incrementDistance(userId, distance)
+        if (updated == 0) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+        }
+
+        logger.debug("Added {} meters to user {} total distance", distance, userId)
+        return getUserProfile(userId)
     }
 }

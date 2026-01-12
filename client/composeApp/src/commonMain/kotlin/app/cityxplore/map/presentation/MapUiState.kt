@@ -1,5 +1,6 @@
 package app.cityxplore.map.presentation
 
+import app.cityxplore.achievements.domain.Achievement
 import app.cityxplore.core.location.Location
 import app.cityxplore.map.domain.MapPoi
 import app.cityxplore.profile.domain.UserProfile
@@ -25,6 +26,7 @@ sealed interface MapUiState {
      * @property revealedHexagons Set of H3 hex indices that have been revealed (for Fog of War).
      * @property warsawHexagons Set of all H3 hex indices covering the Warsaw region (for Fog of War).
      * @property profile The current user's profile data, or null if not yet loaded.
+     * @property newlyUnlockedAchievements List of achievements just unlocked (for showing celebration dialog).
      */
     data class Ready(
         val pois: List<MapPoi>,
@@ -34,7 +36,8 @@ sealed interface MapUiState {
         val newlyDiscoveredPoiIds: Set<String>,
         val revealedHexagons: Set<String> = emptySet(),
         val warsawHexagons: Set<String> = emptySet(),
-        val profile: UserProfile? = null
+        val profile: UserProfile? = null,
+        val newlyUnlockedAchievements: List<Achievement> = emptyList()
     ) : MapUiState
 
     /**
@@ -93,4 +96,18 @@ sealed interface MapAction {
 
     /** User requested to refresh POI data (e.g. returning from another screen) */
     data object RefreshPois : MapAction
+
+    /**
+     * User tapped "View Details" on a single discovered POI notification.
+     * Selects the POI and dismisses the notification.
+     *
+     * @property poiId The ID of the POI to view.
+     */
+    data class ViewDiscoveredPoi(val poiId: String) : MapAction
+
+    /** User dismissed all discovery notifications at once */
+    data object DismissAllDiscoveryNotifications : MapAction
+
+    /** User dismissed the achievement unlock dialog */
+    data object DismissAchievementNotification : MapAction
 }

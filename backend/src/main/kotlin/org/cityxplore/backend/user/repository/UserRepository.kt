@@ -4,6 +4,7 @@ import org.cityxplore.backend.user.entity.User
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
+import java.math.BigDecimal
 import java.util.UUID
 
 /**
@@ -55,4 +56,15 @@ interface UserRepository : JpaRepository<User, UUID> {
     @Modifying
     @Query("UPDATE User u SET u.totalPoisDiscovered = u.totalPoisDiscovered + 1 WHERE u.id = :userId")
     fun incrementPoisDiscovered(userId: UUID): Int
+
+    /**
+     * Increments the total distance travelled by the user.
+     *
+     * @param userId The unique identifier of the user whose distance is to be updated.
+     * @param distance The distance in meters to be added to the user's total.
+     * @return The number of rows affected by the update operation.
+     */
+    @Modifying
+    @Query("UPDATE User u SET u.totalDistance = u.totalDistance + :distance WHERE u.id = :userId")
+    fun incrementDistance(userId: UUID, distance: BigDecimal): Int
 }
