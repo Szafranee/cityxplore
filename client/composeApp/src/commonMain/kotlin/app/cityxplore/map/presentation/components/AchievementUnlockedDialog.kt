@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -71,8 +72,8 @@ fun AchievementUnlockedDialog(
 
     LaunchedEffect(Unit) {
         visible = true
-        // Hide confetti after 3 seconds
-        delay(3000)
+        // Hide confetti after 4 seconds
+        delay(4000)
         showConfetti = false
     }
 
@@ -81,10 +82,11 @@ fun AchievementUnlockedDialog(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            // Subtle confetti effect
-            if (showConfetti) {
-                ConfettiEffect()
-            }
+            // Subtle confetti effect with smooth fade out
+            ConfettiEffect(
+                visible = showConfetti,
+                particleCount = 100 // Increased quantity as requested
+            )
 
             AnimatedVisibility(
                 visible = visible,
@@ -146,9 +148,7 @@ fun AchievementUnlockedDialog(
 private fun AchievementCard(achievement: Achievement) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        )
+        shape = RoundedCornerShape(32.dp)
     ) {
         Row(
             modifier = Modifier
@@ -163,7 +163,7 @@ private fun AchievementCard(achievement: Achievement) {
                     contentDescription = null,
                     modifier = Modifier
                         .size(64.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(CircleShape)
                 )
             } else {
                 // Placeholder icon
@@ -215,13 +215,16 @@ private fun AchievementCard(achievement: Achievement) {
 /**
  * Enhanced confetti effect with falling particles, rotation, and wave motion.
  *
- * Creates 20 particles with different shapes (circles, rectangles) falling
- * from top with subtle horizontal wave motion and rotation.
+ * @param visible Controls the visibility (fade in/out) of the confetti.
+ * @param particleCount Number of confetti particles to generate.
  */
 @Composable
-private fun ConfettiEffect() {
+private fun ConfettiEffect(
+    visible: Boolean,
+    particleCount: Int = 100
+) {
     val particles = remember {
-        List(20) {
+        List(particleCount) {
             ConfettiParticle(
                 x = Random.nextFloat(),
                 startY = Random.nextFloat() * 0.4f - 0.4f,
@@ -237,10 +240,16 @@ private fun ConfettiEffect() {
         }
     }
 
+    // Smooth fade out animation
+    val alpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(durationMillis = 1000)
+    )
+
     var progress by remember { mutableFloatStateOf(0f) }
     val animatedProgress by animateFloatAsState(
         targetValue = progress,
-        animationSpec = tween(durationMillis = 3000, easing = LinearEasing),
+        animationSpec = tween(durationMillis = 5000, easing = LinearEasing), // Slower animation
         label = "confetti"
     )
 
@@ -248,40 +257,46 @@ private fun ConfettiEffect() {
         progress = 1f
     }
 
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        particles.forEach { particle ->
-            val currentY = particle.startY + (animatedProgress * particle.speed * 1.3f)
-            if (currentY <= 1.1f) {
-                // Add wave motion to X
-                val waveOffset = sin(animatedProgress * particle.waveFrequency * 6.28f) * particle.waveAmplitude
-                val currentX = particle.x + waveOffset
+    if (alpha > 0f) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            particles.forEach { particle ->
+                val currentY = particle.startY + (animatedProgress * particle.speed * 1.3f)
+                if (currentY <= 1.1f) {
+                    // Add wave motion to X
+                    val waveOffset =
+                        sin(animatedProgress * particle.waveFrequency * 6.28f) * particle.waveAmplitude
+                    val currentX = particle.x + waveOffset
 
-                val centerX = currentX * size.width
-                val centerY = currentY * size.height
-                val currentRotation = particle.rotation + (animatedProgress * particle.rotationSpeed)
+                    val centerX = currentX * size.width
+                    val centerY = currentY * size.height
+                    val currentRotation =
+                        particle.rotation + (animatedProgress * particle.rotationSpeed)
 
-                rotate(
-                    degrees = currentRotation,
-                    pivot = Offset(centerX, centerY)
-                ) {
-                    when (particle.shape) {
-                        ConfettiShape.CIRCLE -> {
-                            drawCircle(
-                                color = particle.color,
-                                radius = particle.size,
-                                center = Offset(centerX, centerY)
-                            )
-                        }
+                    rotate(
+                        degrees = currentRotation,
+                        pivot = Offset(centerX, centerY)
+                    ) {
+                        when (particle.shape) {
+                            ConfettiShape.CIRCLE -> {
+                                drawCircle(
+                                    color = particle.color,
+                                    radius = particle.size,
+                                    center = Offset(centerX, centerY),
+                                    alpha = alpha // Apply fade out
+                                )
+                            }
 
-                        ConfettiShape.RECTANGLE -> {
-                            drawRect(
-                                color = particle.color,
-                                topLeft = Offset(
-                                    centerX - particle.size / 2,
-                                    centerY - particle.size / 2
-                                ),
-                                size = Size(particle.size, particle.size * 0.6f)
-                            )
+                            ConfettiShape.RECTANGLE -> {
+                                drawRect(
+                                    color = particle.color,
+                                    topLeft = Offset(
+                                        centerX - particle.size / 2,
+                                        centerY - particle.size / 2
+                                    ),
+                                    size = Size(particle.size, particle.size * 0.6f),
+                                    alpha = alpha // Apply fade out
+                                )
+                            }
                         }
                     }
                 }

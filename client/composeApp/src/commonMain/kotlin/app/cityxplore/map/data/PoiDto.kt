@@ -1,6 +1,7 @@
 package app.cityxplore.map.data
 
 import app.cityxplore.BuildConfig
+import app.cityxplore.achievements.data.AchievementDto
 import app.cityxplore.map.domain.PhotoSource
 import app.cityxplore.map.domain.PoiCategory
 import app.cityxplore.map.domain.PoiModel
@@ -225,12 +226,14 @@ private fun parsePoiPhoto(obj: JsonObject): PoiPhoto? {
  * @property poiId The unique identifier of the discovered POI.
  * @property discoveredAt ISO-8601 timestamp of when the POI was discovered.
  * @property favorite Whether the user marks this discovery as a favorite.
+ * @property newlyUnlockedAchievements List of achievements unlocked upon this discovery.
  */
 @Serializable
 data class UserPoiDiscoveryDto(
     val poiId: String,
     val discoveredAt: String,
-    val favorite: Boolean = false
+    val favorite: Boolean = false,
+    val newlyUnlockedAchievements: List<AchievementDto> = emptyList()
 )
 
 /**

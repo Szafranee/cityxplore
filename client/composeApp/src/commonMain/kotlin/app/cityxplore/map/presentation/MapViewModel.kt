@@ -1,5 +1,6 @@
 package app.cityxplore.map.presentation
 
+import app.cityxplore.achievements.domain.Achievement
 import app.cityxplore.core.cityXploreDispatchers
 import app.cityxplore.core.location.DistanceTracker
 import app.cityxplore.core.location.Location
@@ -246,7 +247,8 @@ class MapViewModel(
             var currentRevealedHexagons = cachedRevealedHexagons
             var currentWarsawHexagons = cachedWarsawHexagons
             var currentUserLocation: Location? = lastKnownLocation
-            var currentNewIds: Set<String> = emptySet()
+            var currentAchievements: List<Achievement> = emptyList()
+            var currentNewlyDiscoveredIds: Set<String> = emptySet()
             val currentProfile = if (currentState is MapUiState.Ready) currentState.profile else null
 
             if (currentState is MapUiState.Ready) {
@@ -254,7 +256,8 @@ class MapViewModel(
                 currentRevealedHexagons = currentState.revealedHexagons
                 currentWarsawHexagons = currentState.warsawHexagons
                 currentUserLocation = currentState.userLocation
-                currentNewIds = currentState.newlyDiscoveredPoiIds
+                currentAchievements = currentState.newlyUnlockedAchievements
+                currentNewlyDiscoveredIds = currentState.newlyDiscoveredPoiIds
             }
 
             val result = getPoisUseCase()
@@ -265,10 +268,11 @@ class MapViewModel(
                     userLocation = currentUserLocation,
                     isFollowingUser = currentIsFollowing,
                     selectedPoi = null,
-                    newlyDiscoveredPoiIds = currentNewIds,
+                    newlyDiscoveredPoiIds = currentNewlyDiscoveredIds,
                     revealedHexagons = currentRevealedHexagons,
                     warsawHexagons = currentWarsawHexagons,
-                    profile = currentProfile
+                    profile = currentProfile,
+                    newlyUnlockedAchievements = currentAchievements
                 )
             }
 
@@ -401,17 +405,22 @@ class MapViewModel(
         scope.launch(cityXploreDispatchers.io) {
             val result = autoDiscoverUseCase.checkAndDiscoverNearbyPois(userLocation)
 
-            result.onSuccess { newlyDiscoveredIds ->
-                if (newlyDiscoveredIds.isNotEmpty()) {
+            result.onSuccess { discoveryResult ->
+                if (discoveryResult.newlyDiscoveredPoiIds.isNotEmpty()) {
                     // Refresh POIs to get updated discovery status
                     val poisResult = getPoisUseCase()
 
                     poisResult.onSuccess { pois ->
                         val currentState = _state.value
                         if (currentState is MapUiState.Ready) {
+                            // Merge newly unlocked achievements from discovery with any existing ones
+                            val mergedAchievements =
+                                (currentState.newlyUnlockedAchievements + discoveryResult.newlyUnlockedAchievements).distinctBy { it.id }
+
                             _state.value = currentState.copy(
                                 pois = pois.map(PoiModel::toMapPoi),
-                                newlyDiscoveredPoiIds = newlyDiscoveredIds.toSet()
+                                newlyDiscoveredPoiIds = discoveryResult.newlyDiscoveredPoiIds.toSet(),
+                                newlyUnlockedAchievements = mergedAchievements
                             )
                         }
                     }

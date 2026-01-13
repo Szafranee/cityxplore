@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
 import java.util.UUID
+import org.cityxplore.backend.achievements.mapper.toDto as achievementToDto
 
 /**
  * Service class responsible for managing Point of Interest (POI) discovery by users.
@@ -23,13 +24,15 @@ import java.util.UUID
  * @property poiRepository Repository used to interact with the persistence layer for Point of Interest (POI) data.
  * @property userPoiRepository Repository used to manage the relationships between users and discovered POIs.
  * @property achievementEvaluationService Service for evaluating achievements after discoveries.
+ * @property achievementRepository Repository for fetching achievement entities.
  */
 @Service
 class PoiDiscoveryService(
     private val poiRepository: PointOfInterestRepository,
     private val userPoiRepository: UserPoiDiscoveryRepository,
     private val userRepository: UserRepository,
-    private val achievementEvaluationService: AchievementEvaluationService
+    private val achievementEvaluationService: AchievementEvaluationService,
+    private val achievementRepository: org.cityxplore.backend.achievements.repository.AchievementRepository
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -71,17 +74,30 @@ class PoiDiscoveryService(
         }
 
         // Evaluate discovery-based achievements
-        val newAchievements = achievementEvaluationService.evaluateDiscoveryAchievements(userId)
-        if (newAchievements.isNotEmpty()) {
+        val newAchievementIds = achievementEvaluationService.evaluateDiscoveryAchievements(userId)
+        if (newAchievementIds.isNotEmpty()) {
             logger.info(
                 "User {} earned {} new achievement(s) after discovering POI {}",
                 userId,
-                newAchievements.size,
+                newAchievementIds.size,
                 poiId
             )
         }
 
-        return discovery.toDto()
+        // Fetch achievement entities and convert to DTOs
+        val newlyUnlockedAchievements = if (newAchievementIds.isNotEmpty()) {
+            achievementRepository.findAllById(newAchievementIds)
+                .map { it.achievementToDto() }
+        } else {
+            emptyList()
+        }
+
+        return UserPoiDiscoveryResponse(
+            poiId = discovery.poiId,
+            discoveredAt = discovery.discoveredAt,
+            favorite = discovery.isFavorite,
+            newlyUnlockedAchievements = newlyUnlockedAchievements
+        )
     }
 
 
