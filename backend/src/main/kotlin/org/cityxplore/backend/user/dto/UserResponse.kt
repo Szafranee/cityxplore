@@ -14,6 +14,5 @@ data class UserResponse(
     val avatarUrl: String?,
     val createdAt: LocalDateTime?,
     val lastActiveAt: LocalDateTime?,
-    val totalDistance: BigDecimal,
-    val totalPoisDiscovered: Int
+    val totalDistance: BigDecimal
 )

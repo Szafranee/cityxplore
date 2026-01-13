@@ -27,6 +27,7 @@ sealed interface MapUiState {
      * @property warsawHexagons Set of all H3 hex indices covering the Warsaw region (for Fog of War).
      * @property profile The current user's profile data, or null if not yet loaded.
      * @property newlyUnlockedAchievements List of achievements just unlocked (for showing celebration dialog).
+     * @property newLevel The new level if user just leveled up, null otherwise.
      */
     data class Ready(
         val pois: List<MapPoi>,
@@ -37,7 +38,8 @@ sealed interface MapUiState {
         val revealedHexagons: Set<String> = emptySet(),
         val warsawHexagons: Set<String> = emptySet(),
         val profile: UserProfile? = null,
-        val newlyUnlockedAchievements: List<Achievement> = emptyList()
+        val newlyUnlockedAchievements: List<Achievement> = emptyList(),
+        val newLevel: Int? = null
     ) : MapUiState
 
     /**
@@ -110,4 +112,7 @@ sealed interface MapAction {
 
     /** User dismissed the achievement unlock dialog */
     data object DismissAchievementNotification : MapAction
+
+    /** User dismissed the level up dialog */
+    data object DismissLevelUpDialog : MapAction
 }

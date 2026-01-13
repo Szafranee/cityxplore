@@ -79,10 +79,19 @@ class MapViewModel(
         scope.launch {
             val result = profileRepository.getProfile()
             if (result.isSuccess) {
-                val profile = result.getOrThrow()
+                val newProfile = result.getOrThrow()
                 _state.value.let { currentState ->
                     if (currentState is MapUiState.Ready) {
-                        _state.value = currentState.copy(profile = profile)
+                        val oldLevel = currentState.profile?.level
+                        val newLevel = newProfile.level
+
+                        // Detect level up: new level is higher than old level
+                        val leveledUp = oldLevel != null && newLevel > oldLevel
+
+                        _state.value = currentState.copy(
+                            profile = newProfile,
+                            newLevel = if (leveledUp) newLevel else currentState.newLevel
+                        )
                     }
                 }
             }
@@ -153,6 +162,7 @@ class MapViewModel(
             is MapAction.ViewDiscoveredPoi -> viewDiscoveredPoi(action.poiId)
             MapAction.DismissAllDiscoveryNotifications -> dismissAllDiscoveryNotifications()
             MapAction.DismissAchievementNotification -> dismissAchievementNotification()
+            MapAction.DismissLevelUpDialog -> dismissLevelUpDialog()
         }
     }
 
@@ -187,6 +197,16 @@ class MapViewModel(
         val currentState = _state.value
         if (currentState is MapUiState.Ready) {
             _state.value = currentState.copy(newlyUnlockedAchievements = emptyList())
+        }
+    }
+
+    /**
+     * Dismisses the level up dialog.
+     */
+    private fun dismissLevelUpDialog() {
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            _state.value = currentState.copy(newLevel = null)
         }
     }
 

@@ -48,16 +48,6 @@ interface UserRepository : JpaRepository<User, UUID> {
     fun incrementAchievementPoints(userId: UUID, points: Int): Int
 
     /**
-     * Increments the total number of POIs (Points of Interest) discovered by the user by 1.
-     *
-     * @param userId the unique identifier of the user whose total POIs discovered is to be incremented
-     * @return the number of rows affected by the update operation
-     */
-    @Modifying
-    @Query("UPDATE User u SET u.totalPoisDiscovered = u.totalPoisDiscovered + 1 WHERE u.id = :userId")
-    fun incrementPoisDiscovered(userId: UUID): Int
-
-    /**
      * Increments the total distance travelled by the user.
      *
      * @param userId The unique identifier of the user whose distance is to be updated.

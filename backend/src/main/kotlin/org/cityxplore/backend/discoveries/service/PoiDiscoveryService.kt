@@ -7,7 +7,6 @@ import org.cityxplore.backend.discoveries.mapper.toDto
 import org.cityxplore.backend.discoveries.mapper.toDtoList
 import org.cityxplore.backend.discoveries.repository.UserPoiDiscoveryRepository
 import org.cityxplore.backend.poi.repository.PointOfInterestRepository
-import org.cityxplore.backend.user.repository.UserRepository
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
@@ -30,7 +29,6 @@ import org.cityxplore.backend.achievements.mapper.toDto as achievementToDto
 class PoiDiscoveryService(
     private val poiRepository: PointOfInterestRepository,
     private val userPoiRepository: UserPoiDiscoveryRepository,
-    private val userRepository: UserRepository,
     private val achievementEvaluationService: AchievementEvaluationService,
     private val achievementRepository: org.cityxplore.backend.achievements.repository.AchievementRepository
 ) {
@@ -65,12 +63,6 @@ class PoiDiscoveryService(
             )
         } catch (e: DataIntegrityViolationException) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "Already discovered", e)
-        }
-
-        // Increment user's total POIs discovered counter
-        val updated = userRepository.incrementPoisDiscovered(userId)
-        if (updated == 0) {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
         }
 
         // Evaluate discovery-based achievements

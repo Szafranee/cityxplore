@@ -127,7 +127,7 @@ class AchievementEvaluationService(
             val actualCount = if (category != null) {
                 countDiscoveriesByCategory(userId, category)
             } else {
-                user.totalPoisDiscovered
+                userPoiDiscoveryRepository.countByUserId(userId).toInt()
             }
             if (actualCount < (requiredCount as Number).toInt()) {
                 return false

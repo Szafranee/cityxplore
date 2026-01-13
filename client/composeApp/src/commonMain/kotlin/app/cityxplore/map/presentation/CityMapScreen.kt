@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.cityxplore.map.presentation.components.AchievementUnlockedDialog
 import app.cityxplore.map.presentation.components.DiscoveryNotification
+import app.cityxplore.map.presentation.components.LevelUpDialog
 import app.cityxplore.map.presentation.components.PoiDetailsContent
 import app.cityxplore.profile.domain.UserProfile
 import coil3.compose.AsyncImage
@@ -119,6 +120,14 @@ fun CityXploreMapScreen(
             AchievementUnlockedDialog(
                 achievements = state.newlyUnlockedAchievements,
                 onDismiss = { onAction(MapAction.DismissAchievementNotification) }
+            )
+        }
+
+        // Level up dialog (shown after achievement dialog if both exist)
+        if (state is MapUiState.Ready && state.newLevel != null && state.newlyUnlockedAchievements.isEmpty()) {
+            LevelUpDialog(
+                newLevel = state.newLevel,
+                onDismiss = { onAction(MapAction.DismissLevelUpDialog) }
             )
         }
     }

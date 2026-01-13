@@ -5,9 +5,9 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.runBlocking
 import org.apache.tika.Tika
+import org.cityxplore.backend.discoveries.repository.UserPoiDiscoveryRepository
 import org.cityxplore.backend.user.dto.UpdateUserProfileRequest
 import org.cityxplore.backend.user.dto.UserProfileResponse
-import org.cityxplore.backend.user.mapper.toDto
 import org.cityxplore.backend.user.repository.UserRepository
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
@@ -31,11 +31,13 @@ import java.util.UUID
  * business logic related to user profiles.
  *
  * @property userRepository Repository for accessing and manipulating user data in the database.
+ * @property userPoiDiscoveryRepository Repository for counting user's POI discoveries.
  * @property supabaseClient Supabase client for interacting with Auth service.
  */
 @Service
 class UserProfileService(
     private val userRepository: UserRepository,
+    private val userPoiDiscoveryRepository: UserPoiDiscoveryRepository,
     private val supabaseClient: SupabaseClient,
     private val transactionTemplate: TransactionTemplate
 ) {
@@ -59,7 +61,19 @@ class UserProfileService(
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
         }
 
-        return user.toDto()
+        // Calculate total POIs discovered dynamically from user_poi_discoveries table
+        val totalPoisDiscovered = userPoiDiscoveryRepository.countByUserId(userId).toInt()
+
+        return UserProfileResponse(
+            id = user.id!!,
+            email = user.email,
+            username = user.username,
+            avatarUrl = user.avatarUrl,
+            totalDistance = user.totalDistance,
+            totalPoisDiscovered = totalPoisDiscovered,
+            totalAchievementPoints = user.totalAchievementPoints,
+            createdAt = user.createdAt
+        )
     }
 
     /**
@@ -116,7 +130,19 @@ class UserProfileService(
             throw ResponseStatusException(HttpStatus.CONFLICT, message)
         }
 
-        return saved.toDto()
+        // Calculate total POIs discovered dynamically
+        val totalPoisDiscovered = userPoiDiscoveryRepository.countByUserId(userId).toInt()
+
+        return UserProfileResponse(
+            id = saved.id!!,
+            email = saved.email,
+            username = saved.username,
+            avatarUrl = saved.avatarUrl,
+            totalDistance = saved.totalDistance,
+            totalPoisDiscovered = totalPoisDiscovered,
+            totalAchievementPoints = saved.totalAchievementPoints,
+            createdAt = saved.createdAt
+        )
     }
 
     /**
@@ -256,7 +282,19 @@ class UserProfileService(
                 }
             })
 
-            saved.toDto()
+            // Calculate total POIs discovered dynamically
+            val totalPoisDiscovered = userPoiDiscoveryRepository.countByUserId(userId).toInt()
+
+            UserProfileResponse(
+                id = saved.id!!,
+                email = saved.email,
+                username = saved.username,
+                avatarUrl = saved.avatarUrl,
+                totalDistance = saved.totalDistance,
+                totalPoisDiscovered = totalPoisDiscovered,
+                totalAchievementPoints = saved.totalAchievementPoints,
+                createdAt = saved.createdAt
+            )
         }!!
     }
 
