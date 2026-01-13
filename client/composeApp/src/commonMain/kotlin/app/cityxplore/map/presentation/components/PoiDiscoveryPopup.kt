@@ -42,7 +42,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.cityxplore.map.domain.MapPoi
 import app.cityxplore.map.domain.PoiCategory
-import app.cityxplore.theme.AppColors
 import coil3.compose.AsyncImage
 
 /**
@@ -201,45 +200,50 @@ fun PoiDiscoveryPopup(
 }
 
 /**
- * Badge displaying POI category with emoji icon.
+ * Badge displaying the POI category with icon.
+ * Uses category-specific colours for better visual distinction.
  */
 @Composable
 private fun CategoryBadge(
     category: PoiCategory,
     modifier: Modifier = Modifier
 ) {
-    val (emoji, categoryName) = when (category) {
-        PoiCategory.HISTORICAL -> "🏛️" to "Historical"
-        PoiCategory.CULTURAL -> "🎨" to "Cultural"
-        PoiCategory.NATURE -> "🌳" to "Nature"
-        PoiCategory.FOOD -> "🍽️" to "Food & Dining"
-        PoiCategory.SPORTS -> "⚽" to "Sports"
-        PoiCategory.ENTERTAINMENT -> "🎭" to "Entertainment"
-        PoiCategory.CUSTOM -> "📍" to "Custom"
-        PoiCategory.OTHER -> "❓" to "Other"
-        PoiCategory.UNKNOWN -> "❓" to "Unknown"
+    val categoryColor = getCategoryColor(category)
+    val icon = getCategoryIcon(category)
+    val categoryName = when (category) {
+        PoiCategory.HISTORICAL -> "Historical"
+        PoiCategory.CULTURAL -> "Cultural"
+        PoiCategory.NATURE -> "Nature"
+        PoiCategory.FOOD -> "Food & Dining"
+        PoiCategory.SPORTS -> "Sports"
+        PoiCategory.ENTERTAINMENT -> "Entertainment"
+        PoiCategory.CUSTOM -> "Custom"
+        PoiCategory.OTHER -> "Other"
+        PoiCategory.UNKNOWN -> "Unknown"
     }
 
     Row(
         modifier = modifier
             .background(
-                color = AppColors.green,
+                color = categoryColor,
                 shape = RoundedCornerShape(12.dp)
             )
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = emoji,
-            style = MaterialTheme.typography.bodyMedium
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = Color.White
         )
-        Spacer(modifier = Modifier.width(4.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = categoryName,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
+            color = Color.White
         )
     }
 }

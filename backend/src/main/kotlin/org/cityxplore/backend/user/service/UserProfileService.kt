@@ -6,6 +6,7 @@ import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.runBlocking
 import org.apache.tika.Tika
 import org.cityxplore.backend.discoveries.repository.UserPoiDiscoveryRepository
+import org.cityxplore.backend.shared.config.GamificationConfig
 import org.cityxplore.backend.user.dto.UpdateUserProfileRequest
 import org.cityxplore.backend.user.dto.UserProfileResponse
 import org.cityxplore.backend.user.repository.UserRepository
@@ -33,13 +34,15 @@ import java.util.UUID
  * @property userRepository Repository for accessing and manipulating user data in the database.
  * @property userPoiDiscoveryRepository Repository for counting user's POI discoveries.
  * @property supabaseClient Supabase client for interacting with Auth service.
+ * @property gamificationConfig Configuration for XP points awarded per activity.
  */
 @Service
 class UserProfileService(
     private val userRepository: UserRepository,
     private val userPoiDiscoveryRepository: UserPoiDiscoveryRepository,
     private val supabaseClient: SupabaseClient,
-    private val transactionTemplate: TransactionTemplate
+    private val transactionTemplate: TransactionTemplate,
+    private val gamificationConfig: GamificationConfig
 ) {
 
     private val logger = LoggerFactory.getLogger(UserProfileService::class.java)
@@ -360,10 +363,11 @@ class UserProfileService(
     }
 
     /**
-     * Adds travelled distance to a user's total distance.
+     * Adds travelled distance to a user's total distance and awards XP points.
      *
-     * This method increments the user's totalDistance counter. The distance should be
-     * validated before calling this method (max 500m per request for anti-cheat).
+     * This method increments the user's totalDistance counter and awards XP points
+     * based on the distance (configured in gamificationConfig).
+     * The distance should be validated before calling this method (max 500m per request for anti-cheat).
      *
      * @param userId The unique identifier of the user.
      * @param distanceMeters The distance to add in meters.
@@ -377,6 +381,14 @@ class UserProfileService(
         val updated = userRepository.incrementDistance(userId, distance)
         if (updated == 0) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+        }
+
+        // Award XP points for distance (1 point per 100 meters)
+        val pointsPer100m = gamificationConfig.pointsPer100Meters
+        val pointsToAward = (distanceMeters / 100.0 * pointsPer100m).toInt()
+        if (pointsToAward > 0) {
+            userRepository.incrementAchievementPoints(userId, pointsToAward)
+            logger.debug("Awarded {} XP to user {} for {} meters traveled", pointsToAward, userId, distanceMeters)
         }
 
         logger.debug("Added {} meters to user {} total distance", distance, userId)

@@ -2,6 +2,7 @@ package app.cityxplore.map.presentation.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -21,27 +22,36 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import app.cityxplore.theme.AppColors
 
 /**
  * Full-screen modal dialog celebrating user leveling up.
  *
  * Shows:
- * - Celebration animation
- * - New level number
- * - Congratulations message
- * - Dismiss button
+ * - Level number inside a star badge
+ * - Celebration message
+ * - Continue button
  *
  * @param newLevel The new level the user has reached
  * @param onDismiss Callback when user dismisses the dialog
@@ -52,11 +62,33 @@ fun LevelUpDialog(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Full-screen overlay with semi-transparent background
+    // Animation state for the star
+    var animationStarted by remember { mutableStateOf(false) }
+    val starScale by animateFloatAsState(
+        targetValue = if (animationStarted) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "starScale"
+    )
+
+    LaunchedEffect(Unit) {
+        animationStarted = true
+    }
+
+    // Full-screen overlay with gradient background
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.7f)),
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Black.copy(alpha = 0.8f),
+                        Color(0xFF1a237e).copy(alpha = 0.9f)
+                    )
+                )
+            ),
         contentAlignment = Alignment.Center
     ) {
         AnimatedVisibility(
@@ -74,36 +106,22 @@ fun LevelUpDialog(
                     .fillMaxWidth(0.85f)
                     .padding(16.dp),
                 shape = RoundedCornerShape(28.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             ) {
                 Column(
                     modifier = Modifier
-                        .padding(32.dp)
+                        .padding(top = 60.dp, bottom = 32.dp, start = 32.dp, end = 32.dp)
                         .fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Star icon
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = null,
-                        modifier = Modifier.size(80.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-
-                    // Celebration emoji
+                    // Title above the star
                     Text(
-                        text = "🎊",
-                        style = MaterialTheme.typography.displayLarge
-                    )
-
-                    // Main title
-                    Text(
-                        text = "LEVEL UP!",
-                        style = MaterialTheme.typography.headlineLarge,
+                        text = "🎊 LEVEL UP! 🎊",
+                        style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.primary,
                         textAlign = TextAlign.Center
@@ -111,58 +129,65 @@ fun LevelUpDialog(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // New level display
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer
-                        )
+                    // Star with level number inside
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.scale(starScale)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "Level",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                            )
-                            Text(
-                                text = "$newLevel",
-                                style = MaterialTheme.typography.displayLarge,
-                                fontWeight = FontWeight.Black,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
+                        // Large star background
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            modifier = Modifier.size(140.dp),
+                            tint = AppColors.gold
+                        )
+                        // Level number in center
+                        Text(
+                            text = "$newLevel",
+                            style = MaterialTheme.typography.displayLarge.copy(
+                                fontSize = 48.sp
+                            ),
+                            fontWeight = FontWeight.Black,
+                            color = Color.White
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Congratulations message
+                    // Subtitle
                     Text(
-                        text = "Congratulations!",
+                        text = "You've reached Level $newLevel!",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
                     Text(
-                        text = "You've reached a new level! Keep exploring to earn more achievements and unlock rewards.",
+                        text = "Keep exploring to earn more XP and unlock new achievements!",
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 8.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                    // Continue button
+                    // Continue button with gradient-like effect
                     Button(
                         onClick = onDismiss,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AppColors.green
+                        ),
+                        shape = RoundedCornerShape(16.dp)
                     ) {
                         Text(
                             text = "Continue Exploring",
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }

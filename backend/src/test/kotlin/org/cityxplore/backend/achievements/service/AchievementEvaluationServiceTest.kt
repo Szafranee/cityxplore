@@ -53,7 +53,6 @@ class AchievementEvaluationServiceTest {
 
     private fun createTestUser(
         totalDistance: Double = 0.0,
-        totalPoisDiscovered: Int = 0,
         isActive: Boolean = true
     ): User {
         return User(
@@ -61,7 +60,6 @@ class AchievementEvaluationServiceTest {
             email = "test@example.com",
             username = "testuser",
             totalDistance = BigDecimal.valueOf(totalDistance),
-            totalPoisDiscovered = totalPoisDiscovered,
             isActive = isActive
         )
     }
@@ -216,12 +214,13 @@ class AchievementEvaluationServiceTest {
         fun `should grant achievement when POI count is reached`() {
             // Given
             val achievementId = UUID.randomUUID()
-            val user = createTestUser(totalPoisDiscovered = 10)
+            val user = createTestUser()
             val achievement = createCountAchievement(achievementId, "10 POIs", count = 10)
 
             every { userRepository.findById(testUserId) } returns Optional.of(user)
             every { userAchievementRepository.findAllByUserId(testUserId) } returns emptyList()
             every { achievementRepository.findAllByIsActiveTrue() } returns listOf(achievement)
+            every { userPoiDiscoveryRepository.countByUserId(testUserId) } returns 10L
             every { achievementService.grantAchievement(testUserId, achievementId) } returns
                     AchievementGrantResult(dto = mockk(), created = true)
 
@@ -238,7 +237,7 @@ class AchievementEvaluationServiceTest {
         fun `should grant category-specific achievement`() {
             // Given
             val achievementId = UUID.randomUUID()
-            val user = createTestUser(totalPoisDiscovered = 10)
+            val user = createTestUser()
             val achievement = createCountAchievement(
                 achievementId,
                 "Park Lover",
@@ -283,7 +282,7 @@ class AchievementEvaluationServiceTest {
         fun `should not grant category achievement with insufficient discoveries`() {
             // Given
             val achievementId = UUID.randomUUID()
-            val user = createTestUser(totalPoisDiscovered = 10)
+            val user = createTestUser()
             val achievement = createCountAchievement(
                 achievementId,
                 "Park Lover",
@@ -322,7 +321,7 @@ class AchievementEvaluationServiceTest {
         fun `should grant time-range achievement for night discovery`() {
             // Given
             val achievementId = UUID.randomUUID()
-            val user = createTestUser(totalPoisDiscovered = 1)
+            val user = createTestUser()
             val achievement = Achievement(
                 id = achievementId,
                 name = "Night Owl",
@@ -361,7 +360,7 @@ class AchievementEvaluationServiceTest {
         fun `should not grant time-range achievement for daytime discovery`() {
             // Given
             val achievementId = UUID.randomUUID()
-            val user = createTestUser(totalPoisDiscovered = 1)
+            val user = createTestUser()
             val achievement = Achievement(
                 id = achievementId,
                 name = "Night Owl",

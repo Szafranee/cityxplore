@@ -49,4 +49,5 @@ object AppColors {
     val textWhite = CityXplorePalette.TextMuted
     val white = CityXplorePalette.PureWhite
     val background = CityXplorePalette.Background
+    val gold = Color(0xFFFFD700) // Gold colour for level up star
 }

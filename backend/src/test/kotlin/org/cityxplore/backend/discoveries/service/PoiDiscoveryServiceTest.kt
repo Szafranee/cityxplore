@@ -3,10 +3,12 @@ package org.cityxplore.backend.discoveries.service
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.cityxplore.backend.achievements.repository.AchievementRepository
 import org.cityxplore.backend.achievements.service.AchievementEvaluationService
 import org.cityxplore.backend.discoveries.entity.UserPoiDiscovery
 import org.cityxplore.backend.discoveries.repository.UserPoiDiscoveryRepository
 import org.cityxplore.backend.poi.repository.PointOfInterestRepository
+import org.cityxplore.backend.shared.config.GamificationConfig
 import org.cityxplore.backend.user.repository.UserRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -26,6 +28,8 @@ class PoiDiscoveryServiceTest {
     private lateinit var userPoiRepository: UserPoiDiscoveryRepository
     private lateinit var userRepository: UserRepository
     private lateinit var achievementEvaluationService: AchievementEvaluationService
+    private lateinit var achievementRepository: AchievementRepository
+    private lateinit var gamificationConfig: GamificationConfig
     private lateinit var poiDiscoveryService: PoiDiscoveryService
 
     @BeforeEach
@@ -34,11 +38,18 @@ class PoiDiscoveryServiceTest {
         userPoiRepository = mockk()
         userRepository = mockk()
         achievementEvaluationService = mockk()
+        achievementRepository = mockk()
+        gamificationConfig = GamificationConfig().apply {
+            pointsPerPoiDiscovery = 10
+            pointsPer100Meters = 1
+        }
         poiDiscoveryService = PoiDiscoveryService(
             poiRepository,
             userPoiRepository,
+            achievementEvaluationService,
+            achievementRepository,
             userRepository,
-            achievementEvaluationService
+            gamificationConfig
         )
     }
 
@@ -57,7 +68,7 @@ class PoiDiscoveryServiceTest {
 
         every { poiRepository.existsById(poiId) } returns true
         every { userPoiRepository.save(any()) } returns discovery
-        every { userRepository.incrementPoisDiscovered(userId) } returns 1
+        every { userRepository.incrementAchievementPoints(userId, 10) } returns 1
         every { achievementEvaluationService.evaluateDiscoveryAchievements(userId) } returns emptyList()
 
         // When
@@ -69,7 +80,7 @@ class PoiDiscoveryServiceTest {
         assertEquals(false, result.favorite)
         verify(exactly = 1) { poiRepository.existsById(poiId) }
         verify(exactly = 1) { userPoiRepository.save(any()) }
-        verify(exactly = 1) { userRepository.incrementPoisDiscovered(userId) }
+        verify(exactly = 1) { userRepository.incrementAchievementPoints(userId, 10) }
     }
 
     @Test
@@ -111,32 +122,6 @@ class PoiDiscoveryServiceTest {
         verify(exactly = 1) { userPoiRepository.save(any()) }
     }
 
-    @Test
-    fun `discoverPoi should throw ResponseStatusException when user not found after discovery`() {
-        // Given
-        val userId = UUID.randomUUID()
-        val poiId = UUID.randomUUID()
-        val discovery = UserPoiDiscovery(
-            id = UUID.randomUUID(),
-            userId = userId,
-            poiId = poiId,
-            discoveredAt = LocalDateTime.now(),
-            isFavorite = false
-        )
-
-        every { poiRepository.existsById(poiId) } returns true
-        every { userPoiRepository.save(any()) } returns discovery
-        every { userRepository.incrementPoisDiscovered(userId) } returns 0
-
-        // When & Then
-        val exception = assertThrows<ResponseStatusException> {
-            poiDiscoveryService.discoverPoi(userId, poiId)
-        }
-
-        assertEquals(HttpStatus.NOT_FOUND, exception.statusCode)
-        assertEquals("User not found", exception.reason)
-        verify(exactly = 1) { userRepository.incrementPoisDiscovered(userId) }
-    }
 
     @Test
     fun `getUserDiscoveries should return list of discoveries for user`() {
@@ -250,7 +235,7 @@ class PoiDiscoveryServiceTest {
 
         every { poiRepository.existsById(poiId) } returns true
         every { userPoiRepository.save(any()) } returns discovery
-        every { userRepository.incrementPoisDiscovered(userId) } returns 1
+        every { userRepository.incrementAchievementPoints(userId, 10) } returns 1
         every { achievementEvaluationService.evaluateDiscoveryAchievements(any()) } returns emptyList()
 
         // When
@@ -261,5 +246,88 @@ class PoiDiscoveryServiceTest {
         assertEquals(poiId, result.poiId)
         assertEquals(true, result.favorite)
         assertEquals(discoveredAt, result.discoveredAt)
+    }
+
+    @Test
+    fun `discoverPoi should award XP points for discovery`() {
+        // Given
+        val userId = UUID.randomUUID()
+        val poiId = UUID.randomUUID()
+        val discovery = UserPoiDiscovery(
+            id = UUID.randomUUID(),
+            userId = userId,
+            poiId = poiId,
+            discoveredAt = LocalDateTime.now(),
+            isFavorite = false
+        )
+
+        every { poiRepository.existsById(poiId) } returns true
+        every { userPoiRepository.save(any()) } returns discovery
+        every { userRepository.incrementAchievementPoints(userId, 10) } returns 1
+        every { achievementEvaluationService.evaluateDiscoveryAchievements(userId) } returns emptyList()
+
+        // When
+        val result = poiDiscoveryService.discoverPoi(userId, poiId)
+
+        // Then
+        assertNotNull(result)
+        verify(exactly = 1) { userRepository.incrementAchievementPoints(userId, 10) }
+    }
+
+    @Test
+    fun `discoverPoi should not award XP when points configuration is zero`() {
+        // Given
+        val userId = UUID.randomUUID()
+        val poiId = UUID.randomUUID()
+        val discovery = UserPoiDiscovery(
+            id = UUID.randomUUID(),
+            userId = userId,
+            poiId = poiId,
+            discoveredAt = LocalDateTime.now(),
+            isFavorite = false
+        )
+
+        // Override gamification config to award 0 points
+        gamificationConfig.pointsPerPoiDiscovery = 0
+
+        every { poiRepository.existsById(poiId) } returns true
+        every { userPoiRepository.save(any()) } returns discovery
+        every { achievementEvaluationService.evaluateDiscoveryAchievements(userId) } returns emptyList()
+
+        // When
+        val result = poiDiscoveryService.discoverPoi(userId, poiId)
+
+        // Then
+        assertNotNull(result)
+        verify(exactly = 0) { userRepository.incrementAchievementPoints(any(), any()) }
+    }
+
+    @Test
+    fun `discoverPoi should award XP and evaluate achievements`() {
+        // Given
+        val userId = UUID.randomUUID()
+        val poiId = UUID.randomUUID()
+        val achievementId = UUID.randomUUID()
+        val discovery = UserPoiDiscovery(
+            id = UUID.randomUUID(),
+            userId = userId,
+            poiId = poiId,
+            discoveredAt = LocalDateTime.now(),
+            isFavorite = false
+        )
+
+        every { poiRepository.existsById(poiId) } returns true
+        every { userPoiRepository.save(any()) } returns discovery
+        every { userRepository.incrementAchievementPoints(userId, 10) } returns 1
+        every { achievementEvaluationService.evaluateDiscoveryAchievements(userId) } returns listOf(achievementId)
+        every { achievementRepository.findAllById(listOf(achievementId)) } returns emptyList()
+
+        // When
+        val result = poiDiscoveryService.discoverPoi(userId, poiId)
+
+        // Then
+        assertNotNull(result)
+        verify(exactly = 1) { userRepository.incrementAchievementPoints(userId, 10) }
+        verify(exactly = 1) { achievementEvaluationService.evaluateDiscoveryAchievements(userId) }
     }
 }

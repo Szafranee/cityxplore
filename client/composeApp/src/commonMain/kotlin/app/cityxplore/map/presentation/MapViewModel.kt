@@ -70,23 +70,34 @@ class MapViewModel(
     private var cachedWarsawHexagons: Set<String> = emptySet()
     private var cachedRevealedHexagons: Set<String> = emptySet()
 
+    // Track previous level for level-up detection
+    private var previousLevel: Int? = null
+
     init {
         loadData()
         startLocationTracking()
     }
 
-    private fun loadProfile() {
+    /**
+     * Loads/refreshes the user profile and checks for level up.
+     *
+     * @param checkLevelUp If true, compares with previous level to detect level up.
+     */
+    private fun loadProfile(checkLevelUp: Boolean = false) {
         scope.launch {
             val result = profileRepository.getProfile()
             if (result.isSuccess) {
                 val newProfile = result.getOrThrow()
                 _state.value.let { currentState ->
                     if (currentState is MapUiState.Ready) {
-                        val oldLevel = currentState.profile?.level
+                        val oldLevel = previousLevel
                         val newLevel = newProfile.level
 
-                        // Detect level up: new level is higher than old level
-                        val leveledUp = oldLevel != null && newLevel > oldLevel
+                        // Update previous level for future comparisons
+                        previousLevel = newLevel
+
+                        // Detect level up: new level is higher than old level (only if we had a previous level)
+                        val leveledUp = checkLevelUp && oldLevel != null && newLevel > oldLevel
 
                         _state.value = currentState.copy(
                             profile = newProfile,
@@ -142,7 +153,8 @@ class MapViewModel(
         when (action) {
             MapAction.Refresh -> {
                 scope.launch(cityXploreDispatchers.io) {
-                    loadData()
+                    loadPois()
+                    loadFogOfWar()
                 }
             }
 
@@ -269,6 +281,7 @@ class MapViewModel(
             var currentUserLocation: Location? = lastKnownLocation
             var currentAchievements: List<Achievement> = emptyList()
             var currentNewlyDiscoveredIds: Set<String> = emptySet()
+            var currentNewLevel: Int? = null
             val currentProfile = if (currentState is MapUiState.Ready) currentState.profile else null
 
             if (currentState is MapUiState.Ready) {
@@ -278,6 +291,7 @@ class MapViewModel(
                 currentUserLocation = currentState.userLocation
                 currentAchievements = currentState.newlyUnlockedAchievements
                 currentNewlyDiscoveredIds = currentState.newlyDiscoveredPoiIds
+                currentNewLevel = currentState.newLevel
             }
 
             val result = getPoisUseCase()
@@ -292,7 +306,8 @@ class MapViewModel(
                     revealedHexagons = currentRevealedHexagons,
                     warsawHexagons = currentWarsawHexagons,
                     profile = currentProfile,
-                    newlyUnlockedAchievements = currentAchievements
+                    newlyUnlockedAchievements = currentAchievements,
+                    newLevel = currentNewLevel
                 )
             }
 
@@ -373,8 +388,8 @@ class MapViewModel(
                             newlyUnlockedAchievements = result.newlyUnlockedAchievements
                         )
                     }
-                    // Refresh profile to get updated total distance
-                    loadProfile()
+                    // Refresh profile to get updated total distance and check for level up
+                    loadProfile(checkLevelUp = true)
                 }
                 .onFailure { error ->
                     println("Failed to sync distance: ${error.message}")
@@ -443,6 +458,9 @@ class MapViewModel(
                                 newlyUnlockedAchievements = mergedAchievements
                             )
                         }
+
+                        // Refresh profile to update XP from achievements and check for level up
+                        loadProfile(checkLevelUp = true)
                     }
 
                     poisResult.onFailure { error ->

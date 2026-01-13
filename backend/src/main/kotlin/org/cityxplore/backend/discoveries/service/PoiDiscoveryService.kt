@@ -7,6 +7,8 @@ import org.cityxplore.backend.discoveries.mapper.toDto
 import org.cityxplore.backend.discoveries.mapper.toDtoList
 import org.cityxplore.backend.discoveries.repository.UserPoiDiscoveryRepository
 import org.cityxplore.backend.poi.repository.PointOfInterestRepository
+import org.cityxplore.backend.shared.config.GamificationConfig
+import org.cityxplore.backend.user.repository.UserRepository
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
@@ -24,21 +26,26 @@ import org.cityxplore.backend.achievements.mapper.toDto as achievementToDto
  * @property userPoiRepository Repository used to manage the relationships between users and discovered POIs.
  * @property achievementEvaluationService Service for evaluating achievements after discoveries.
  * @property achievementRepository Repository for fetching achievement entities.
+ * @property userRepository Repository for updating user's achievement points.
+ * @property gamificationConfig Configuration for XP points awarded per activity.
  */
 @Service
 class PoiDiscoveryService(
     private val poiRepository: PointOfInterestRepository,
     private val userPoiRepository: UserPoiDiscoveryRepository,
     private val achievementEvaluationService: AchievementEvaluationService,
-    private val achievementRepository: org.cityxplore.backend.achievements.repository.AchievementRepository
+    private val achievementRepository: org.cityxplore.backend.achievements.repository.AchievementRepository,
+    private val userRepository: UserRepository,
+    private val gamificationConfig: GamificationConfig
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
     /**
      * Marks a Point of Interest (POI) as discovered for a specific user. The method ensures that the POI
      * exists and has not yet been discovered by the user before adding the discovery.
-     * After a successful discovery, increments the user's totalPoisDiscovered counter
-     * and evaluates discovery-based achievements.
+     * After a successful discovery:
+     * - Awards XP points for the discovery (configured in gamificationConfig)
+     * - Evaluates and grants discovery-based achievements
      * If the POI does not exist, a `ResponseStatusException` with a 404 status is thrown.
      * If the user has already discovered the POI, a `ResponseStatusException`
      * with a 409 status is thrown.
@@ -63,6 +70,13 @@ class PoiDiscoveryService(
             )
         } catch (e: DataIntegrityViolationException) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "Already discovered", e)
+        }
+
+        // Award XP points for the discovery
+        val pointsForDiscovery = gamificationConfig.pointsPerPoiDiscovery
+        if (pointsForDiscovery > 0) {
+            userRepository.incrementAchievementPoints(userId, pointsForDiscovery)
+            logger.debug("Awarded {} XP to user {} for POI discovery", pointsForDiscovery, userId)
         }
 
         // Evaluate discovery-based achievements
