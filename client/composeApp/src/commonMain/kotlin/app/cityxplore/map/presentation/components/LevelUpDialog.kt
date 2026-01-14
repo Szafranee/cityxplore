@@ -20,7 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -85,7 +85,7 @@ fun LevelUpDialog(
                 Brush.verticalGradient(
                     colors = listOf(
                         Color.Black.copy(alpha = 0.8f),
-                        Color(0xFF1a237e).copy(alpha = 0.9f)
+                        Color(0xff002b1b).copy(alpha = 0.9f)
                     )
                 )
             ),
@@ -113,7 +113,7 @@ fun LevelUpDialog(
             ) {
                 Column(
                     modifier = Modifier
-                        .padding(top = 60.dp, bottom = 32.dp, start = 32.dp, end = 32.dp)
+                        .padding(top = 60.dp, bottom = 32.dp, start = 8.dp, end = 8.dp)
                         .fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -121,7 +121,7 @@ fun LevelUpDialog(
                     // Title above the star
                     Text(
                         text = "🎊 LEVEL UP! 🎊",
-                        style = MaterialTheme.typography.headlineMedium,
+                        style = MaterialTheme.typography.headlineLarge,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.primary,
                         textAlign = TextAlign.Center
@@ -136,19 +136,20 @@ fun LevelUpDialog(
                     ) {
                         // Large star background
                         Icon(
-                            imageVector = Icons.Default.Star,
+                            imageVector = Icons.Rounded.Star,
                             contentDescription = null,
-                            modifier = Modifier.size(140.dp),
+                            modifier = Modifier.size(165.dp),
                             tint = AppColors.gold
                         )
-                        // Level number in center
+                        // Level number in the centre
                         Text(
                             text = "$newLevel",
                             style = MaterialTheme.typography.displayLarge.copy(
                                 fontSize = 48.sp
                             ),
                             fontWeight = FontWeight.Black,
-                            color = Color.White
+                            color = Color.White,
+                            modifier = Modifier.padding(top = 8.dp)
                         )
                     }
 
@@ -156,7 +157,7 @@ fun LevelUpDialog(
 
                     // Subtitle
                     Text(
-                        text = "You've reached Level $newLevel!",
+                        text = "You've reached\nLevel $newLevel!",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center,
@@ -173,7 +174,7 @@ fun LevelUpDialog(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Continue button with gradient-like effect
+                    // Continue button
                     Button(
                         onClick = onDismiss,
                         modifier = Modifier

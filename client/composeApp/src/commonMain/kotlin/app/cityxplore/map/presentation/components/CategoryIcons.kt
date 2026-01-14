@@ -13,6 +13,14 @@ import androidx.compose.material.icons.rounded.TheaterComedy
 import androidx.compose.ui.graphics.vector.ImageVector
 import app.cityxplore.map.domain.PoiCategory
 
+/**
+ * Returns the icon associated with the given [PoiCategory].
+ *
+ * These icons are used consistently across POI markers, chips, and details UI.
+ *
+ * @param category The POI category.
+ * @return The [ImageVector] icon for the category.
+ */
 fun getCategoryIcon(category: PoiCategory): ImageVector {
     return when (category) {
         PoiCategory.HISTORICAL -> Icons.Rounded.AccountBalance

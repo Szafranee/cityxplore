@@ -201,7 +201,7 @@ fun PoiDiscoveryPopup(
 
 /**
  * Badge displaying the POI category with icon.
- * Uses category-specific colours for better visual distinction.
+ * Uses category-specific colors for better visual distinction.
  */
 @Composable
 private fun CategoryBadge(

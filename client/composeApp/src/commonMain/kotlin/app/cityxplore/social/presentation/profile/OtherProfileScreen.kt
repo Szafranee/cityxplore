@@ -19,7 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -519,7 +519,7 @@ private fun AchievementItem(
                 )
             } else {
                 Icon(
-                    imageVector = if (achievement.isUnlocked) Icons.Default.Star else Icons.Default.Lock,
+                    imageVector = if (achievement.isUnlocked) Icons.Rounded.Star else Icons.Default.Lock,
                     contentDescription = null,
                     modifier = Modifier.size(32.dp),
                     tint = if (achievement.isUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant

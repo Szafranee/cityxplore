@@ -98,7 +98,8 @@ fun CityXploreMapScreen(
             ) {
                 PoiDetailsContent(
                     poi = state.selectedPoi,
-                    onToggleFavorite = { onAction(MapAction.ToggleFavorite(it)) }
+                    onToggleFavorite = { onAction(MapAction.ToggleFavorite(it)) },
+                    userLocation = state.userLocation
                 )
             }
         }
