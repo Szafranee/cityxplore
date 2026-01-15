@@ -37,7 +37,7 @@ class DistanceTrackerTest {
         // Second location ~100m away
         tracker.onNewLocation(Location(52.2306, 21.0122))
 
-        // Distance should be accumulated (approximately 100m)
+        // Distance should be accumulated (approximately 100 m)
         assertTrue(tracker.bufferedDistance.value > 50.0, "Distance should be accumulated")
         assertTrue(tracker.bufferedDistance.value < 200.0, "Distance should be reasonable")
     }
@@ -49,7 +49,7 @@ class DistanceTrackerTest {
         // First location
         tracker.onNewLocation(Location(52.2297, 21.0122))
 
-        // Very small movement (less than 1m)
+        // Very small movement (less than 1 m)
         tracker.onNewLocation(Location(52.22970001, 21.01220001))
 
         assertEquals(0.0, tracker.bufferedDistance.value, "Tiny movements should be filtered")
@@ -60,13 +60,15 @@ class DistanceTrackerTest {
         val tracker = DistanceTracker()
 
         // First location
-        tracker.onNewLocation(Location(52.2297, 21.0122))
+        val firstResult = tracker.onNewLocation(Location(52.2297, 21.0122))
+        assertFalse(firstResult, "First location should not trigger sync")
 
-        // Move enough to exceed threshold (100m)
-        // Each step is roughly 111m (0.001 degrees latitude ≈ 111m)
-        tracker.onNewLocation(Location(52.2307, 21.0122)) // ~111m
+        // Move enough to exceed the threshold (100 m)
+        // Each step is roughly 111 m (0.001 degrees latitude ≈ 111 m)
+        val didSync = tracker.onNewLocation(Location(52.2307, 21.0122)) // ~111m
         // This should trigger sync
 
+        assertTrue(didSync, "Should return true when sync threshold is reached")
         assertTrue(
             tracker.bufferedDistance.value >= DistanceTracker.SYNC_THRESHOLD_METERS,
             "Should reach sync threshold"
@@ -101,7 +103,7 @@ class DistanceTrackerTest {
         // Verify state is cleared
         assertEquals(0.0, tracker.bufferedDistance.value)
 
-        // Next location should be treated as first
+        // The next location should be treated as the first
         val result = tracker.onNewLocation(Location(52.2320, 21.0122))
         assertFalse(result, "After reset, first location should not accumulate distance")
     }
@@ -122,13 +124,13 @@ class DistanceTrackerTest {
         // Start point
         tracker.onNewLocation(Location(52.2297, 21.0122))
 
-        // Walk north in small steps (each ~30m)
+        // Walk north in small steps (each ~30 m)
         repeat(5) { i ->
             val lat = 52.2297 + (i + 1) * 0.0003
             tracker.onNewLocation(Location(lat, 21.0122))
         }
 
-        // Should have accumulated roughly 150m
+        // Should have accumulated roughly 150 m
         assertTrue(
             tracker.bufferedDistance.value > 100.0,
             "Should accumulate distance from multiple updates"

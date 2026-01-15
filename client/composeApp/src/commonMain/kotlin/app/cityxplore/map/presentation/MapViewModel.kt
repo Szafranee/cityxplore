@@ -384,8 +384,12 @@ class MapViewModel(
                 .onSuccess { result ->
                     val currentState = _state.value
                     if (currentState is MapUiState.Ready && result.newlyUnlockedAchievements.isNotEmpty()) {
+                        // Merge newly unlocked achievements from distance with any existing ones
+                        val mergedAchievements =
+                            (currentState.newlyUnlockedAchievements + result.newlyUnlockedAchievements).distinctBy { it.id }
+
                         _state.value = currentState.copy(
-                            newlyUnlockedAchievements = result.newlyUnlockedAchievements
+                            newlyUnlockedAchievements = mergedAchievements
                         )
                     }
                     // Refresh profile to get updated total distance and check for level up
