@@ -316,7 +316,6 @@ class UserControllerTest {
         avatarUrl = avatarUrl,
         createdAt = LocalDateTime.now(),
         lastActiveAt = null,
-        totalDistance = BigDecimal.ZERO,
-        totalPoisDiscovered = 0
+        totalDistance = BigDecimal.ZERO
     )
 }

@@ -185,31 +185,9 @@ private fun ReadyMap(
         }
     }
 
-    // Show notification for newly discovered POIs
-    LaunchedEffect(mapState.newlyDiscoveredPoiIds) {
-        if (mapState.newlyDiscoveredPoiIds.isNotEmpty()) {
-            val discoveredNames = mapState.newlyDiscoveredPoiIds.mapNotNull { id ->
-                mapState.pois.find { it.id == id }?.name
-            }
-
-            if (discoveredNames.isNotEmpty()) {
-                val message = if (discoveredNames.size == 1) {
-                    "🎉 Discovered: ${discoveredNames.first()}!"
-                } else {
-                    "🎉 Discovered ${discoveredNames.size} new POIs!"
-                }
-
-                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-
-                // Auto-dismiss notifications after showing
-                mapState.newlyDiscoveredPoiIds.forEach { poiId ->
-                    onAction(MapAction.DismissDiscoveryNotification(poiId))
-                }
-            }
-        }
-    }
-
-
+    // Note: Discovery notifications are now handled by PoiDiscoveryPopup in common code
+    // Single POI -> Modal popup
+    // Multiple POIs -> Card at bottom
 
     Box(modifier = modifier.fillMaxSize()) {
         AndroidView(

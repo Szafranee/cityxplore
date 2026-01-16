@@ -45,7 +45,9 @@ fun CityXploreTheme(content: @Composable () -> Unit) {
 
 object AppColors {
     val green = CityXplorePalette.Primary
+    val cyan = CityXplorePalette.Secondary
     val textWhite = CityXplorePalette.TextMuted
     val white = CityXplorePalette.PureWhite
     val background = CityXplorePalette.Background
+    val gold = Color(0xffefbf04) // Gold color for level up star
 }

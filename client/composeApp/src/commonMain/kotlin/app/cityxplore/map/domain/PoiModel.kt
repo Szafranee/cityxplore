@@ -51,7 +51,7 @@ enum class PhotoSource {
 /**
  * Enumeration representing POI categories in the domain layer.
  *
- * These categories determine the visual representation (icon, colour)
+ * These categories determine the visual representation (icon, color)
  * and gameplay mechanics associated with each POI type.
  */
 enum class PoiCategory {

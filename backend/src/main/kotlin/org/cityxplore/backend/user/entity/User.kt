@@ -69,8 +69,6 @@ data class User(
     @Column(name = "total_distance", precision = 10, scale = 2)
     var totalDistance: BigDecimal = BigDecimal.ZERO,
 
-    @Column(name = "total_pois_discovered")
-    var totalPoisDiscovered: Int = 0,
 
     @Column(name = "is_active", nullable = false)
     var isActive: Boolean = true,
@@ -99,6 +97,6 @@ data class User(
 
     override fun toString(): String =
         "${this::class.simpleName}(id=$id, avatarUrl=$avatarUrl, createdAt=$createdAt, " +
-                "lastActiveAt=$lastActiveAt, totalDistance=$totalDistance, totalPoisDiscovered=$totalPoisDiscovered," +
+                "lastActiveAt=$lastActiveAt, totalDistance=$totalDistance, " +
                 "totalAchievementPoints=$totalAchievementPoints, isActive=$isActive)"
 }

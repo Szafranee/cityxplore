@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MoneyOff
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -57,13 +58,18 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import app.cityxplore.core.location.Location
+import app.cityxplore.core.utils.calculateDistance
 import app.cityxplore.map.domain.MapPoi
 import app.cityxplore.map.domain.PhotoSource
+import app.cityxplore.map.domain.PoiCategory
 import app.cityxplore.map.domain.PoiPhoto
 import coil3.compose.AsyncImage
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlin.math.round
 import kotlin.time.Instant
 
 /**
@@ -72,14 +78,25 @@ import kotlin.time.Instant
  * This content is typically shown in a bottom sheet or modal.
  * It includes photos, metadata (discovery status, opening hours, etc.), description, and trivia.
  *
+ * For undiscovered POIs, shows only category, distance, and a lock screen to maintain mystery.
+ *
  * @param poi The [MapPoi] object containing the data to display.
  * @param onToggleFavorite Callback function invoked when the favorite button is clicked. If null, the button is hidden.
+ * @param userLocation Current user location for distance calculation (optional).
  */
 @Composable
 fun PoiDetailsContent(
     poi: MapPoi,
-    onToggleFavorite: ((String) -> Unit)? = null
+    onToggleFavorite: ((String) -> Unit)? = null,
+    userLocation: Location? = null
 ) {
+    // Show limited info for undiscovered POIs
+    if (!poi.discovered) {
+        UndiscoveredPoiContent(poi = poi, userLocation = userLocation)
+        return
+    }
+
+    // Full content for discovered POIs
     val scrollState = rememberScrollState()
     Column(
         modifier = Modifier
@@ -137,17 +154,28 @@ fun PoiDetailsContent(
             )
         }
 
-        // Header
+        // Header with Category Badge (New markers style)
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = getCategoryIcon(poi.category),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(32.dp)
-            )
+            // Colored circle with category icon 1e344b
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(
+                        color = getCategoryColor(poi.category).copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(24.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = getCategoryIcon(poi.category),
+                    contentDescription = null,
+                    tint = getCategoryColor(poi.category),
+                    modifier = Modifier.size(28.dp)
+                )
+            }
             Spacer(modifier = Modifier.width(16.dp))
             Text(
                 text = poi.name,
@@ -175,6 +203,46 @@ fun PoiDetailsContent(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            // Major Landmark Badge (if applicable)
+            if (poi.isMajor) {
+                AssistChip(
+                    onClick = {},
+                    label = { Text("Major Landmark") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Star,
+                            contentDescription = null,
+                            modifier = Modifier.size(AssistChipDefaults.IconSize),
+                            tint = Color(0xFFFFD700) // Gold
+                        )
+                    },
+                    colors = AssistChipDefaults.assistChipColors(
+                        containerColor = Color(0xFFFFD700).copy(alpha = 0.15f),
+                        labelColor = Color(0xFFFFA000),
+                        leadingIconContentColor = Color(0xFFFFD700)
+                    )
+                )
+            } else {
+                // Category Badge (only if not major) - New markers style
+                AssistChip(
+                    onClick = {},
+                    label = { Text(getCategoryDisplayName(poi.category)) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = getCategoryIcon(poi.category),
+                            contentDescription = null,
+                            modifier = Modifier.size(AssistChipDefaults.IconSize),
+                            tint = getCategoryColor(poi.category)
+                        )
+                    },
+                    colors = AssistChipDefaults.assistChipColors(
+                        containerColor = getCategoryColor(poi.category).copy(alpha = 0.15f),
+                        labelColor = getCategoryColor(poi.category),
+                        leadingIconContentColor = getCategoryColor(poi.category)
+                    )
+                )
+            }
+
             // Discovery Status
             AssistChip(
                 onClick = {},
@@ -382,6 +450,210 @@ fun PoiPhotoItem(photo: PoiPhoto, modifier: Modifier = Modifier) {
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * Special content shown for undiscovered POIs.
+ * Shows only category/major status, distance, and motivational message.
+ * Maintains mystery by hiding name, photos, and description.
+ */
+@Composable
+private fun UndiscoveredPoiContent(
+    poi: MapPoi,
+    userLocation: Location?
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 32.dp)
+            .navigationBarsPadding(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Lock Icon with Category Color (or gold for major)
+        val displayColor = if (poi.isMajor) Color(0xFFFFD700) else getCategoryColor(poi.category)
+
+        Box(
+            modifier = Modifier
+                .size(120.dp)
+                .background(
+                    color = displayColor.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(60.dp)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (poi.isMajor) Icons.Rounded.Star else getCategoryIcon(poi.category),
+                contentDescription = null,
+                tint = displayColor,
+                modifier = Modifier.size(64.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Mystery Title
+        Text(
+            text = "🔒 Mystery Location",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Category or Major Badge (New markers style)
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = displayColor.copy(alpha = 0.2f)
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = if (poi.isMajor) Icons.Rounded.Star else getCategoryIcon(poi.category),
+                    contentDescription = null,
+                    tint = displayColor,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (poi.isMajor) "Major Landmark" else getCategoryDisplayName(poi.category),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = displayColor
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Distance Card (if location available) - compact version
+        if (userLocation != null) {
+            val distance = calculateDistance(
+                userLocation.latitude,
+                userLocation.longitude,
+                poi.latitude,
+                poi.longitude
+            )
+
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "📍 ",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = formatDistance(distance),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = " away",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Motivational Message
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+            ),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "✨ Get within 200m to discover!",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Unlock the name, photos, description, and other details by exploring this location.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Info about favorites
+        Text(
+            text = "💡 You can favorite this place after discovering it",
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontStyle = FontStyle.Italic
+        )
+    }
+}
+
+/**
+ * Helper function to get display name for a category.
+ */
+private fun getCategoryDisplayName(category: PoiCategory): String {
+    return when (category) {
+        PoiCategory.HISTORICAL -> "Historical"
+        PoiCategory.CULTURAL -> "Cultural"
+        PoiCategory.NATURE -> "Nature"
+        PoiCategory.FOOD -> "Food & Dining"
+        PoiCategory.SPORTS -> "Sports"
+        PoiCategory.ENTERTAINMENT -> "Entertainment"
+        PoiCategory.CUSTOM -> "Custom"
+        PoiCategory.OTHER -> "Other"
+        PoiCategory.UNKNOWN -> "Unknown"
+    }
+}
+
+/**
+ * Formats distance in a user-friendly way.
+ * Rounds to ~10m for distances under 1km.
+ */
+private fun formatDistance(distanceMeters: Double): String {
+    return when {
+        distanceMeters < 1000 -> {
+            // Round to the nearest 10 m
+            val rounded = ((distanceMeters / 10).toInt() * 10).coerceAtLeast(10)
+            "$rounded m"
+        }
+
+        else -> {
+            // Show km with 1 decimal place
+            val km = distanceMeters / 1000
+            val rounded = round(km * 10) / 10.0
+            "$rounded km"
         }
     }
 }

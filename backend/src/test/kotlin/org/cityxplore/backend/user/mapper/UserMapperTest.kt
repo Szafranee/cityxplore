@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 import java.math.BigDecimal
 import java.time.LocalDateTime
 import java.util.UUID
@@ -26,8 +25,7 @@ class UserMapperTest {
             avatarUrl = "https://example.com/avatar.jpg",
             createdAt = createdAt,
             lastActiveAt = lastActiveAt,
-            totalDistance = BigDecimal("123.45"),
-            totalPoisDiscovered = 10
+            totalDistance = BigDecimal("123.45")
         )
 
         // when
@@ -41,7 +39,6 @@ class UserMapperTest {
         assertEquals(createdAt, result.createdAt)
         assertEquals(lastActiveAt, result.lastActiveAt)
         assertEquals(BigDecimal("123.45"), result.totalDistance)
-        assertEquals(10, result.totalPoisDiscovered)
     }
 
     @Test
@@ -88,8 +85,7 @@ class UserMapperTest {
             email = "test@example.com",
             username = "testuser",
             createdAt = LocalDateTime.now(),
-            totalDistance = BigDecimal.ZERO,
-            totalPoisDiscovered = 0
+            totalDistance = BigDecimal.ZERO
         )
 
         // when
@@ -97,7 +93,6 @@ class UserMapperTest {
 
         // then
         assertEquals(BigDecimal.ZERO, result.totalDistance)
-        assertEquals(0, result.totalPoisDiscovered)
     }
 
     @Test
@@ -156,7 +151,6 @@ class UserMapperTest {
         assertEquals("newuser", result.username)
         assertEquals("https://example.com/avatar.jpg", result.avatarUrl)
         assertEquals(BigDecimal.ZERO, result.totalDistance)
-        assertEquals(0, result.totalPoisDiscovered)
         assertTrue(result.isActive)
         assertEquals(0, result.totalAchievementPoints)
     }
@@ -177,86 +171,4 @@ class UserMapperTest {
         assertNull(result.avatarUrl)
     }
 
-    @Test
-    fun `toDto should map User entity to UserProfileResponse correctly`() {
-        // given
-        val userId = UUID.randomUUID()
-        val createdAt = LocalDateTime.now()
-        val user = User(
-            id = userId,
-            email = "test@example.com",
-            username = "testuser",
-            avatarUrl = "https://example.com/avatar.jpg",
-            createdAt = createdAt,
-            totalDistance = BigDecimal("456.78"),
-            totalPoisDiscovered = 20
-        )
-
-        // when
-        val result = user.toDto()
-
-        // then
-        assertEquals(userId, result.id)
-        assertEquals("test@example.com", result.email)
-        assertEquals("testuser", result.username)
-        assertEquals("https://example.com/avatar.jpg", result.avatarUrl)
-        assertEquals(BigDecimal("456.78"), result.totalDistance)
-        assertEquals(20, result.totalPoisDiscovered)
-        assertEquals(createdAt, result.createdAt)
-    }
-
-    @Test
-    fun `toDto should throw IllegalArgumentException when User id is null`() {
-        // given
-        val user = User(
-            id = null,
-            email = "test@example.com",
-            username = "testuser",
-            createdAt = LocalDateTime.now()
-        )
-
-        // when & then
-        val exception = assertThrows<IllegalArgumentException> {
-            user.toDto()
-        }
-        assertEquals("Cannot map transient User entity to DTO", exception.message)
-    }
-
-    @Test
-    fun `toDto should handle null avatarUrl in User entity`() {
-        // given
-        val user = User(
-            id = UUID.randomUUID(),
-            email = "test@example.com",
-            username = "testuser",
-            avatarUrl = null,
-            createdAt = LocalDateTime.now()
-        )
-
-        // when
-        val result = user.toDto()
-
-        // then
-        assertNull(result.avatarUrl)
-    }
-
-    @Test
-    fun `toDto should handle zero values for numeric fields`() {
-        // given
-        val user = User(
-            id = UUID.randomUUID(),
-            email = "test@example.com",
-            username = "testuser",
-            createdAt = LocalDateTime.now(),
-            totalDistance = BigDecimal.ZERO,
-            totalPoisDiscovered = 0
-        )
-
-        // when
-        val result = user.toDto()
-
-        // then
-        assertEquals(BigDecimal.ZERO, result.totalDistance)
-        assertEquals(0, result.totalPoisDiscovered)
-    }
 }

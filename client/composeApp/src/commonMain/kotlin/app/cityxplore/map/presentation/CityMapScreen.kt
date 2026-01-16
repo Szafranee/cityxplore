@@ -31,6 +31,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import app.cityxplore.map.presentation.components.AchievementUnlockedDialog
+import app.cityxplore.map.presentation.components.DiscoveryNotification
+import app.cityxplore.map.presentation.components.LevelUpDialog
 import app.cityxplore.map.presentation.components.PoiDetailsContent
 import app.cityxplore.profile.domain.UserProfile
 import coil3.compose.AsyncImage
@@ -95,9 +98,38 @@ fun CityXploreMapScreen(
             ) {
                 PoiDetailsContent(
                     poi = state.selectedPoi,
-                    onToggleFavorite = { onAction(MapAction.ToggleFavorite(it)) }
+                    onToggleFavorite = { onAction(MapAction.ToggleFavorite(it)) },
+                    userLocation = state.userLocation
                 )
             }
+        }
+
+        // Discovery notification (positioned at bottom above navigation)
+        if (state is MapUiState.Ready && state.newlyDiscoveredPoiIds.isNotEmpty()) {
+            DiscoveryNotification(
+                discoveredPoiIds = state.newlyDiscoveredPoiIds,
+                pois = state.pois,
+                onViewDetails = { poiId -> onAction(MapAction.ViewDiscoveredPoi(poiId)) },
+                onDismiss = { poiId -> onAction(MapAction.DismissDiscoveryNotification(poiId)) },
+                onDismissAll = { onAction(MapAction.DismissAllDiscoveryNotifications) },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
+
+        // Achievement unlock dialog (shown as modal)
+        if (state is MapUiState.Ready && state.newlyUnlockedAchievements.isNotEmpty()) {
+            AchievementUnlockedDialog(
+                achievements = state.newlyUnlockedAchievements,
+                onDismiss = { onAction(MapAction.DismissAchievementNotification) }
+            )
+        }
+
+        // Level up dialog (shown after achievement dialog if both exist)
+        if (state is MapUiState.Ready && state.newLevel != null && state.newlyUnlockedAchievements.isEmpty()) {
+            LevelUpDialog(
+                newLevel = state.newLevel,
+                onDismiss = { onAction(MapAction.DismissLevelUpDialog) }
+            )
         }
     }
 }

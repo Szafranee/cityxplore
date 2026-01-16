@@ -15,3 +15,7 @@ app:
     poi-weight: 100          # 100 points per discovered POI
     distance-weight: 0.01    # 0.01 points per meter = 10 points per km
     achievement-weight: 1    # 1 point per achievement point
+  gamification:
+    # XP points awarded for activities (these add to totalAchievementPoints)
+    points-per-poi-discovery: 10      # XP for each POI discovered
+    points-per-100-meters: 1          # XP for every 100 meters traveled

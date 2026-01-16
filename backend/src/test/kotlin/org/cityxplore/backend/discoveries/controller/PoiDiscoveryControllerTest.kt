@@ -3,15 +3,13 @@ package org.cityxplore.backend.discoveries.controller
 import com.ninjasquad.springmockk.MockkBean
 import io.mockk.every
 import io.mockk.verify
-import org.cityxplore.backend.discoveries.entity.UserPoiDiscovery
-import org.cityxplore.backend.discoveries.repository.UserPoiDiscoveryRepository
-import org.cityxplore.backend.poi.repository.PointOfInterestRepository
-import org.cityxplore.backend.user.repository.UserRepository
+import org.cityxplore.backend.achievements.service.AchievementEvaluationService
+import org.cityxplore.backend.discoveries.dto.UserPoiDiscoveryResponse
+import org.cityxplore.backend.discoveries.service.PoiDiscoveryService
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
-import org.springframework.context.annotation.Import
-import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
@@ -20,24 +18,21 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import org.springframework.web.server.ResponseStatusException
 import java.time.LocalDateTime
 import java.util.UUID
 
 @WebMvcTest(PoiDiscoveryController::class)
-@Import(org.cityxplore.backend.discoveries.service.PoiDiscoveryService::class)
 class PoiDiscoveryControllerTest {
 
     @Autowired
     private lateinit var mockMvc: MockMvc
 
     @MockkBean
-    private lateinit var userPoiDiscoveryRepository: UserPoiDiscoveryRepository
+    private lateinit var poiDiscoveryService: PoiDiscoveryService
 
     @MockkBean
-    private lateinit var poiRepository: PointOfInterestRepository
-
-    @MockkBean
-    private lateinit var userRepository: UserRepository
+    private lateinit var achievementEvaluationService: AchievementEvaluationService
 
     /**
      * Creates a JWT mock with a valid UUID as the subject claim.
@@ -54,17 +49,13 @@ class PoiDiscoveryControllerTest {
         val poiId = UUID.randomUUID()
         val discoveredAt = LocalDateTime.now()
 
-        val discovery = UserPoiDiscovery(
-            id = UUID.randomUUID(),
-            userId = userId,
+        val discoveryResponse = UserPoiDiscoveryResponse(
             poiId = poiId,
             discoveredAt = discoveredAt,
-            isFavorite = false
+            favorite = false
         )
 
-        every { poiRepository.existsById(poiId) } returns true
-        every { userPoiDiscoveryRepository.save(any()) } returns discovery
-        every { userRepository.incrementPoisDiscovered(userId) } returns 1
+        every { poiDiscoveryService.discoverPoi(userId, poiId) } returns discoveryResponse
 
         // When & Then
         mockMvc.perform(
@@ -77,9 +68,7 @@ class PoiDiscoveryControllerTest {
             .andExpect(jsonPath("$.poiId").value(poiId.toString()))
             .andExpect(jsonPath("$.favorite").value(false))
 
-        verify(exactly = 1) { poiRepository.existsById(poiId) }
-        verify(exactly = 1) { userPoiDiscoveryRepository.save(any()) }
-        verify(exactly = 1) { userRepository.incrementPoisDiscovered(userId) }
+        verify(exactly = 1) { poiDiscoveryService.discoverPoi(userId, poiId) }
     }
 
     @Test
@@ -87,7 +76,15 @@ class PoiDiscoveryControllerTest {
         // Given
         val userId = UUID.randomUUID()
         val poiId = UUID.randomUUID()
-        every { poiRepository.existsById(poiId) } returns false
+        every {
+            poiDiscoveryService.discoverPoi(
+                userId,
+                poiId
+            )
+        } throws ResponseStatusException(
+            HttpStatus.NOT_FOUND,
+            "POI not found"
+        )
 
         // When & Then
         mockMvc.perform(
@@ -99,8 +96,7 @@ class PoiDiscoveryControllerTest {
             .andExpect(status().isNotFound)
             .andExpect(jsonPath("$.message").value("POI not found"))
 
-        verify(exactly = 1) { poiRepository.existsById(poiId) }
-        verify(exactly = 0) { userPoiDiscoveryRepository.save(any()) }
+        verify(exactly = 1) { poiDiscoveryService.discoverPoi(userId, poiId) }
     }
 
     @Test
@@ -109,8 +105,15 @@ class PoiDiscoveryControllerTest {
         val userId = UUID.randomUUID()
         val poiId = UUID.randomUUID()
 
-        every { poiRepository.existsById(poiId) } returns true
-        every { userPoiDiscoveryRepository.save(any()) } throws DataIntegrityViolationException("Duplicate")
+        every {
+            poiDiscoveryService.discoverPoi(
+                userId,
+                poiId
+            )
+        } throws ResponseStatusException(
+            HttpStatus.CONFLICT,
+            "Already discovered"
+        )
 
         // When & Then
         mockMvc.perform(
@@ -122,8 +125,7 @@ class PoiDiscoveryControllerTest {
             .andExpect(status().isConflict)
             .andExpect(jsonPath("$.message").value("Already discovered"))
 
-        verify(exactly = 1) { poiRepository.existsById(poiId) }
-        verify(exactly = 1) { userPoiDiscoveryRepository.save(any()) }
+        verify(exactly = 1) { poiDiscoveryService.discoverPoi(userId, poiId) }
     }
 
     @Test
@@ -131,19 +133,16 @@ class PoiDiscoveryControllerTest {
         // Given
         val userId = UUID.randomUUID()
         val poiId = UUID.randomUUID()
-        val discoveredAt = LocalDateTime.now()
 
-        val discovery = UserPoiDiscovery(
-            id = UUID.randomUUID(),
-            userId = userId,
-            poiId = poiId,
-            discoveredAt = discoveredAt,
-            isFavorite = false
+        every {
+            poiDiscoveryService.discoverPoi(
+                userId,
+                poiId
+            )
+        } throws ResponseStatusException(
+            HttpStatus.NOT_FOUND,
+            "User not found"
         )
-
-        every { poiRepository.existsById(poiId) } returns true
-        every { userPoiDiscoveryRepository.save(any()) } returns discovery
-        every { userRepository.incrementPoisDiscovered(userId) } returns 0
 
         // When & Then
         mockMvc.perform(
@@ -155,7 +154,7 @@ class PoiDiscoveryControllerTest {
             .andExpect(status().isNotFound)
             .andExpect(jsonPath("$.message").value("User not found"))
 
-        verify(exactly = 1) { userRepository.incrementPoisDiscovered(userId) }
+        verify(exactly = 1) { poiDiscoveryService.discoverPoi(userId, poiId) }
     }
 
     @Test
@@ -168,23 +167,19 @@ class PoiDiscoveryControllerTest {
         val discoveredAt2 = LocalDateTime.now().minusDays(1)
 
         val discoveries = listOf(
-            UserPoiDiscovery(
-                id = UUID.randomUUID(),
-                userId = userId,
+            UserPoiDiscoveryResponse(
                 poiId = poiId1,
                 discoveredAt = discoveredAt1,
-                isFavorite = true
+                favorite = true
             ),
-            UserPoiDiscovery(
-                id = UUID.randomUUID(),
-                userId = userId,
+            UserPoiDiscoveryResponse(
                 poiId = poiId2,
                 discoveredAt = discoveredAt2,
-                isFavorite = false
+                favorite = false
             )
         )
 
-        every { userPoiDiscoveryRepository.findAllByUserId(userId) } returns discoveries
+        every { poiDiscoveryService.getUserDiscoveries(userId) } returns discoveries
 
         // When & Then
         mockMvc.perform(
@@ -200,7 +195,7 @@ class PoiDiscoveryControllerTest {
             .andExpect(jsonPath("$[1].poiId").value(poiId2.toString()))
             .andExpect(jsonPath("$[1].favorite").value(false))
 
-        verify(exactly = 1) { userPoiDiscoveryRepository.findAllByUserId(userId) }
+        verify(exactly = 1) { poiDiscoveryService.getUserDiscoveries(userId) }
     }
 
     @Test
@@ -208,7 +203,7 @@ class PoiDiscoveryControllerTest {
         // Given
         val userId = UUID.randomUUID()
 
-        every { userPoiDiscoveryRepository.findAllByUserId(userId) } returns emptyList()
+        every { poiDiscoveryService.getUserDiscoveries(userId) } returns emptyList()
 
         // When & Then
         mockMvc.perform(
@@ -220,7 +215,7 @@ class PoiDiscoveryControllerTest {
             .andExpect(jsonPath("$").isArray)
             .andExpect(jsonPath("$.length()").value(0))
 
-        verify(exactly = 1) { userPoiDiscoveryRepository.findAllByUserId(userId) }
+        verify(exactly = 1) { poiDiscoveryService.getUserDiscoveries(userId) }
     }
 
     @Test
@@ -230,15 +225,13 @@ class PoiDiscoveryControllerTest {
         val poiId = UUID.randomUUID()
         val discoveredAt = LocalDateTime.now()
 
-        val discovery = UserPoiDiscovery(
-            id = UUID.randomUUID(),
-            userId = userId,
+        val discovery = UserPoiDiscoveryResponse(
             poiId = poiId,
             discoveredAt = discoveredAt,
-            isFavorite = true
+            favorite = true
         )
 
-        every { userPoiDiscoveryRepository.findByUserIdAndPoiId(userId, poiId) } returns discovery
+        every { poiDiscoveryService.getUserDiscovery(userId, poiId) } returns discovery
 
         // When & Then
         mockMvc.perform(
@@ -250,7 +243,7 @@ class PoiDiscoveryControllerTest {
             .andExpect(jsonPath("$.poiId").value(poiId.toString()))
             .andExpect(jsonPath("$.favorite").value(true))
 
-        verify(exactly = 1) { userPoiDiscoveryRepository.findByUserIdAndPoiId(userId, poiId) }
+        verify(exactly = 1) { poiDiscoveryService.getUserDiscovery(userId, poiId) }
     }
 
     @Test
@@ -259,7 +252,15 @@ class PoiDiscoveryControllerTest {
         val userId = UUID.randomUUID()
         val poiId = UUID.randomUUID()
 
-        every { userPoiDiscoveryRepository.findByUserIdAndPoiId(userId, poiId) } returns null
+        every {
+            poiDiscoveryService.getUserDiscovery(
+                userId,
+                poiId
+            )
+        } throws ResponseStatusException(
+            HttpStatus.NOT_FOUND,
+            "Discovery not found"
+        )
 
         // When & Then
         mockMvc.perform(
@@ -270,7 +271,7 @@ class PoiDiscoveryControllerTest {
             .andExpect(status().isNotFound)
             .andExpect(jsonPath("$.message").value("Discovery not found"))
 
-        verify(exactly = 1) { userPoiDiscoveryRepository.findByUserIdAndPoiId(userId, poiId) }
+        verify(exactly = 1) { poiDiscoveryService.getUserDiscovery(userId, poiId) }
     }
 
     @Test

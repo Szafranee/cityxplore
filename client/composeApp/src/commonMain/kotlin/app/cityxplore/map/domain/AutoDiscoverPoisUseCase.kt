@@ -1,5 +1,7 @@
 package app.cityxplore.map.domain
 
+import app.cityxplore.achievements.data.toDomain
+import app.cityxplore.achievements.domain.Achievement
 import app.cityxplore.core.location.Location
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.http.HttpStatusCode
@@ -29,9 +31,9 @@ class AutoDiscoverPoisUseCase(
      * Discovers all undiscovered POIs within range of the current location.
      *
      * @param currentLocation User's current GPS coordinates
-     * @return Result containing IDs of newly discovered POIs, or error if operation fails
+     * @return Result containing discovery result with newly discovered POI IDs and unlocked achievements, or error if operation fails
      */
-    suspend fun checkAndDiscoverNearbyPois(currentLocation: Location): Result<List<String>> {
+    suspend fun checkAndDiscoverNearbyPois(currentLocation: Location): Result<DiscoveryResult> {
         return try {
             val poisResult = getPoisUseCase()
             if (poisResult.isFailure) {
@@ -40,6 +42,7 @@ class AutoDiscoverPoisUseCase(
 
             val pois = poisResult.getOrThrow()
             val discoveredIds = mutableListOf<String>()
+            val allAchievements = mutableListOf<Achievement>()
 
             pois.filter { !it.discovered }.forEach { poi ->
                 val distance = calculateDistance(
@@ -53,13 +56,17 @@ class AutoDiscoverPoisUseCase(
                     val discoverResult = discoverPoiUseCase(poi.id)
                     if (discoverResult.isSuccess) {
                         discoveredIds.add(poi.id)
+                        val discoveryDto = discoverResult.getOrThrow()
+                        allAchievements.addAll(discoveryDto.newlyUnlockedAchievements.map { achievementDto ->
+                            achievementDto.toDomain()
+                        })
                     } else {
                         handleDiscoveryError(poi, discoverResult.exceptionOrNull())
                     }
                 }
             }
 
-            Result.success(discoveredIds)
+            Result.success(DiscoveryResult(discoveredIds, allAchievements.distinctBy { it.id }))
         } catch (e: Exception) {
             Result.failure(e)
         }
