@@ -373,7 +373,7 @@ class MapViewModel(
 
     /**
      * Syncs accumulated distance to the backend.
-     * Updates profile and shows achievement notifications if any were unlocked.
+     * Updates the profile and shows achievement notifications if any were unlocked.
      */
     private fun syncDistance() {
         val distance = distanceTracker.consumeBufferedDistance()
@@ -458,7 +458,7 @@ class MapViewModel(
 
                             _state.value = currentState.copy(
                                 pois = pois.map(PoiModel::toMapPoi),
-                                newlyDiscoveredPoiIds = discoveryResult.newlyDiscoveredPoiIds.toSet(),
+                                newlyDiscoveredPoiIds = currentState.newlyDiscoveredPoiIds + discoveryResult.newlyDiscoveredPoiIds.toSet(),
                                 newlyUnlockedAchievements = mergedAchievements
                             )
                         }
