@@ -1,7 +1,11 @@
 package org.cityxplore.backend.user.controller
 
 import jakarta.validation.Valid
+import org.cityxplore.backend.achievements.service.AchievementEvaluationService
+import org.cityxplore.backend.achievements.service.AchievementService
 import org.cityxplore.backend.shared.security.JwtUtils
+import org.cityxplore.backend.user.dto.AddDistanceRequest
+import org.cityxplore.backend.user.dto.DistanceSyncResponse
 import org.cityxplore.backend.user.dto.UpdateUserProfileRequest
 import org.cityxplore.backend.user.dto.UserProfileResponse
 import org.cityxplore.backend.user.service.UserProfileService
@@ -29,7 +33,9 @@ import org.springframework.web.multipart.MultipartFile
 @RequestMapping("/api/users")
 @Validated
 class UserProfileController(
-    private val userProfileService: UserProfileService
+    private val userProfileService: UserProfileService,
+    private val achievementEvaluationService: AchievementEvaluationService,
+    private val achievementService: AchievementService
 ) {
 
     /**
@@ -101,5 +107,41 @@ class UserProfileController(
         userProfileService.deleteUserAccount(userId)
 
         return ResponseEntity.noContent().build()
+    }
+
+    /**
+     * Adds travelled distance to the user's total and evaluates distance-based achievements.
+     *
+     * This endpoint accepts distance updates from the client's distance tracker.
+     * Maximum 500 meters per request (anti-cheat measure).
+     *
+     * @param jwt The JWT token of the authenticated user.
+     * @param request The distance to add in meters.
+     * @return The updated profile and any newly unlocked achievements.
+     */
+    @PostMapping("/me/distance")
+    fun addDistance(
+        @AuthenticationPrincipal jwt: Jwt,
+        @Valid @RequestBody request: AddDistanceRequest
+    ): ResponseEntity<DistanceSyncResponse> {
+        val userId = JwtUtils.extractUserId(jwt)
+
+        // Add distance to user's total
+        val profile = userProfileService.addDistance(userId, request.distanceMeters)
+
+        // Evaluate distance-based achievements
+        val newAchievementIds = achievementEvaluationService.evaluateDistanceAchievements(userId)
+
+        // Fetch full achievement details for newly unlocked ones
+        val newAchievements = newAchievementIds.mapNotNull { achievementId ->
+            achievementService.getUserAchievement(userId, achievementId)
+        }
+
+        return ResponseEntity.ok(
+            DistanceSyncResponse(
+                profile = profile,
+                newlyUnlockedAchievements = newAchievements
+            )
+        )
     }
 }

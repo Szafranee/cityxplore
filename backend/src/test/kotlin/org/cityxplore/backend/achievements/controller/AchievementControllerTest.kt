@@ -69,7 +69,7 @@ class AchievementControllerTest {
         // When & Then
         mockMvc.perform(
             get("/api/achievements")
-                .with(jwt())
+                .with(jwt().jwt { it.subject(testUserId.toString()) })
                 .contentType(MediaType.APPLICATION_JSON)
         )
             .andExpect(status().isOk)
@@ -89,7 +89,7 @@ class AchievementControllerTest {
         // When & Then
         mockMvc.perform(
             get("/api/achievements")
-                .with(jwt())
+                .with(jwt().jwt { it.subject(testUserId.toString()) })
                 .contentType(MediaType.APPLICATION_JSON)
         )
             .andExpect(status().isOk)

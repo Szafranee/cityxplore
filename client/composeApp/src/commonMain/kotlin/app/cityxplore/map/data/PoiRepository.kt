@@ -38,9 +38,9 @@ interface PoiRepository {
      * Marks a POI as discovered by the current user.
      *
      * @param id The unique identifier of the POI to discover.
-     * @return [Result] containing [Unit] on success, or exception on failure (e.g., 409 if already discovered).
+     * @return [Result] containing [UserPoiDiscoveryDto] with newly unlocked achievements, or exception on failure (e.g., 409 if already discovered).
      */
-    suspend fun discoverPoi(id: String): Result<Unit>
+    suspend fun discoverPoi(id: String): Result<UserPoiDiscoveryDto>
 
     /**
      * Toggles the favorite status of a POI for the current user.
@@ -88,17 +88,17 @@ class NetworkPoiRepository(
 
     /**
      * Sends a discovery request to the backend API endpoint `/api/pois/{id}/discover`.
-     * The backend returns 200 on success, or 409 if the POI was already discovered.
+     * The backend returns 200 on success with discovery data and newly unlocked achievements, or 409 if the POI was already discovered.
      *
      * @param id The unique identifier of the POI to discover.
-     * @return [Result] containing [Unit] on success, or exception on failure.
+     * @return [Result] containing [UserPoiDiscoveryDto] with newly unlocked achievements on success, or exception on failure.
      */
-    override suspend fun discoverPoi(id: String): Result<Unit> = runCatching {
+    override suspend fun discoverPoi(id: String): Result<UserPoiDiscoveryDto> = runCatching {
         client.post("https://api.cityxplore.app/api/pois/$id/discover") {
             contentType(ContentType.Application.Json)
             setBody(emptyMap<String, String>())
-        }
-    }.map { }
+        }.body<UserPoiDiscoveryDto>()
+    }
 
     /**
      * Toggles the favorite status of a POI by sending a request to the backend API endpoint `/api/pois/{id}/favorite`.

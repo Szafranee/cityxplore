@@ -1,6 +1,8 @@
 package app.cityxplore.map.presentation
 
+import app.cityxplore.achievements.domain.Achievement
 import app.cityxplore.core.cityXploreDispatchers
+import app.cityxplore.core.location.DistanceTracker
 import app.cityxplore.core.location.Location
 import app.cityxplore.core.location.LocationService
 import app.cityxplore.journal.domain.ToggleFavoriteUseCase
@@ -11,6 +13,7 @@ import app.cityxplore.map.domain.PoiModel
 import app.cityxplore.map.domain.UpdateFogOfWarUseCase
 import app.cityxplore.map.domain.toMapPoi
 import app.cityxplore.platform.CityXploreBaseViewModel
+import app.cityxplore.profile.domain.DistanceSyncRepository
 import app.cityxplore.profile.domain.ProfileRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +31,8 @@ import kotlinx.coroutines.launch
  * - Handling POI selection for detail display
  * - Tracking newly discovered POIs for UI notifications
  * - Managing Fog of War (revealed hexagons)
+ * - Tracking distance travelled and syncing to backend
+ * - Displaying achievement unlock notifications
  *
  * POIs are automatically discovered when the user is within the discovery radius
  * (defined in [AutoDiscoverPoisUseCase]). The discovery is handled by the use case,
@@ -38,6 +43,8 @@ import kotlinx.coroutines.launch
  * @property updateFogOfWarUseCase Use case for updating fog of war based on user location.
  * @property fogOfWarRepository Repository for fetching revealed hexagons.
  * @property locationService The service providing user location updates.
+ * @property distanceTracker Tracker for accumulating distance between GPS points.
+ * @property distanceSyncRepository Repository for syncing distance to the backend.
  */
 class MapViewModel(
     private val getPoisUseCase: GetPoisWithDiscoveriesUseCase,
@@ -46,7 +53,9 @@ class MapViewModel(
     private val fogOfWarRepository: FogOfWarRepository,
     private val locationService: LocationService,
     private val profileRepository: ProfileRepository,
-    private val toggleFavoriteUseCase: ToggleFavoriteUseCase
+    private val toggleFavoriteUseCase: ToggleFavoriteUseCase,
+    private val distanceTracker: DistanceTracker,
+    private val distanceSyncRepository: DistanceSyncRepository
 ) : CityXploreBaseViewModel() {
     private val _state = MutableStateFlow<MapUiState>(MapUiState.Loading)
 
@@ -61,20 +70,39 @@ class MapViewModel(
     private var cachedWarsawHexagons: Set<String> = emptySet()
     private var cachedRevealedHexagons: Set<String> = emptySet()
 
+    // Track previous level for level-up detection
+    private var previousLevel: Int? = null
+
     init {
         loadData()
         startLocationTracking()
-        loadProfile()
     }
 
-    private fun loadProfile() {
+    /**
+     * Loads/refreshes the user profile and checks for level up.
+     *
+     * @param checkLevelUp If true, compares with previous level to detect level up.
+     */
+    private fun loadProfile(checkLevelUp: Boolean = false) {
         scope.launch {
             val result = profileRepository.getProfile()
             if (result.isSuccess) {
-                val profile = result.getOrThrow()
+                val newProfile = result.getOrThrow()
                 _state.value.let { currentState ->
                     if (currentState is MapUiState.Ready) {
-                        _state.value = currentState.copy(profile = profile)
+                        val oldLevel = previousLevel
+                        val newLevel = newProfile.level
+
+                        // Update previous level for future comparisons
+                        previousLevel = newLevel
+
+                        // Detect level up: new level is higher than old level (only if we had a previous level)
+                        val leveledUp = checkLevelUp && oldLevel != null && newLevel > oldLevel
+
+                        _state.value = currentState.copy(
+                            profile = newProfile,
+                            newLevel = if (leveledUp) newLevel else currentState.newLevel
+                        )
                     }
                 }
             }
@@ -125,7 +153,8 @@ class MapViewModel(
         when (action) {
             MapAction.Refresh -> {
                 scope.launch(cityXploreDispatchers.io) {
-                    loadData()
+                    loadPois()
+                    loadFogOfWar()
                 }
             }
 
@@ -142,6 +171,54 @@ class MapViewModel(
             is MapAction.UpdateLocation -> updateUserLocation(action.location)
             is MapAction.DismissDiscoveryNotification -> dismissDiscoveryNotification(action.poiId)
             is MapAction.ToggleFavorite -> toggleFavorite(action.poiId)
+            is MapAction.ViewDiscoveredPoi -> viewDiscoveredPoi(action.poiId)
+            MapAction.DismissAllDiscoveryNotifications -> dismissAllDiscoveryNotifications()
+            MapAction.DismissAchievementNotification -> dismissAchievementNotification()
+            MapAction.DismissLevelUpDialog -> dismissLevelUpDialog()
+        }
+    }
+
+    /**
+     * Handles "View Details" action for a discovered POI notification.
+     * Selects the POI and dismisses its notification.
+     */
+    private fun viewDiscoveredPoi(poiId: String) {
+        selectPoi(poiId)
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            _state.value = currentState.copy(
+                newlyDiscoveredPoiIds = currentState.newlyDiscoveredPoiIds - poiId
+            )
+        }
+    }
+
+    /**
+     * Dismisses all discovery notifications at once.
+     */
+    private fun dismissAllDiscoveryNotifications() {
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            _state.value = currentState.copy(newlyDiscoveredPoiIds = emptySet())
+        }
+    }
+
+    /**
+     * Dismisses the achievement unlock notification dialog.
+     */
+    private fun dismissAchievementNotification() {
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            _state.value = currentState.copy(newlyUnlockedAchievements = emptyList())
+        }
+    }
+
+    /**
+     * Dismisses the level up dialog.
+     */
+    private fun dismissLevelUpDialog() {
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            _state.value = currentState.copy(newLevel = null)
         }
     }
 
@@ -202,7 +279,9 @@ class MapViewModel(
             var currentRevealedHexagons = cachedRevealedHexagons
             var currentWarsawHexagons = cachedWarsawHexagons
             var currentUserLocation: Location? = lastKnownLocation
-            var currentNewIds: Set<String> = emptySet()
+            var currentAchievements: List<Achievement> = emptyList()
+            var currentNewlyDiscoveredIds: Set<String> = emptySet()
+            var currentNewLevel: Int? = null
             val currentProfile = if (currentState is MapUiState.Ready) currentState.profile else null
 
             if (currentState is MapUiState.Ready) {
@@ -210,7 +289,9 @@ class MapViewModel(
                 currentRevealedHexagons = currentState.revealedHexagons
                 currentWarsawHexagons = currentState.warsawHexagons
                 currentUserLocation = currentState.userLocation
-                currentNewIds = currentState.newlyDiscoveredPoiIds
+                currentAchievements = currentState.newlyUnlockedAchievements
+                currentNewlyDiscoveredIds = currentState.newlyDiscoveredPoiIds
+                currentNewLevel = currentState.newLevel
             }
 
             val result = getPoisUseCase()
@@ -221,10 +302,12 @@ class MapViewModel(
                     userLocation = currentUserLocation,
                     isFollowingUser = currentIsFollowing,
                     selectedPoi = null,
-                    newlyDiscoveredPoiIds = currentNewIds,
+                    newlyDiscoveredPoiIds = currentNewlyDiscoveredIds,
                     revealedHexagons = currentRevealedHexagons,
                     warsawHexagons = currentWarsawHexagons,
-                    profile = currentProfile
+                    profile = currentProfile,
+                    newlyUnlockedAchievements = currentAchievements,
+                    newLevel = currentNewLevel
                 )
             }
 
@@ -262,7 +345,7 @@ class MapViewModel(
     }
 
     /**
-     * Starts observing user location updates for automatic POI discovery.
+     * Starts observing user location updates for automatic POI discovery and distance tracking.
      * This method is called after location permission is granted.
      */
     private fun startLocationTracking() {
@@ -274,11 +357,49 @@ class MapViewModel(
                     updateUserLocation(location)
                     checkForNearbyPois(location)
                     updateFogOfWar(location)
+
+                    // Track distance and sync when threshold reached
+                    val shouldSync = distanceTracker.onNewLocation(location)
+                    if (shouldSync) {
+                        syncDistance()
+                    }
                 }
             } catch (_: Exception) {
                 // Location service error - could be permissions or hardware issue
                 // Keep current state, don't crash the app
             }
+        }
+    }
+
+    /**
+     * Syncs accumulated distance to the backend.
+     * Updates the profile and shows achievement notifications if any were unlocked.
+     */
+    private fun syncDistance() {
+        val distance = distanceTracker.consumeBufferedDistance()
+        if (distance <= 0) return
+
+        scope.launch(cityXploreDispatchers.io) {
+            distanceSyncRepository.syncDistance(distance)
+                .onSuccess { result ->
+                    val currentState = _state.value
+                    if (currentState is MapUiState.Ready && result.newlyUnlockedAchievements.isNotEmpty()) {
+                        // Merge newly unlocked achievements from distance with any existing ones
+                        val mergedAchievements =
+                            (currentState.newlyUnlockedAchievements + result.newlyUnlockedAchievements).distinctBy { it.id }
+
+                        _state.value = currentState.copy(
+                            newlyUnlockedAchievements = mergedAchievements
+                        )
+                    }
+                    // Refresh profile to get updated total distance and check for level up
+                    loadProfile(checkLevelUp = true)
+                }
+                .onFailure { error ->
+                    println("Failed to sync distance: ${error.message}")
+                    // Distance is already consumed from buffer - for MVP we accept the loss
+                    // In v2: save to local queue for offline sync
+                }
         }
     }
 
@@ -323,19 +444,27 @@ class MapViewModel(
         scope.launch(cityXploreDispatchers.io) {
             val result = autoDiscoverUseCase.checkAndDiscoverNearbyPois(userLocation)
 
-            result.onSuccess { newlyDiscoveredIds ->
-                if (newlyDiscoveredIds.isNotEmpty()) {
+            result.onSuccess { discoveryResult ->
+                if (discoveryResult.newlyDiscoveredPoiIds.isNotEmpty()) {
                     // Refresh POIs to get updated discovery status
                     val poisResult = getPoisUseCase()
 
                     poisResult.onSuccess { pois ->
                         val currentState = _state.value
                         if (currentState is MapUiState.Ready) {
+                            // Merge newly unlocked achievements from discovery with any existing ones
+                            val mergedAchievements =
+                                (currentState.newlyUnlockedAchievements + discoveryResult.newlyUnlockedAchievements).distinctBy { it.id }
+
                             _state.value = currentState.copy(
                                 pois = pois.map(PoiModel::toMapPoi),
-                                newlyDiscoveredPoiIds = newlyDiscoveredIds.toSet()
+                                newlyDiscoveredPoiIds = currentState.newlyDiscoveredPoiIds + discoveryResult.newlyDiscoveredPoiIds.toSet(),
+                                newlyUnlockedAchievements = mergedAchievements
                             )
                         }
+
+                        // Refresh profile to update XP from achievements and check for level up
+                        loadProfile(checkLevelUp = true)
                     }
 
                     poisResult.onFailure { error ->

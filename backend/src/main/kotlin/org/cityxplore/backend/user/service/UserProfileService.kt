@@ -5,9 +5,10 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.runBlocking
 import org.apache.tika.Tika
+import org.cityxplore.backend.discoveries.repository.UserPoiDiscoveryRepository
+import org.cityxplore.backend.shared.config.GamificationConfig
 import org.cityxplore.backend.user.dto.UpdateUserProfileRequest
 import org.cityxplore.backend.user.dto.UserProfileResponse
-import org.cityxplore.backend.user.mapper.toDto
 import org.cityxplore.backend.user.repository.UserRepository
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
@@ -19,6 +20,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -29,13 +32,17 @@ import java.util.UUID
  * business logic related to user profiles.
  *
  * @property userRepository Repository for accessing and manipulating user data in the database.
+ * @property userPoiDiscoveryRepository Repository for counting user's POI discoveries.
  * @property supabaseClient Supabase client for interacting with Auth service.
+ * @property gamificationConfig Configuration for XP points awarded per activity.
  */
 @Service
 class UserProfileService(
     private val userRepository: UserRepository,
+    private val userPoiDiscoveryRepository: UserPoiDiscoveryRepository,
     private val supabaseClient: SupabaseClient,
-    private val transactionTemplate: TransactionTemplate
+    private val transactionTemplate: TransactionTemplate,
+    private val gamificationConfig: GamificationConfig
 ) {
 
     private val logger = LoggerFactory.getLogger(UserProfileService::class.java)
@@ -57,7 +64,19 @@ class UserProfileService(
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
         }
 
-        return user.toDto()
+        // Calculate total POIs discovered dynamically from user_poi_discoveries table
+        val totalPoisDiscovered = userPoiDiscoveryRepository.countByUserId(userId).toInt()
+
+        return UserProfileResponse(
+            id = user.id!!,
+            email = user.email,
+            username = user.username,
+            avatarUrl = user.avatarUrl,
+            totalDistance = user.totalDistance,
+            totalPoisDiscovered = totalPoisDiscovered,
+            totalAchievementPoints = user.totalAchievementPoints,
+            createdAt = user.createdAt
+        )
     }
 
     /**
@@ -114,7 +133,19 @@ class UserProfileService(
             throw ResponseStatusException(HttpStatus.CONFLICT, message)
         }
 
-        return saved.toDto()
+        // Calculate total POIs discovered dynamically
+        val totalPoisDiscovered = userPoiDiscoveryRepository.countByUserId(userId).toInt()
+
+        return UserProfileResponse(
+            id = saved.id!!,
+            email = saved.email,
+            username = saved.username,
+            avatarUrl = saved.avatarUrl,
+            totalDistance = saved.totalDistance,
+            totalPoisDiscovered = totalPoisDiscovered,
+            totalAchievementPoints = saved.totalAchievementPoints,
+            createdAt = saved.createdAt
+        )
     }
 
     /**
@@ -235,7 +266,7 @@ class UserProfileService(
     }
 
     protected fun saveUserAvatar(userId: UUID, publicUrl: String): UserProfileResponse {
-        return transactionTemplate.execute { status ->
+        return transactionTemplate.execute { _ ->
             val user = userRepository.findById(userId)
                 .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
 
@@ -254,7 +285,19 @@ class UserProfileService(
                 }
             })
 
-            saved.toDto()
+            // Calculate total POIs discovered dynamically
+            val totalPoisDiscovered = userPoiDiscoveryRepository.countByUserId(userId).toInt()
+
+            UserProfileResponse(
+                id = saved.id!!,
+                email = saved.email,
+                username = saved.username,
+                avatarUrl = saved.avatarUrl,
+                totalDistance = saved.totalDistance,
+                totalPoisDiscovered = totalPoisDiscovered,
+                totalAchievementPoints = saved.totalAchievementPoints,
+                createdAt = saved.createdAt
+            )
         }!!
     }
 
@@ -317,5 +360,38 @@ class UserProfileService(
         } catch (e: Exception) {
             logger.error("Failed to delete user $userId from Supabase Auth. User is soft-deleted in DB.", e)
         }
+    }
+
+    /**
+     * Adds travelled distance to a user's total distance and awards XP points.
+     *
+     * This method increments the user's totalDistance counter and awards XP points
+     * based on the distance (configured in gamificationConfig).
+     * The distance should be validated before calling this method (max 500m per request for anti-cheat).
+     *
+     * @param userId The unique identifier of the user.
+     * @param distanceMeters The distance to add in meters.
+     * @return The updated user profile.
+     * @throws ResponseStatusException if the user is not found.
+     */
+    @Transactional
+    fun addDistance(userId: UUID, distanceMeters: Double): UserProfileResponse {
+        val distance = BigDecimal.valueOf(distanceMeters).setScale(2, RoundingMode.HALF_UP)
+
+        val updated = userRepository.incrementDistance(userId, distance)
+        if (updated == 0) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+        }
+
+        // Award XP points for distance (1 point per 100 meters)
+        val pointsPer100m = gamificationConfig.pointsPer100Meters
+        val pointsToAward = (distanceMeters / 100.0 * pointsPer100m).toInt()
+        if (pointsToAward > 0) {
+            userRepository.incrementAchievementPoints(userId, pointsToAward)
+            logger.debug("Awarded {} XP to user {} for {} meters traveled", pointsToAward, userId, distanceMeters)
+        }
+
+        logger.debug("Added {} meters to user {} total distance", distance, userId)
+        return getUserProfile(userId)
     }
 }

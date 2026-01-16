@@ -49,12 +49,21 @@ fun createPoiMarkerBitmap(
     val centerX = actualSize / 2f
     val centerY = actualSize / 2f
 
-    // Special gold colour for major POIs
-    val categoryColor = if (isMajor) {
-        if (discovered) Color.rgb(255, 215, 0) // Gold
-        else Color.rgb(218, 165, 32) // Goldenrod - distinct and visible even if undiscovered
+    val themeColor = if (isMajor) {
+        Color.rgb(255, 215, 0) // Gold
     } else {
-        getCategoryColor(category, discovered)
+        getCategoryBaseColor(category)
+    }
+
+    val backgroundColor = when {
+        discovered -> {
+            val detailsSurfaceColor = Color.rgb(42, 42, 42)
+            blendColors(detailsSurfaceColor, themeColor, 0.2f)
+        }
+
+        else -> {
+            dimColor(themeColor)
+        }
     }
 
     // Draw shadow for better visibility
@@ -64,54 +73,46 @@ fun createPoiMarkerBitmap(
         isAntiAlias = true
         setShadowLayer(actualSize * 0.05f, 0f, actualSize * 0.02f, Color.BLACK)
     }
-    // Draw a circle for shadow (slightly smaller than border)
-    val shadowRadius = (actualSize / 2f) * 0.85f
+    val shadowRadius = (actualSize / 2f) * 0.95f
     canvas.drawCircle(centerX, centerY, shadowRadius, shadowPaint)
 
-    // Draw the outer circle (border)
     val borderPaint = Paint().apply {
-        color = Color.WHITE
+        color = getCategoryBaseColor(category)
         isAntiAlias = true
         style = Paint.Style.FILL
     }
+    // Border takes up ~90% of radius (leaving room for shadow)
     val borderRadius = (actualSize / 2f) * 0.9f
     canvas.drawCircle(centerX, centerY, borderRadius, borderPaint)
 
     // Draw main circle background
     val mainCirclePaint = Paint().apply {
-        color = categoryColor
+        color = backgroundColor
         isAntiAlias = true
         style = Paint.Style.FILL
     }
-    // Thicker border for major POIs
-    val borderThickness = if (isMajor) actualSize * 0.08f else actualSize * 0.05f
+
+    val borderThickness = actualSize * 0.03f // ~3% thickness (Thinner)
     val mainRadius = borderRadius - borderThickness
     canvas.drawCircle(centerX, centerY, mainRadius, mainCirclePaint)
 
     if (discovered) {
-        // Get the appropriate icon
-        val icon = if (isMajor) {
-            Icons.Rounded.Star // Crown/Star for major landmarks
-        } else {
-            getCategoryIcon(category)
-        }
+        val icon = if (isMajor) Icons.Rounded.Star else getCategoryIcon(category) // Icon size
+        val iconTargetSize = mainRadius * 2 * 0.6f
 
-        // Draw the Material Icon centered
-        // Make icon fill about 70% of the inner circle diameter
-        val iconTargetSize = mainRadius * 2 * 0.7f
-
-        drawIconOnCanvas(canvas, icon, centerX, centerY, iconTargetSize)
+        drawIconOnCanvas(canvas, icon, centerX, centerY, iconTargetSize, themeColor)
     } else {
-        // Draw a bold X for undiscovered
+        // Undiscovered -> Draw X
+        val xColor = lightenColor(backgroundColor, 1.3f)
+
         val xPaint = Paint().apply {
-            color = Color.WHITE
-            strokeWidth = actualSize * 0.1f // Bold stroke (10% of size)
+            color = xColor
+            strokeWidth = actualSize * 0.1f
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
             isAntiAlias = true
         }
 
-        // Size of the X (about 50% of the inner circle diameter)
         val xRadius = mainRadius * 0.5f
 
         canvas.drawLine(centerX - xRadius, centerY - xRadius, centerX + xRadius, centerY + xRadius, xPaint)
@@ -131,7 +132,8 @@ private fun drawIconOnCanvas(
     icon: ImageVector,
     centerX: Float,
     centerY: Float,
-    targetSize: Float
+    targetSize: Float,
+    iconColor: Int
 ) {
     // Create Compose canvas and draw scope
     val composeCanvas = androidx.compose.ui.graphics.Canvas(targetCanvas)
@@ -157,7 +159,7 @@ private fun drawIconOnCanvas(
     ) {
         translate(left, top) {
             scale(scale, scale, Offset.Zero) {
-                drawVectorGroup(icon.root, ComposeColor(Color.WHITE))
+                drawVectorGroup(icon.root, ComposeColor(iconColor))
             }
         }
     }
@@ -185,7 +187,7 @@ private fun DrawScope.drawVectorGroup(
             }
 
             is VectorGroup -> {
-                // Save current transformation state
+                // Save the current transformation state
                 drawContext.canvas.save()
 
                 // Apply group transformations
@@ -406,15 +408,13 @@ private fun List<PathNode>.toComposePath(): Path {
 }
 
 /**
- * Returns the colour for a POI category.
- * Discovered POIs get vibrant colours, undiscovered get dimmed versions.
+ * Returns the base color for a POI category.
  *
  * @param category The POI category
- * @param discovered Whether the POI has been discovered
  * @return Android Color int
  */
-private fun getCategoryColor(category: PoiCategory, discovered: Boolean): Int {
-    val baseColor = when (category) {
+private fun getCategoryBaseColor(category: PoiCategory): Int {
+    return when (category) {
         PoiCategory.HISTORICAL -> Color.rgb(255, 152, 0) // Orange
         PoiCategory.CULTURAL -> Color.rgb(156, 39, 176) // Purple
         PoiCategory.NATURE -> Color.rgb(76, 175, 80) // Green
@@ -425,20 +425,30 @@ private fun getCategoryColor(category: PoiCategory, discovered: Boolean): Int {
         PoiCategory.OTHER -> Color.rgb(158, 158, 158) // Grey
         PoiCategory.UNKNOWN -> Color.rgb(96, 125, 139) // Blue Grey
     }
-
-    return if (discovered) {
-        baseColor
-    } else {
-        // Dim the colour for undiscovered POIs (reduce saturation and brightness)
-        dimColor(baseColor)
-    }
 }
 
 /**
- * Dims a colour by reducing its saturation and brightness.
+ * Blends two colors.
  *
- * @param color The original colour
- * @return The dimmed colour
+ * @param bg Background color
+ * @param fg Foreground color
+ * @param ratio Ratio of foreground (0.0 = full BG, 1.0 = full FG)
+ * @return Blended color
+ */
+private fun blendColors(bg: Int, fg: Int, ratio: Float): Int {
+    val inverseRatio = 1f - ratio
+    val r = (Color.red(fg) * ratio + Color.red(bg) * inverseRatio)
+    val g = (Color.green(fg) * ratio + Color.green(bg) * inverseRatio)
+    val b = (Color.blue(fg) * ratio + Color.blue(bg) * inverseRatio)
+    return Color.rgb(r.toInt(), g.toInt(), b.toInt())
+}
+
+/**
+ * Dims a color by reducing its saturation and brightness.
+ * Used for undiscovered POIs on the map to show they haven't been explored yet.
+ *
+ * @param color The original color
+ * @return The dimmed color
  */
 private fun dimColor(color: Int): Int {
     val hsv = FloatArray(3)
@@ -447,6 +457,24 @@ private fun dimColor(color: Int): Int {
     // Reduce saturation and brightness
     hsv[1] = hsv[1] * 0.4f // Reduce saturation to 40%
     hsv[2] = hsv[2] * 0.5f // Reduce brightness to 50%
+
+    return Color.HSVToColor(hsv)
+}
+
+/**
+ * Lightens a color by increasing its brightness.
+ * Used for the X symbol on undiscovered POIs to ensure visibility on a dimmed background.
+ *
+ * @param color The original color
+ * @param factor Brightness multiplier (> 1.0 makes it lighter)
+ * @return The lightened color
+ */
+private fun lightenColor(color: Int, factor: Float): Int {
+    val hsv = FloatArray(3)
+    Color.colorToHSV(color, hsv)
+
+    // Increase brightness, but cap at 1.0 (max)
+    hsv[2] = (hsv[2] * factor).coerceAtMost(1.0f)
 
     return Color.HSVToColor(hsv)
 }

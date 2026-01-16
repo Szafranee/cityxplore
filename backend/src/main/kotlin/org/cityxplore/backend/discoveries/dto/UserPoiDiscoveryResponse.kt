@@ -1,5 +1,6 @@
 package org.cityxplore.backend.discoveries.dto
 
+import org.cityxplore.backend.achievements.dto.AchievementResponse
 import java.time.LocalDateTime
 import java.util.UUID
 
@@ -10,5 +11,6 @@ import java.util.UUID
 data class UserPoiDiscoveryResponse(
     val poiId: UUID,
     val discoveredAt: LocalDateTime,
-    val favorite: Boolean
+    val favorite: Boolean,
+    val newlyUnlockedAchievements: List<AchievementResponse> = emptyList()
 )

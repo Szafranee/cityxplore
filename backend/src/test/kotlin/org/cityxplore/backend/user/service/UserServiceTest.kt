@@ -183,7 +183,6 @@ class UserServiceTest {
 
         // then
         assertEquals(BigDecimal.ZERO, result.totalDistance)
-        assertEquals(0, result.totalPoisDiscovered)
         verify(exactly = 1) { userRepository.save(any()) }
     }
 
@@ -192,8 +191,7 @@ class UserServiceTest {
         email: String,
         username: String,
         avatarUrl: String? = null,
-        totalDistance: BigDecimal = BigDecimal.ZERO,
-        totalPoisDiscovered: Int = 0
+        totalDistance: BigDecimal = BigDecimal.ZERO
     ) = User(
         id = id,
         email = email,
@@ -201,7 +199,6 @@ class UserServiceTest {
         avatarUrl = avatarUrl,
         createdAt = LocalDateTime.now(),
         lastActiveAt = null,
-        totalDistance = totalDistance,
-        totalPoisDiscovered = totalPoisDiscovered
+        totalDistance = totalDistance
     )
 }

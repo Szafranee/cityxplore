@@ -4,6 +4,7 @@ import org.cityxplore.backend.user.entity.User
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
+import java.math.BigDecimal
 import java.util.UUID
 
 /**
@@ -47,12 +48,13 @@ interface UserRepository : JpaRepository<User, UUID> {
     fun incrementAchievementPoints(userId: UUID, points: Int): Int
 
     /**
-     * Increments the total number of POIs (Points of Interest) discovered by the user by 1.
+     * Increments the total distance travelled by the user.
      *
-     * @param userId the unique identifier of the user whose total POIs discovered is to be incremented
-     * @return the number of rows affected by the update operation
+     * @param userId The unique identifier of the user whose distance is to be updated.
+     * @param distance The distance in meters to be added to the user's total.
+     * @return The number of rows affected by the update operation.
      */
     @Modifying
-    @Query("UPDATE User u SET u.totalPoisDiscovered = u.totalPoisDiscovered + 1 WHERE u.id = :userId")
-    fun incrementPoisDiscovered(userId: UUID): Int
+    @Query("UPDATE User u SET u.totalDistance = u.totalDistance + :distance WHERE u.id = :userId")
+    fun incrementDistance(userId: UUID, distance: BigDecimal): Int
 }

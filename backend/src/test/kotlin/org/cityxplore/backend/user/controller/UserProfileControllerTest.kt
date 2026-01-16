@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.ninjasquad.springmockk.MockkBean
 import io.mockk.every
 import io.mockk.verify
+import org.cityxplore.backend.achievements.service.AchievementEvaluationService
+import org.cityxplore.backend.achievements.service.AchievementService
 import org.cityxplore.backend.config.JpaAuditingConfiguration
 import org.cityxplore.backend.user.dto.UpdateUserProfileRequest
 import org.cityxplore.backend.user.dto.UserProfileResponse
@@ -49,6 +51,12 @@ class UserProfileControllerTest {
 
     @MockkBean
     private lateinit var userProfileService: UserProfileService
+
+    @MockkBean
+    private lateinit var achievementEvaluationService: AchievementEvaluationService
+
+    @MockkBean
+    private lateinit var achievementService: AchievementService
 
     @Test
     fun `getMyProfile should return user profile for authenticated user`() {

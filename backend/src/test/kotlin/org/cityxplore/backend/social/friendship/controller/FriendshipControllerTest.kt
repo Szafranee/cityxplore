@@ -17,6 +17,7 @@ import org.springframework.security.test.context.support.WithMockUser
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
@@ -578,5 +579,313 @@ class FriendshipControllerTest {
             get("/api/friends/pending")
         )
             .andExpect(status().isUnauthorized)
+    }
+
+    // ========== deleteFriend Tests ==========
+
+    @Test
+    @WithMockUser(username = "user")
+    fun `deleteFriend should return 204 when friendship is deleted`() {
+        // Given
+        val friendshipId = UUID.randomUUID()
+        every { friendshipService.deleteFriend(any(), friendshipId) } returns Unit
+
+        // When & Then
+        mockMvc.perform(
+            delete("/api/friends/{friendshipId}", friendshipId)
+                .with(csrf())
+                .with(jwtWithSubject())
+        )
+            .andExpect(status().isNoContent)
+
+        verify(exactly = 1) { friendshipService.deleteFriend(any(), friendshipId) }
+    }
+
+    @Test
+    @WithMockUser(username = "user")
+    fun `deleteFriend should return 404 when friendship not found`() {
+        // Given
+        val friendshipId = UUID.randomUUID()
+        every { friendshipService.deleteFriend(any(), friendshipId) } throws ResponseStatusException(
+            HttpStatus.NOT_FOUND,
+            "Friendship not found"
+        )
+
+        // When & Then
+        mockMvc.perform(
+            delete("/api/friends/{friendshipId}", friendshipId)
+                .with(csrf())
+                .with(jwtWithSubject())
+        )
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    @WithMockUser(username = "user")
+    fun `deleteFriend should return 403 when user not part of friendship`() {
+        // Given
+        val friendshipId = UUID.randomUUID()
+        every { friendshipService.deleteFriend(any(), friendshipId) } throws ResponseStatusException(
+            HttpStatus.FORBIDDEN,
+            "You do not have access to this friendship"
+        )
+
+        // When & Then
+        mockMvc.perform(
+            delete("/api/friends/{friendshipId}", friendshipId)
+                .with(csrf())
+                .with(jwtWithSubject())
+        )
+            .andExpect(status().isForbidden)
+    }
+
+    // ========== blockFriend Tests ==========
+
+    @Test
+    @WithMockUser(username = "user")
+    fun `blockFriend should return 200 when friend is blocked`() {
+        // Given
+        val userId = UUID.randomUUID()
+        val friendId = UUID.randomUUID()
+        val friendshipId = UUID.randomUUID()
+
+        val response = FriendshipResponse(
+            id = friendshipId,
+            requesterId = userId,
+            addresseeId = friendId,
+            status = FriendshipStatus.BLOCKED,
+            blockedBy = userId,
+            createdAt = LocalDateTime.now(),
+            updatedAt = LocalDateTime.now()
+        )
+
+        every { friendshipService.blockFriend(any(), friendshipId) } returns response
+
+        // When & Then
+        mockMvc.perform(
+            post("/api/friends/{friendshipId}/block", friendshipId)
+                .with(csrf())
+                .with(jwtWithSubject())
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.id").value(friendshipId.toString()))
+            .andExpect(jsonPath("$.status").value("BLOCKED"))
+            .andExpect(jsonPath("$.blockedBy").value(userId.toString()))
+
+        verify(exactly = 1) { friendshipService.blockFriend(any(), friendshipId) }
+    }
+
+    @Test
+    @WithMockUser(username = "user")
+    fun `blockFriend should return 404 when friendship not found`() {
+        // Given
+        val friendshipId = UUID.randomUUID()
+        every { friendshipService.blockFriend(any(), friendshipId) } throws ResponseStatusException(
+            HttpStatus.NOT_FOUND,
+            "Friendship not found"
+        )
+
+        // When & Then
+        mockMvc.perform(
+            post("/api/friends/{friendshipId}/block", friendshipId)
+                .with(csrf())
+                .with(jwtWithSubject())
+        )
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    @WithMockUser(username = "user")
+    fun `blockFriend should return 409 when friend is already blocked`() {
+        // Given
+        val friendshipId = UUID.randomUUID()
+        every { friendshipService.blockFriend(any(), friendshipId) } throws ResponseStatusException(
+            HttpStatus.CONFLICT,
+            "This user is already blocked"
+        )
+
+        // When & Then
+        mockMvc.perform(
+            post("/api/friends/{friendshipId}/block", friendshipId)
+                .with(csrf())
+                .with(jwtWithSubject())
+        )
+            .andExpect(status().isConflict)
+    }
+
+    // ========== unblockFriend Tests ==========
+
+    @Test
+    @WithMockUser(username = "user")
+    fun `unblockFriend should return 200 when friend is unblocked`() {
+        // Given
+        val userId = UUID.randomUUID()
+        val friendId = UUID.randomUUID()
+        val friendshipId = UUID.randomUUID()
+
+        val response = FriendshipResponse(
+            id = friendshipId,
+            requesterId = userId,
+            addresseeId = friendId,
+            status = FriendshipStatus.ACCEPTED,
+            blockedBy = null,
+            createdAt = LocalDateTime.now(),
+            updatedAt = LocalDateTime.now()
+        )
+
+        every { friendshipService.unblockFriend(any(), friendshipId) } returns response
+
+        // When & Then
+        mockMvc.perform(
+            post("/api/friends/{friendshipId}/unblock", friendshipId)
+                .with(csrf())
+                .with(jwtWithSubject())
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.id").value(friendshipId.toString()))
+            .andExpect(jsonPath("$.status").value("ACCEPTED"))
+
+        verify(exactly = 1) { friendshipService.unblockFriend(any(), friendshipId) }
+    }
+
+    @Test
+    @WithMockUser(username = "user")
+    fun `unblockFriend should return 404 when friendship not found`() {
+        // Given
+        val friendshipId = UUID.randomUUID()
+        every { friendshipService.unblockFriend(any(), friendshipId) } throws ResponseStatusException(
+            HttpStatus.NOT_FOUND,
+            "Friendship not found"
+        )
+
+        // When & Then
+        mockMvc.perform(
+            post("/api/friends/{friendshipId}/unblock", friendshipId)
+                .with(csrf())
+                .with(jwtWithSubject())
+        )
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    @WithMockUser(username = "user")
+    fun `unblockFriend should return 409 when friend is not blocked`() {
+        // Given
+        val friendshipId = UUID.randomUUID()
+        every { friendshipService.unblockFriend(any(), friendshipId) } throws ResponseStatusException(
+            HttpStatus.CONFLICT,
+            "This user is not blocked"
+        )
+
+        // When & Then
+        mockMvc.perform(
+            post("/api/friends/{friendshipId}/unblock", friendshipId)
+                .with(csrf())
+                .with(jwtWithSubject())
+        )
+            .andExpect(status().isConflict)
+    }
+
+    // ========== getBlockedUsers Tests ==========
+
+    @Test
+    @WithMockUser(username = "user")
+    fun `getBlockedUsers should return 200 with list of blocked users`() {
+        // Given
+        val userId = UUID.randomUUID()
+        val blocked1 = UUID.randomUUID()
+        val blocked2 = UUID.randomUUID()
+
+        val blockedUsers = listOf(
+            FriendshipResponse(
+                id = UUID.randomUUID(),
+                requesterId = userId,
+                addresseeId = blocked1,
+                status = FriendshipStatus.BLOCKED,
+                blockedBy = userId,
+                createdAt = LocalDateTime.now(),
+                updatedAt = LocalDateTime.now()
+            ),
+            FriendshipResponse(
+                id = UUID.randomUUID(),
+                requesterId = blocked2,
+                addresseeId = userId,
+                status = FriendshipStatus.BLOCKED,
+                blockedBy = userId,
+                createdAt = LocalDateTime.now(),
+                updatedAt = LocalDateTime.now()
+            )
+        )
+
+        every { friendshipService.getBlockedUsers(any()) } returns blockedUsers
+
+        // When & Then
+        mockMvc.perform(
+            get("/api/friends/blocked")
+                .with(jwtWithSubject())
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$").isArray)
+            .andExpect(jsonPath("$.length()").value(2))
+            .andExpect(jsonPath("$[0].status").value("BLOCKED"))
+            .andExpect(jsonPath("$[1].status").value("BLOCKED"))
+
+        verify(exactly = 1) { friendshipService.getBlockedUsers(any()) }
+    }
+
+    @Test
+    @WithMockUser(username = "user")
+    fun `getBlockedUsers should return 200 with empty list when no blocked users`() {
+        // Given
+        every { friendshipService.getBlockedUsers(any()) } returns emptyList()
+
+        // When & Then
+        mockMvc.perform(
+            get("/api/friends/blocked")
+                .with(jwtWithSubject())
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$").isArray)
+            .andExpect(jsonPath("$.length()").value(0))
+
+        verify(exactly = 1) { friendshipService.getBlockedUsers(any()) }
+    }
+
+    // ========== checkIfBlocked Tests ==========
+
+    @Test
+    @WithMockUser(username = "user")
+    fun `checkIfBlocked should return blocked true when user is blocked`() {
+        // Given
+        val otherUserId = UUID.randomUUID()
+        every { friendshipService.isBlockedBy(any(), otherUserId) } returns true
+
+        // When & Then
+        mockMvc.perform(
+            get("/api/friends/blocked/{otherUserId}", otherUserId)
+                .with(jwtWithSubject())
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.blocked").value(true))
+
+        verify(exactly = 1) { friendshipService.isBlockedBy(any(), otherUserId) }
+    }
+
+    @Test
+    @WithMockUser(username = "user")
+    fun `checkIfBlocked should return blocked false when user is not blocked`() {
+        // Given
+        val otherUserId = UUID.randomUUID()
+        every { friendshipService.isBlockedBy(any(), otherUserId) } returns false
+
+        // When & Then
+        mockMvc.perform(
+            get("/api/friends/blocked/{otherUserId}", otherUserId)
+                .with(jwtWithSubject())
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.blocked").value(false))
+
+        verify(exactly = 1) { friendshipService.isBlockedBy(any(), otherUserId) }
     }
 }

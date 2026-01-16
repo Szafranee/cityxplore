@@ -29,10 +29,10 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -57,7 +57,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -147,7 +146,6 @@ fun ProfileScreen(
                 )
 
                 is ProfileState.Success -> {
-                    rememberCoroutineScope()
                     ProfileContent(
                         profile = currentState.profile,
                         achievements = currentState.achievements,
@@ -532,7 +530,7 @@ private fun StatCard(
     modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier,
+        modifier = modifier.height(80.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         )
@@ -540,8 +538,9 @@ private fun StatCard(
         Column(
             modifier = Modifier
                 .padding(12.dp)
-                .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             // Adjust font size for long values
             val valueStyle = if (value.length > 6) {
@@ -556,6 +555,7 @@ private fun StatCard(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
+                maxLines = 1,
                 modifier = Modifier.fillMaxWidth()
             )
             Text(
@@ -998,7 +998,7 @@ private fun AchievementItem(
                 )
             } else {
                 Icon(
-                    imageVector = if (achievement.isUnlocked) Icons.Default.Star else Icons.Default.Lock,
+                    imageVector = if (achievement.isUnlocked) Icons.Rounded.Star else Icons.Rounded.Lock,
                     contentDescription = null,
                     tint = if (achievement.isUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(32.dp)
@@ -1068,7 +1068,7 @@ private fun AchievementDetailDialog(
                         )
                     } else {
                         Icon(
-                            imageVector = if (achievement.isUnlocked) Icons.Default.Star else Icons.Default.Lock,
+                            imageVector = if (achievement.isUnlocked) Icons.Rounded.Star else Icons.Rounded.Lock,
                             contentDescription = null,
                             modifier = Modifier.size(48.dp),
                             tint = if (achievement.isUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant

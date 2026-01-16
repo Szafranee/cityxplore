@@ -16,6 +16,8 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.verify
+import org.cityxplore.backend.discoveries.repository.UserPoiDiscoveryRepository
+import org.cityxplore.backend.shared.config.GamificationConfig
 import org.cityxplore.backend.user.dto.UpdateUserProfileRequest
 import org.cityxplore.backend.user.entity.User
 import org.cityxplore.backend.user.repository.UserRepository
@@ -43,23 +45,30 @@ import java.util.UUID
 class UserProfileServiceTest {
 
     private lateinit var userRepository: UserRepository
+    private lateinit var userPoiDiscoveryRepository: UserPoiDiscoveryRepository
     private lateinit var supabaseClient: SupabaseClient
     private lateinit var storagePlugin: Storage
     private lateinit var authPlugin: Auth
     private lateinit var adminApi: AdminApi
     private lateinit var bucketApi: BucketApi
     private lateinit var transactionTemplate: TransactionTemplate
+    private lateinit var gamificationConfig: GamificationConfig
     private lateinit var userProfileService: UserProfileService
 
     @BeforeEach
     fun setUp() {
         userRepository = mockk()
+        userPoiDiscoveryRepository = mockk()
         supabaseClient = mockk()
         storagePlugin = mockk()
         authPlugin = mockk()
         adminApi = mockk()
         bucketApi = mockk()
         transactionTemplate = mockk()
+        gamificationConfig = GamificationConfig().apply {
+            pointsPerPoiDiscovery = 10
+            pointsPer100Meters = 1
+        }
 
         // Mock Supabase plugins extension functions
         // Ensure to mock the file class where extension properties are defined
@@ -84,7 +93,16 @@ class UserProfileServiceTest {
         every { TransactionSynchronizationManager.isActualTransactionActive() } returns true
         every { TransactionSynchronizationManager.registerSynchronization(any()) } just Runs
 
-        userProfileService = UserProfileService(userRepository, supabaseClient, transactionTemplate)
+        // Default mock for counting POI discoveries (returns 0 by default, override in specific tests if needed)
+        every { userPoiDiscoveryRepository.countByUserId(any()) } returns 0L
+
+        userProfileService = UserProfileService(
+            userRepository,
+            userPoiDiscoveryRepository,
+            supabaseClient,
+            transactionTemplate,
+            gamificationConfig
+        )
     }
 
     @Test
@@ -548,6 +566,127 @@ class UserProfileServiceTest {
         coVerify(exactly = 1) { adminApi.deleteUser(userId.toString()) }
     }
 
+    // ========== addDistance Tests ==========
+
+    @Test
+    fun `addDistance should increment user total distance and award XP`() {
+        // given
+        val userId = UUID.randomUUID()
+        val user = createTestUser(userId, "test@example.com", "testuser")
+        val distanceMeters = 150.0
+
+        every { userRepository.incrementDistance(userId, any()) } returns 1
+        every { userRepository.incrementAchievementPoints(userId, any()) } returns 1
+        every { userRepository.findById(userId) } returns Optional.of(user)
+
+        // when
+        val result = userProfileService.addDistance(userId, distanceMeters)
+
+        // then
+        verify { userRepository.incrementDistance(userId, any()) }
+        verify { userRepository.incrementAchievementPoints(userId, 1) } // 150m / 100 * 1 = 1 XP
+        assertNotNull(result)
+        assertEquals(userId, result.id)
+    }
+
+    @Test
+    fun `addDistance should throw NOT_FOUND when user does not exist`() {
+        // given
+        val userId = UUID.randomUUID()
+        val distanceMeters = 100.0
+
+        every { userRepository.incrementDistance(userId, any()) } returns 0
+
+        // when & then
+        val exception = assertThrows<ResponseStatusException> {
+            userProfileService.addDistance(userId, distanceMeters)
+        }
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.statusCode)
+        assertEquals("User not found", exception.reason)
+    }
+
+    @Test
+    fun `addDistance should round distance to 2 decimal places`() {
+        // given
+        val userId = UUID.randomUUID()
+        val user = createTestUser(userId, "test@example.com", "testuser")
+        val distanceMeters = 123.456789
+
+        every { userRepository.incrementDistance(userId, BigDecimal.valueOf(123.46)) } returns 1
+        every { userRepository.incrementAchievementPoints(userId, any()) } returns 1
+        every { userRepository.findById(userId) } returns Optional.of(user)
+
+        // when
+        userProfileService.addDistance(userId, distanceMeters)
+
+        // then
+        verify { userRepository.incrementDistance(userId, BigDecimal.valueOf(123.46)) }
+    }
+
+    @Test
+    fun `addDistance should award XP points for distance`() {
+        // given
+        val userId = UUID.randomUUID()
+        val user = createTestUser(userId, "test@example.com", "testuser")
+        val distanceMeters = 250.0 // Should award 2 XP (250m / 100 * 1)
+
+        every { userRepository.incrementDistance(userId, any()) } returns 1
+        every { userRepository.incrementAchievementPoints(userId, 2) } returns 1
+        every { userRepository.findById(userId) } returns Optional.of(user)
+        every { userPoiDiscoveryRepository.countByUserId(userId) } returns 0L
+
+        // when
+        userProfileService.addDistance(userId, distanceMeters)
+
+        // then
+        verify { userRepository.incrementDistance(userId, any()) }
+        verify { userRepository.incrementAchievementPoints(userId, 2) }
+    }
+
+    @Test
+    fun `addDistance should not award XP for distance less than 100m`() {
+        // given
+        val userId = UUID.randomUUID()
+        val user = createTestUser(userId, "test@example.com", "testuser")
+        val distanceMeters = 50.0 // Should award 0 XP (50m / 100 * 1 = 0)
+
+        every { userRepository.incrementDistance(userId, any()) } returns 1
+        every { userRepository.findById(userId) } returns Optional.of(user)
+        every { userPoiDiscoveryRepository.countByUserId(userId) } returns 0L
+
+        // when
+        userProfileService.addDistance(userId, distanceMeters)
+
+        // then
+        verify { userRepository.incrementDistance(userId, any()) }
+        verify(exactly = 0) { userRepository.incrementAchievementPoints(any(), any()) }
+    }
+
+    @Test
+    fun `addDistance should calculate XP correctly for various distances`() {
+        // given
+        val userId = UUID.randomUUID()
+        val user = createTestUser(userId, "test@example.com", "testuser")
+
+        every { userRepository.incrementDistance(userId, any()) } returns 1
+        every { userRepository.incrementAchievementPoints(userId, any()) } returns 1
+        every { userRepository.findById(userId) } returns Optional.of(user)
+        every { userPoiDiscoveryRepository.countByUserId(userId) } returns 0L
+
+        // Test 1000m = 10 XP
+        userProfileService.addDistance(userId, 1000.0)
+        verify { userRepository.incrementAchievementPoints(userId, 10) }
+
+        // Test 500m = 5 XP
+        userProfileService.addDistance(userId, 500.0)
+        verify { userRepository.incrementAchievementPoints(userId, 5) }
+
+        // Test 150m = 1 XP
+        userProfileService.addDistance(userId, 150.0)
+        verify { userRepository.incrementAchievementPoints(userId, 1) }
+    }
+
     private fun createTestUser(
         id: UUID,
         email: String,
@@ -560,7 +699,6 @@ class UserProfileServiceTest {
         avatarUrl = avatarUrl,
         createdAt = LocalDateTime.now(),
         lastActiveAt = null,
-        totalDistance = BigDecimal.ZERO,
-        totalPoisDiscovered = 0
+        totalDistance = BigDecimal.ZERO
     )
 }

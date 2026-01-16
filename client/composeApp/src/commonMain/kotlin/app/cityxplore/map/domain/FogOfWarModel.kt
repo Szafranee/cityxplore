@@ -18,7 +18,7 @@ data class FogOfWarModel(
  * @property h3Resolution H3 resolution level (0-15). Higher = smaller hexagons.
  *                        Resolution 10 = ~66m diameter hexagons (recommended for urban areas).
  * @property revealRadiusMeters The radius around the user's location within which hexagons are revealed.
- * @property fogColor Hex colour string for unrevealed areas (e.g. "#80000000" for semi-transparent black).
+ * @property fogColor Hex color string for unrevealed areas (e.g. "#80000000" for semi-transparent black).
  * @property warsawBounds Geographic bounds of the Warsaw region (lat/lng min/max) for hex generation.
  */
 data class FogOfWarConfiguration(

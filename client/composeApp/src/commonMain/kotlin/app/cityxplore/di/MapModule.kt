@@ -50,7 +50,9 @@ val mapModule: Module = module {
             fogOfWarRepository = get(),
             locationService = get(),
             profileRepository = get(),
-            toggleFavoriteUseCase = get()
+            toggleFavoriteUseCase = get(),
+            distanceTracker = get(),
+            distanceSyncRepository = get()
         )
     }
 }
