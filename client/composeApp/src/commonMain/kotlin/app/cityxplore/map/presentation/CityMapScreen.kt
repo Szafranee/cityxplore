@@ -35,6 +35,7 @@ import app.cityxplore.map.presentation.components.AchievementUnlockedDialog
 import app.cityxplore.map.presentation.components.DiscoveryNotification
 import app.cityxplore.map.presentation.components.LevelUpDialog
 import app.cityxplore.map.presentation.components.PoiDetailsContent
+import app.cityxplore.map.presentation.components.SharedPoiDetailsContent
 import app.cityxplore.profile.domain.UserProfile
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
@@ -98,13 +99,23 @@ fun CityXploreMapScreen(
             ) {
                 PoiDetailsContent(
                     poi = state.selectedPoi,
-                    onToggleFavorite = { onAction(MapAction.ToggleFavorite(it)) },
-                    userLocation = state.userLocation
+                    onToggleFavorite = { poiId -> onAction(MapAction.ToggleFavorite(poiId)) }
                 )
             }
         }
 
-        // Discovery notification (positioned at bottom above navigation)
+        if (state is MapUiState.Ready && state.selectedSharedPoi != null) {
+            ModalBottomSheet(
+                onDismissRequest = { onAction(MapAction.DeselectPoi) },
+                sheetState = sheetState
+            ) {
+                SharedPoiDetailsContent(
+                    sharedPoi = state.selectedSharedPoi
+                )
+            }
+        }
+
+        // Discovery Notification Overylay
         if (state is MapUiState.Ready && state.newlyDiscoveredPoiIds.isNotEmpty()) {
             DiscoveryNotification(
                 discoveredPoiIds = state.newlyDiscoveredPoiIds,

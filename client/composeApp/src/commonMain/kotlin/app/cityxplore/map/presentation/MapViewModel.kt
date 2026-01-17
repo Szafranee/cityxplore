@@ -55,7 +55,8 @@ class MapViewModel(
     private val profileRepository: ProfileRepository,
     private val toggleFavoriteUseCase: ToggleFavoriteUseCase,
     private val distanceTracker: DistanceTracker,
-    private val distanceSyncRepository: DistanceSyncRepository
+    private val distanceSyncRepository: DistanceSyncRepository,
+    private val sharedPoiRepository: app.cityxplore.social.domain.repository.SharedPoiRepository
 ) : CityXploreBaseViewModel() {
     private val _state = MutableStateFlow<MapUiState>(MapUiState.Loading)
 
@@ -76,12 +77,33 @@ class MapViewModel(
     init {
         loadData()
         startLocationTracking()
+        observeSharedPois()
+    }
+
+    /**
+     * Observes shared POIs from repository and updates state.
+     */
+    private fun observeSharedPois() {
+        scope.launch {
+            sharedPoiRepository.getReceivedPois().collect { sharedPois ->
+                val currentState = _state.value
+                if (currentState is MapUiState.Ready) {
+                    // Filter to only show shared POIs with coordinates (custom POIs)
+                    val poisWithCoords = sharedPois.filter { it.coordinates != null }
+                    _state.value = currentState.copy(sharedPois = poisWithCoords)
+                }
+            }
+        }
+        // Initial refresh of shared POIs
+        scope.launch {
+            sharedPoiRepository.refreshReceivedPois()
+        }
     }
 
     /**
      * Loads/refreshes the user profile and checks for level up.
      *
-     * @param checkLevelUp If true, compares with previous level to detect level up.
+     * @param checkLevelUp If true, compares with the previous level to detect level up.
      */
     private fun loadProfile(checkLevelUp: Boolean = false) {
         scope.launch {
@@ -93,10 +115,10 @@ class MapViewModel(
                         val oldLevel = previousLevel
                         val newLevel = newProfile.level
 
-                        // Update previous level for future comparisons
+                        // Update the previous level for future comparisons
                         previousLevel = newLevel
 
-                        // Detect level up: new level is higher than old level (only if we had a previous level)
+                        // Detect level up: the new level is higher than the old level (only if we had a previous level)
                         val leveledUp = checkLevelUp && oldLevel != null && newLevel > oldLevel
 
                         _state.value = currentState.copy(
@@ -175,6 +197,7 @@ class MapViewModel(
             MapAction.DismissAllDiscoveryNotifications -> dismissAllDiscoveryNotifications()
             MapAction.DismissAchievementNotification -> dismissAchievementNotification()
             MapAction.DismissLevelUpDialog -> dismissLevelUpDialog()
+            is MapAction.SelectSharedPoi -> selectSharedPoi(action.sharedPoiId)
         }
     }
 
@@ -219,6 +242,31 @@ class MapViewModel(
         val currentState = _state.value
         if (currentState is MapUiState.Ready) {
             _state.value = currentState.copy(newLevel = null)
+        }
+    }
+
+    /**
+     * Selects a shared POI for viewing details.
+     * Also marks it as viewed.
+     */
+    private fun selectSharedPoi(sharedPoiId: String) {
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            val sharedPoi = currentState.sharedPois.find { it.id == sharedPoiId }
+            if (sharedPoi != null) {
+                _state.value = currentState.copy(
+                    selectedSharedPoi = sharedPoi,
+                    selectedPoi = null // Clear regular POI selection
+                )
+
+                // Mark as viewed if not already
+                if (!sharedPoi.isViewed) {
+                    scope.launch {
+                        sharedPoiRepository.markViewed(sharedPoiId)
+                        sharedPoiRepository.refreshReceivedPois()
+                    }
+                }
+            }
         }
     }
 
@@ -498,7 +546,8 @@ class MapViewModel(
         val currentState = _state.value
         if (currentState is MapUiState.Ready) {
             _state.value = currentState.copy(
-                selectedPoi = currentState.pois.firstOrNull { it.id == poiId }
+                selectedPoi = currentState.pois.firstOrNull { it.id == poiId },
+                selectedSharedPoi = null // Clear shared POI selection
             )
         }
     }
@@ -506,7 +555,10 @@ class MapViewModel(
     private fun deselectPoi() {
         val currentState = _state.value
         if (currentState is MapUiState.Ready) {
-            _state.value = currentState.copy(selectedPoi = null)
+            _state.value = currentState.copy(
+                selectedPoi = null,
+                selectedSharedPoi = null
+            )
         }
     }
 

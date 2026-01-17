@@ -52,7 +52,8 @@ val mapModule: Module = module {
             profileRepository = get(),
             toggleFavoriteUseCase = get(),
             distanceTracker = get(),
-            distanceSyncRepository = get()
+            distanceSyncRepository = get(),
+            sharedPoiRepository = get()
         )
     }
 }

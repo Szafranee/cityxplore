@@ -144,28 +144,40 @@ private fun ReadyMap(
     // Map annotations to POI IDs for click handling
     val annotationIdToPoiId = remember { mutableMapOf<String, String>() }
 
+    // Track shared POI annotation IDs
+    val sharedAnnotationIdToPoiId = remember { mutableMapOf<String, String>() }
+
     // Remember the annotation manager for the current map view
     val annotationManager = remember(mapViewRef.value) {
         val manager = mapViewRef.value?.annotations?.createPointAnnotationManager()
         manager?.addClickListener { annotation ->
+            // Check regular POIs first
             val poiId = annotationIdToPoiId[annotation.id]
             if (poiId != null) {
                 onAction(MapAction.SelectPoi(poiId))
-                true
-            } else {
-                false
+                return@addClickListener true
             }
+
+            // Check shared POIs
+            val sharedPoiId = sharedAnnotationIdToPoiId[annotation.id]
+            if (sharedPoiId != null) {
+                onAction(MapAction.SelectSharedPoi(sharedPoiId))
+                return@addClickListener true
+            }
+
+            false
         }
         manager
     }
 
     // Update POI markers when the map view or POI list changes
-    LaunchedEffect(mapViewRef.value, mapState.pois) {
+    LaunchedEffect(mapViewRef.value, mapState.pois, mapState.sharedPois) {
         val manager = annotationManager ?: return@LaunchedEffect
 
         // Clear existing markers
         manager.deleteAll()
         annotationIdToPoiId.clear()
+        sharedAnnotationIdToPoiId.clear()
 
         // Create new markers for each POI
         mapState.pois.forEach { poi ->
@@ -182,6 +194,24 @@ private fun ReadyMap(
 
             val annotation = manager.create(pointAnnotationOptions)
             annotationIdToPoiId[annotation.id] = poi.id
+        }
+
+        // Create markers for shared POIs (custom POIs from friends)
+        mapState.sharedPois.forEach { sharedPoi ->
+            val coords = sharedPoi.coordinates ?: return@forEach
+            val point = Point.fromLngLat(coords.second, coords.first)
+
+            val icon = createSharedPoiMarkerBitmap(
+                isCustomPoi = sharedPoi.isCustomPoi,
+                isUnread = !sharedPoi.isViewed
+            )
+
+            val pointAnnotationOptions = PointAnnotationOptions()
+                .withPoint(point)
+                .withIconImage(icon)
+
+            val annotation = manager.create(pointAnnotationOptions)
+            sharedAnnotationIdToPoiId[annotation.id] = sharedPoi.id
         }
     }
 

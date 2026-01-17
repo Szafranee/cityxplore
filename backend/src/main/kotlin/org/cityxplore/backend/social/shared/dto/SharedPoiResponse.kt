@@ -17,6 +17,10 @@ import java.util.UUID
  * @property message optional message accompanying the shared POI
  * @property sharedAt timestamp when the POI was shared
  * @property viewedAt timestamp when the recipient viewed the shared POI, null if not yet viewed
+ * @property sharerName display name of the user who shared the POI
+ * @property sharerAvatar avatar URL of the user who shared the POI
+ * @property recipientName display name of the recipient user
+ * @property recipientAvatar avatar URL of the recipient user
  */
 data class SharedPoiResponse(
     val id: UUID,
@@ -26,5 +30,9 @@ data class SharedPoiResponse(
     val poiData: CustomPoiData?,
     val message: String?,
     val sharedAt: LocalDateTime,
-    val viewedAt: LocalDateTime?
+    val viewedAt: LocalDateTime?,
+    val sharerName: String? = null,
+    val sharerAvatar: String? = null,
+    val recipientName: String? = null,
+    val recipientAvatar: String? = null
 )

@@ -4,6 +4,7 @@ import app.cityxplore.achievements.domain.Achievement
 import app.cityxplore.core.location.Location
 import app.cityxplore.map.domain.MapPoi
 import app.cityxplore.profile.domain.UserProfile
+import app.cityxplore.social.domain.model.SharedPoi
 
 /**
  * Sealed interface representing the state of the map screen.
@@ -27,7 +28,9 @@ sealed interface MapUiState {
      * @property warsawHexagons Set of all H3 hex indices covering the Warsaw region (for Fog of War).
      * @property profile The current user's profile data, or null if not yet loaded.
      * @property newlyUnlockedAchievements List of achievements just unlocked (for showing celebration dialog).
-     * @property newLevel The new level if user just leveled up, null otherwise.
+     * @property newLevel The new level if the user just levelled up, null otherwise.
+     * @property sharedPois List of POIs shared by friends to display on the map.
+     * @property selectedSharedPoi The currently selected shared POI for displaying details.
      */
     data class Ready(
         val pois: List<MapPoi>,
@@ -39,7 +42,9 @@ sealed interface MapUiState {
         val warsawHexagons: Set<String> = emptySet(),
         val profile: UserProfile? = null,
         val newlyUnlockedAchievements: List<Achievement> = emptyList(),
-        val newLevel: Int? = null
+        val newLevel: Int? = null,
+        val sharedPois: List<SharedPoi> = emptyList(),
+        val selectedSharedPoi: SharedPoi? = null
     ) : MapUiState
 
     /**
@@ -110,9 +115,16 @@ sealed interface MapAction {
     /** User dismissed all discovery notifications at once */
     data object DismissAllDiscoveryNotifications : MapAction
 
-    /** User dismissed the achievement unlock dialog */
+    /** User dismissed the achievement unlock dialogue */
     data object DismissAchievementNotification : MapAction
 
-    /** User dismissed the level up dialog */
+    /** User dismissed the level up dialogue */
     data object DismissLevelUpDialog : MapAction
+
+    /**
+     * User tapped on a shared POI marker.
+     *
+     * @property sharedPoiId The ID of the shared POI.
+     */
+    data class SelectSharedPoi(val sharedPoiId: String) : MapAction
 }

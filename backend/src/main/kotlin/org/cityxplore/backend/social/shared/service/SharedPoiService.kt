@@ -1,5 +1,9 @@
 package org.cityxplore.backend.social.shared.service
 
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.storage.storage
+import io.ktor.http.ContentType
+import kotlinx.coroutines.runBlocking
 import org.cityxplore.backend.poi.repository.PointOfInterestRepository
 import org.cityxplore.backend.social.friendship.repository.FriendshipRepository
 import org.cityxplore.backend.social.shared.dto.SharePoiRequest
@@ -8,9 +12,11 @@ import org.cityxplore.backend.social.shared.entity.SharedPoi
 import org.cityxplore.backend.social.shared.mapper.SharedPoiMapper
 import org.cityxplore.backend.social.shared.repository.SharedPoiRepository
 import org.cityxplore.backend.user.repository.UserRepository
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
 import java.time.LocalDateTime
 import java.util.UUID
@@ -25,8 +31,78 @@ class SharedPoiService(
     private val sharedPoiRepository: SharedPoiRepository,
     private val poiRepository: PointOfInterestRepository,
     private val userRepository: UserRepository,
-    private val friendshipRepository: FriendshipRepository
+    private val friendshipRepository: FriendshipRepository,
+    private val supabaseClient: SupabaseClient
 ) {
+    private val logger = LoggerFactory.getLogger(SharedPoiService::class.java)
+    private val poiImagesBucket = "poi-images" // Ensure this bucket exists in Supabase (public)
+
+    /**
+     * Uploads an image for a custom POI to Supabase Storage.
+     *
+     * @param userId The ID of the uploading user.
+     * @param file The multipart file containing the image.
+     * @return The public URL of the uploaded image.
+     */
+    fun uploadPoiImage(userId: UUID, file: MultipartFile): String {
+        if (file.isEmpty) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "File is empty")
+        }
+
+        val fileBytes = file.bytes
+        val contentType = detectMimeType(fileBytes) ?: run {
+            logger.warn("Could not detect MIME type for uploaded file")
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid file format")
+        }
+
+        if (!listOf(ContentType.Image.JPEG, ContentType.Image.PNG, ContentType.Image.WEBP).contains(contentType)) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Only JPEG, PNG and WEBP images are supported")
+        }
+
+        val fileExtension = contentType.contentSubtype
+        val filename = "${UUID.randomUUID()}.$fileExtension"
+        val path = "$userId/$filename"
+
+        return try {
+            val bucket = supabaseClient.storage.from(poiImagesBucket)
+            runBlocking {
+                bucket.upload(path, fileBytes) {
+                    upsert = false
+                }
+            }
+            bucket.publicUrl(path)
+        } catch (e: Exception) {
+            logger.error("Failed to upload POI image to Supabase Storage", e)
+            throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to upload image")
+        }
+    }
+
+    private fun detectMimeType(bytes: ByteArray): ContentType? {
+        // Simple magic bytes check
+        // PNG: 89 50 4E 47 0D 0A 1A 0A
+        if (bytes.size >= 8 &&
+            bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() &&
+            bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte()
+        ) {
+            return ContentType.Image.PNG
+        }
+        // JPEG: FF D8 FF
+        if (bytes.size >= 3 &&
+            bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() && bytes[2] == 0xFF.toByte()
+        ) {
+            return ContentType.Image.JPEG
+        }
+        // WEBP: RIFF ... WEBP
+        if (bytes.size >= 12 &&
+            bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() && bytes[2] == 'F'.code.toByte() &&
+            bytes[3] == 'F'.code.toByte() &&
+            bytes[8] == 'W'.code.toByte() && bytes[9] == 'E'.code.toByte() && bytes[10] == 'B'.code.toByte() &&
+            bytes[11] == 'P'.code.toByte()
+        ) {
+            return ContentType.Image.WEBP
+        }
+        return null
+    }
 
     /**
      * Shares a Point of Interest with another user.
@@ -72,7 +148,7 @@ class SharedPoiService(
         }
 
         // If sharing an existing POI, validate it exists
-        if (hasPoiId && !poiRepository.existsById(sharePoiRequest.poiId!!)) {
+        if (hasPoiId && !poiRepository.existsById(sharePoiRequest.poiId)) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "POI not found")
         }
 
@@ -86,7 +162,10 @@ class SharedPoiService(
             )
         )
 
-        return SharedPoiMapper.toResponse(shared)
+        val sharer = userRepository.findById(sharerId).orElse(null)
+        val recipient = userRepository.findById(sharePoiRequest.recipientId).orElse(null)
+
+        return SharedPoiMapper.toResponse(shared, sharer, recipient)
     }
 
     /**
@@ -109,7 +188,10 @@ class SharedPoiService(
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this shared POI")
         }
 
-        return SharedPoiMapper.toResponse(sharedPoi)
+        val sharer = userRepository.findById(sharedPoi.sharerId).orElse(null)
+        val recipient = userRepository.findById(sharedPoi.recipientId).orElse(null)
+
+        return SharedPoiMapper.toResponse(sharedPoi, sharer, recipient)
     }
 
     /**
@@ -119,9 +201,22 @@ class SharedPoiService(
      * @return list of SharedPoiResponse objects representing POIs shared by the user
      */
     @Transactional(readOnly = true)
-    fun getSharedByMe(userId: UUID): List<SharedPoiResponse> =
-        sharedPoiRepository.findAllBySharerId(userId)
-            .map { SharedPoiMapper.toResponse(it) }
+    fun getSharedByMe(userId: UUID): List<SharedPoiResponse> {
+        val sharedPois = sharedPoiRepository.findAllBySharerId(userId)
+        val sharer = userRepository.findById(userId).orElse(null)
+
+        // Get all unique recipient IDs and fetch their data
+        val recipientIds = sharedPois.map { it.recipientId }.toSet()
+        val recipients = userRepository.findAllById(recipientIds).associateBy { it.id!! }
+
+        return sharedPois.map { sharedPoi ->
+            SharedPoiMapper.toResponse(
+                sharedPoi = sharedPoi,
+                sharer = sharer,
+                recipient = recipients[sharedPoi.recipientId]
+            )
+        }
+    }
 
     /**
      * Retrieves all POIs shared to a specific user.
@@ -130,9 +225,22 @@ class SharedPoiService(
      * @return list of SharedPoiResponse objects representing POIs shared to the user
      */
     @Transactional(readOnly = true)
-    fun getSharedToMe(userId: UUID): List<SharedPoiResponse> =
-        sharedPoiRepository.findAllByRecipientId(userId)
-            .map { SharedPoiMapper.toResponse(it) }
+    fun getSharedToMe(userId: UUID): List<SharedPoiResponse> {
+        val sharedPois = sharedPoiRepository.findAllByRecipientId(userId)
+        val recipient = userRepository.findById(userId).orElse(null)
+
+        // Get all unique sharer IDs and fetch their data
+        val sharerIds = sharedPois.map { it.sharerId }.toSet()
+        val sharers = userRepository.findAllById(sharerIds).associateBy { it.id!! }
+
+        return sharedPois.map { sharedPoi ->
+            SharedPoiMapper.toResponse(
+                sharedPoi = sharedPoi,
+                sharer = sharers[sharedPoi.sharerId],
+                recipient = recipient
+            )
+        }
+    }
 
     /**
      * Retrieves all unviewed POIs shared to a specific user.
@@ -141,9 +249,22 @@ class SharedPoiService(
      * @return list of SharedPoiResponse objects representing unviewed POIs shared to the user
      */
     @Transactional(readOnly = true)
-    fun getUnviewedSharedToMe(userId: UUID): List<SharedPoiResponse> =
-        sharedPoiRepository.findAllByRecipientIdAndViewedAtIsNull(userId)
-            .map { SharedPoiMapper.toResponse(it) }
+    fun getUnviewedSharedToMe(userId: UUID): List<SharedPoiResponse> {
+        val sharedPois = sharedPoiRepository.findAllByRecipientIdAndViewedAtIsNull(userId)
+        val recipient = userRepository.findById(userId).orElse(null)
+
+        // Get all unique sharer IDs and fetch their data
+        val sharerIds = sharedPois.map { it.sharerId }.toSet()
+        val sharers = userRepository.findAllById(sharerIds).associateBy { it.id!! }
+
+        return sharedPois.map { sharedPoi ->
+            SharedPoiMapper.toResponse(
+                sharedPoi = sharedPoi,
+                sharer = sharers[sharedPoi.sharerId],
+                recipient = recipient
+            )
+        }
+    }
 
     /**
      * Marks a shared POI as viewed by the recipient.
@@ -168,7 +289,10 @@ class SharedPoiService(
         shared.viewedAt = LocalDateTime.now()
         val updated = sharedPoiRepository.save(shared)
 
-        return SharedPoiMapper.toResponse(updated)
+        val sharer = userRepository.findById(updated.sharerId).orElse(null)
+        val recipient = userRepository.findById(updated.recipientId).orElse(null)
+
+        return SharedPoiMapper.toResponse(updated, sharer, recipient)
     }
 
     /**

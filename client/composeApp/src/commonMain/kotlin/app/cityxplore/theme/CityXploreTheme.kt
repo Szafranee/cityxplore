@@ -49,5 +49,8 @@ object AppColors {
     val textWhite = CityXplorePalette.TextMuted
     val white = CityXplorePalette.PureWhite
     val background = CityXplorePalette.Background
-    val gold = Color(0xffefbf04) // Gold color for level up star
+    val gold = Color(0xffefbf04) // Gold colour for level up star
+    val red = Color(0xFFFF3B30) // Error/notification red
+    val orange = Color(0xFFFF9500) // Custom POI orange
+    val blue = Color(0xFF007AFF) // System POI blue
 }

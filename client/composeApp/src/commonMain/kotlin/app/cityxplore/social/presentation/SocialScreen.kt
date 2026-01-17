@@ -1,13 +1,18 @@
 package app.cityxplore.social.presentation
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
@@ -29,24 +34,38 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import app.cityxplore.social.presentation.sharedpois.SharedPoisTab
+import app.cityxplore.social.presentation.sharedpois.SharedPoisUiEvent
+import app.cityxplore.social.presentation.sharedpois.SharedPoisUiState
+import app.cityxplore.social.presentation.sharedpois.SharedPoisViewModel
 import app.cityxplore.theme.AppColors
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
 /**
- * Main screen for Social features, containing Rankings and Friends tabs.
+ * Main screen for Social features, containing Friends, Rankings, and Shared POIs tabs.
  */
 @Composable
 fun SocialScreen(
     initialTab: Int = 0,
     initialRankingSubTab: Int = 0,
-    onUserSelected: (String, fromRankings: Boolean, isGlobalRanking: Boolean) -> Unit
+    onUserSelected: (String, fromRankings: Boolean, isGlobalRanking: Boolean) -> Unit,
+    onNavigateToMap: ((Double, Double) -> Unit)? = null,
+    currentUserLatitude: Double? = null,
+    currentUserLongitude: Double? = null
 ) {
     val viewModel: SocialViewModel = koinInject()
+    val sharedPoisViewModel: SharedPoisViewModel = koinInject()
     val rankingsState by viewModel.rankingsState.collectAsState()
     val friendsState by viewModel.friendsState.collectAsState()
+    val sharedPoisState by sharedPoisViewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    val pagerState = rememberPagerState(initialPage = initialTab, pageCount = { 2 })
+    val pagerState = rememberPagerState(initialPage = initialTab, pageCount = { 3 })
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -57,16 +76,39 @@ fun SocialScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        sharedPoisViewModel.uiEvents.collect { event ->
+            when (event) {
+                is SharedPoisUiEvent.ShowMessage -> snackbarHostState.showSnackbar(event.message)
+                is SharedPoisUiEvent.NavigateToPoiOnMap -> {
+                    onNavigateToMap?.invoke(event.latitude, event.longitude)
+                }
+
+                is SharedPoisUiEvent.ShareSuccess -> { /* handled by the dialogue */
+                }
+            }
+        }
+    }
+
     var showAddFriendDialog by remember { mutableStateOf(false) }
+    var showCreatePoiDialog by remember { mutableStateOf(false) }
+
+    // Unviewed count for badge
+    val unviewedCount = (sharedPoisState as? SharedPoisUiState.Content)?.unviewedCount ?: 0
 
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         floatingActionButton = {
-            if (pagerState.currentPage == 0) {
-                FloatingActionButton(
+            when (pagerState.currentPage) {
+                0 -> FloatingActionButton(
                     onClick = { showAddFriendDialog = true },
                     containerColor = AppColors.green
                 ) { Icon(Icons.Default.PersonAdd, contentDescription = "Add Friend") }
+
+                2 -> FloatingActionButton(
+                    onClick = { showCreatePoiDialog = true },
+                    containerColor = AppColors.green
+                ) { Icon(Icons.Default.Add, contentDescription = "Create Custom POI") }
             }
         }
     ) { paddingValues ->
@@ -80,9 +122,40 @@ fun SocialScreen(
                     selected = pagerState.currentPage == 1,
                     onClick = { scope.launch { pagerState.animateScrollToPage(1) } },
                     text = { Text("Rankings") })
+                Tab(
+                    selected = pagerState.currentPage == 2,
+                    onClick = { scope.launch { pagerState.animateScrollToPage(2) } },
+                    text = {
+                        Box {
+                            Text("Shared POIs")
+                            if (unviewedCount > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = 8.dp, y = (-4).dp)
+                                        .size(if (unviewedCount > 9) 18.dp else 16.dp)
+                                        .clip(CircleShape)
+                                        .background(AppColors.red),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (unviewedCount > 99) "99+" else unviewedCount.toString(),
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    })
             }
 
-            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+                // Fix swipe sensitivity - make it consistent across all tabs
+                beyondViewportPageCount = 1
+            ) { page ->
                 when (page) {
                     0 -> FriendsTab(
                         state = friendsState,
@@ -102,6 +175,41 @@ fun SocialScreen(
                         onUserSelected = { userId, isGlobalRanking ->
                             onUserSelected(userId, true, isGlobalRanking)
                         }
+                    )
+
+                    2 -> SharedPoisTab(
+                        state = sharedPoisState,
+                        friendsState = friendsState,
+                        createPoiState = sharedPoisViewModel.createPoiState.collectAsState().value,
+                        isShareDialogVisible = sharedPoisViewModel.isShareDialogVisible.collectAsState().value,
+                        showCreateDialog = showCreatePoiDialog,
+                        onRefresh = sharedPoisViewModel::refresh,
+                        onNavigate = sharedPoisViewModel::navigateToPoiOnMap,
+                        onMarkViewed = sharedPoisViewModel::markAsViewed,
+                        onDelete = sharedPoisViewModel::deleteSharedPoi,
+                        onCreateDialogDismiss = { showCreatePoiDialog = false },
+                        onNameChange = sharedPoisViewModel::updateCreatePoiName,
+                        onDescriptionChange = sharedPoisViewModel::updateCreatePoiDescription,
+                        onCategoryChange = sharedPoisViewModel::updateCreatePoiCategory,
+                        onPickLocation = {
+                            // Toggle location picker visibility
+                            if (sharedPoisViewModel.createPoiState.value.isLocationPickerVisible) {
+                                sharedPoisViewModel.hideLocationPicker()
+                            } else {
+                                sharedPoisViewModel.showLocationPicker()
+                            }
+                        },
+                        onLocationPicked = sharedPoisViewModel::updateCreatePoiLocation,
+                        onImageUrlChange = sharedPoisViewModel::updateCreatePoiImage,
+                        onImagePicked = sharedPoisViewModel::onImagePicked,
+                        onProceedToShare = {
+                            showCreatePoiDialog = false
+                            sharedPoisViewModel.proceedToShareDialog()
+                        },
+                        onShareDialogDismiss = sharedPoisViewModel::hideShareDialog,
+                        onShare = sharedPoisViewModel::shareCustomPoi,
+                        currentUserLatitude = currentUserLatitude,
+                        currentUserLongitude = currentUserLongitude
                     )
                 }
             }

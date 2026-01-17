@@ -15,7 +15,9 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder
 import java.util.UUID
 
@@ -30,6 +32,23 @@ import java.util.UUID
 class SharedPoiController(
     private val sharedPoiService: SharedPoiService
 ) {
+
+    /**
+     * Uploads an image for a custom POI.
+     *
+     * @param jwt the JSON Web Token of the authenticated user
+     * @param file the image file to upload
+     * @return a map containing the public URL of the uploaded image
+     */
+    @PostMapping("/images")
+    fun uploadImage(
+        @AuthenticationPrincipal jwt: Jwt,
+        @RequestParam("file") file: MultipartFile
+    ): ResponseEntity<Map<String, String>> {
+        val userId = JwtUtils.extractUserId(jwt)
+        val url = sharedPoiService.uploadPoiImage(userId, file)
+        return ResponseEntity.ok(mapOf("url" to url))
+    }
 
     /**
      * Shares a Point of Interest with another user.
