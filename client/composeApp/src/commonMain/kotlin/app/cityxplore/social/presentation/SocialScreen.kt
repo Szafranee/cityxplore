@@ -68,6 +68,12 @@ fun SocialScreen(
     val pagerState = rememberPagerState(initialPage = initialTab, pageCount = { 3 })
     val scope = rememberCoroutineScope()
 
+    var showAddFriendDialog by remember { mutableStateOf(false) }
+    var showCreatePoiDialog by remember { mutableStateOf(false) }
+
+    // Unviewed count for badge
+    val unviewedCount = (sharedPoisState as? SharedPoisUiState.Content)?.unviewedCount ?: 0
+
     LaunchedEffect(Unit) {
         viewModel.uiEvents.collect { event ->
             when (event) {
@@ -84,17 +90,12 @@ fun SocialScreen(
                     onNavigateToMap?.invoke(event.latitude, event.longitude)
                 }
 
-                is SharedPoisUiEvent.ShareSuccess -> { /* handled by the dialogue */
+                is SharedPoisUiEvent.ShareSuccess -> {
+                    showCreatePoiDialog = false
                 }
             }
         }
     }
-
-    var showAddFriendDialog by remember { mutableStateOf(false) }
-    var showCreatePoiDialog by remember { mutableStateOf(false) }
-
-    // Unviewed count for badge
-    val unviewedCount = (sharedPoisState as? SharedPoisUiState.Content)?.unviewedCount ?: 0
 
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
@@ -181,13 +182,15 @@ fun SocialScreen(
                         state = sharedPoisState,
                         friendsState = friendsState,
                         createPoiState = sharedPoisViewModel.createPoiState.collectAsState().value,
-                        isShareDialogVisible = sharedPoisViewModel.isShareDialogVisible.collectAsState().value,
                         showCreateDialog = showCreatePoiDialog,
                         onRefresh = sharedPoisViewModel::refresh,
                         onNavigate = sharedPoisViewModel::navigateToPoiOnMap,
                         onMarkViewed = sharedPoisViewModel::markAsViewed,
                         onDelete = sharedPoisViewModel::deleteSharedPoi,
-                        onCreateDialogDismiss = { showCreatePoiDialog = false },
+                        onCreateDialogDismiss = {
+                            showCreatePoiDialog = false
+                            sharedPoisViewModel.resetCreatePoiState()
+                        },
                         onNameChange = sharedPoisViewModel::updateCreatePoiName,
                         onDescriptionChange = sharedPoisViewModel::updateCreatePoiDescription,
                         onCategoryChange = sharedPoisViewModel::updateCreatePoiCategory,
@@ -200,14 +203,13 @@ fun SocialScreen(
                             }
                         },
                         onLocationPicked = sharedPoisViewModel::updateCreatePoiLocation,
-                        onImageUrlChange = sharedPoisViewModel::updateCreatePoiImage,
-                        onImagePicked = sharedPoisViewModel::onImagePicked,
-                        onProceedToShare = {
-                            showCreatePoiDialog = false
-                            sharedPoisViewModel.proceedToShareDialog()
+                        onImagePicked = sharedPoisViewModel::updateCreatePoiImageBytes,
+                        onNextStep = sharedPoisViewModel::nextStep,
+                        onPreviousStep = sharedPoisViewModel::previousStep,
+                        onShare = { recipientId, message ->
+                            sharedPoisViewModel.shareCustomPoi(recipientId, message)
+                            // Dialogue will be closed after a successful share via ShareSuccess event
                         },
-                        onShareDialogDismiss = sharedPoisViewModel::hideShareDialog,
-                        onShare = sharedPoisViewModel::shareCustomPoi,
                         currentUserLatitude = currentUserLatitude,
                         currentUserLongitude = currentUserLongitude
                     )

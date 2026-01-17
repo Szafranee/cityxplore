@@ -70,6 +70,7 @@ class MapViewModel(
     private var lastKnownLocation: Location? = null
     private var cachedWarsawHexagons: Set<String> = emptySet()
     private var cachedRevealedHexagons: Set<String> = emptySet()
+    private var cachedSharedPois: List<app.cityxplore.social.domain.model.SharedPoi> = emptyList()
 
     // Track previous level for level-up detection
     private var previousLevel: Int? = null
@@ -81,15 +82,17 @@ class MapViewModel(
     }
 
     /**
-     * Observes shared POIs from repository and updates state.
+     * Observes shared POIs from the repository and updates state.
      */
     private fun observeSharedPois() {
         scope.launch {
             sharedPoiRepository.getReceivedPois().collect { sharedPois ->
+                // Filter to only show shared POIs with coordinates (custom POIs)
+                val poisWithCoords = sharedPois.filter { it.coordinates != null }
+                cachedSharedPois = poisWithCoords
+
                 val currentState = _state.value
                 if (currentState is MapUiState.Ready) {
-                    // Filter to only show shared POIs with coordinates (custom POIs)
-                    val poisWithCoords = sharedPois.filter { it.coordinates != null }
                     _state.value = currentState.copy(sharedPois = poisWithCoords)
                 }
             }
@@ -154,7 +157,8 @@ class MapViewModel(
                     selectedPoi = null,
                     newlyDiscoveredPoiIds = emptySet(),
                     revealedHexagons = revealedResult.getOrDefault(emptySet()),
-                    warsawHexagons = warsawResult.getOrDefault(emptySet())
+                    warsawHexagons = warsawResult.getOrDefault(emptySet()),
+                    sharedPois = cachedSharedPois
                 )
                 // Trigger profile load again if loadData finishes later
                 loadProfile()

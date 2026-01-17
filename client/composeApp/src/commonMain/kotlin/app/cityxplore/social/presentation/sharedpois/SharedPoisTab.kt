@@ -11,6 +11,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -26,7 +27,6 @@ fun SharedPoisTab(
     state: SharedPoisUiState,
     friendsState: FriendsUiState,
     createPoiState: CreateCustomPoiState,
-    isShareDialogVisible: Boolean,
     showCreateDialog: Boolean,
     onRefresh: () -> Unit,
     onNavigate: (SharedPoi) -> Unit,
@@ -38,10 +38,9 @@ fun SharedPoisTab(
     onCategoryChange: (String) -> Unit,
     onPickLocation: () -> Unit,
     onLocationPicked: (Double, Double) -> Unit,
-    onImageUrlChange: (String?) -> Unit,
-    onImagePicked: (ByteArray?) -> Unit, // Added
-    onProceedToShare: () -> Unit,
-    onShareDialogDismiss: () -> Unit,
+    onImagePicked: (ByteArray?) -> Unit,
+    onNextStep: () -> Unit,
+    onPreviousStep: () -> Unit,
     onShare: (recipientId: String, message: String?) -> Unit,
     currentUserLatitude: Double?,
     currentUserLongitude: Double?
@@ -74,47 +73,28 @@ fun SharedPoisTab(
         }
     }
 
-    // Create Custom POI Dialog
+    // Create Custom POI Wizard (multi-step)
     if (showCreateDialog) {
-        CreateCustomPoiDialog(
-            state = createPoiState,
-            onNameChange = onNameChange,
-            onDescriptionChange = onDescriptionChange,
-            onCategoryChange = onCategoryChange,
-            onPickLocation = onPickLocation,
-            onImageUrlChange = onImageUrlChange,
-            onImagePicked = onImagePicked, // Added
-            onDismiss = onCreateDialogDismiss,
-            onProceed = onProceedToShare
-        )
-    }
-
-    // Select Friend Dialog
-    if (isShareDialogVisible) {
         val friends = when (friendsState) {
             is FriendsUiState.Content -> friendsState.friends
             else -> emptyList()
         }
 
-        SelectFriendDialog(
+        CreateCustomPoiWizard(
+            state = createPoiState,
             friends = friends,
-            onDismiss = onShareDialogDismiss,
-            onShare = onShare
-        )
-    }
-
-    // Location Picker Dialog
-    if (createPoiState.isLocationPickerVisible) {
-        LocationPickerDialog(
-            currentLatitude = createPoiState.latitude,
-            currentLongitude = createPoiState.longitude,
-            userLatitude = currentUserLatitude,
-            userLongitude = currentUserLongitude,
-            onDismiss = onPickLocation, // This will hide the picker
-            onLocationSelected = { lat, lng ->
-                onLocationPicked(lat, lng)
-                onPickLocation() // Hide the picker after selection
-            }
+            onNameChange = onNameChange,
+            onDescriptionChange = onDescriptionChange,
+            onCategoryChange = onCategoryChange,
+            onPickLocation = onPickLocation,
+            onLocationPicked = onLocationPicked,
+            onImagePicked = onImagePicked,
+            onNextStep = onNextStep,
+            onPreviousStep = onPreviousStep,
+            onShare = onShare,
+            onDismiss = onCreateDialogDismiss,
+            currentUserLatitude = currentUserLatitude,
+            currentUserLongitude = currentUserLongitude
         )
     }
 }
@@ -127,7 +107,7 @@ private fun SharedPoisContent(
     onMarkViewed: (SharedPoi) -> Unit,
     onDelete: (SharedPoi) -> Unit
 ) {
-    var selectedTabIndex by remember { androidx.compose.runtime.mutableStateOf(0) }
+    var selectedTabIndex by remember { mutableStateOf(0) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         SecondaryTabRow(selectedTabIndex = selectedTabIndex) {

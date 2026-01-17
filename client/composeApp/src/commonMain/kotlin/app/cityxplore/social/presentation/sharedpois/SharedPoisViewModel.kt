@@ -6,7 +6,6 @@ import app.cityxplore.social.domain.GetSentSharedPoisUseCase
 import app.cityxplore.social.domain.GetUnviewedSharedPoisUseCase
 import app.cityxplore.social.domain.MarkSharedPoiViewedUseCase
 import app.cityxplore.social.domain.SharePoiUseCase
-import app.cityxplore.social.domain.model.CustomPoi
 import app.cityxplore.social.domain.model.SharePoiRequest
 import app.cityxplore.social.domain.model.SharedPoi
 import kotlinx.coroutines.CoroutineScope
@@ -44,11 +43,6 @@ class SharedPoisViewModel(
 
     private val _createPoiState = MutableStateFlow(CreateCustomPoiState())
     val createPoiState: StateFlow<CreateCustomPoiState> = _createPoiState.asStateFlow()
-
-    private val _isShareDialogVisible = MutableStateFlow(false)
-    val isShareDialogVisible: StateFlow<Boolean> = _isShareDialogVisible.asStateFlow()
-
-    private val _pendingSharePoi = MutableStateFlow<CustomPoi?>(null)
 
     init {
         observeData()
@@ -111,29 +105,8 @@ class SharedPoisViewModel(
         _createPoiState.update { it.copy(latitude = latitude, longitude = longitude) }
     }
 
-    fun updateCreatePoiImage(imageUrl: String?) {
-        _createPoiState.update {
-            it.copy(imageUrls = if (imageUrl != null) listOf(imageUrl) else emptyList())
-        }
-    }
-
-    fun onImagePicked(bytes: ByteArray?) {
-        if (bytes == null) return
-
-        viewModelScope.launch {
-            // Optimistically we could show a loading state on the image field, but for now just upload
-            sharedPoiRepository.uploadPoiImage(bytes)
-                .onSuccess { url ->
-                    updateCreatePoiImage(url)
-                }
-                .onFailure { error ->
-                    _uiEvents.emit(
-                        SharedPoisUiEvent.ShowMessage(
-                            "Failed to upload image: ${error.message}"
-                        )
-                    )
-                }
-        }
+    fun updateCreatePoiImageBytes(bytes: ByteArray?) {
+        _createPoiState.update { it.copy(imageBytes = bytes) }
     }
 
     fun showLocationPicker() {
@@ -148,48 +121,97 @@ class SharedPoisViewModel(
         _createPoiState.value = CreateCustomPoiState()
     }
 
-    fun proceedToShareDialog() {
-        val customPoi = _createPoiState.value.toCustomPoi()
-        if (customPoi != null) {
-            _pendingSharePoi.value = customPoi
-            _isShareDialogVisible.value = true
+    /** Navigate to the next step in the wizard */
+    fun nextStep() {
+        _createPoiState.update { state ->
+            when (state.currentStep) {
+                CreatePoiStep.BASIC_INFO -> {
+                    if (state.isStep1Valid) state.copy(currentStep = CreatePoiStep.LOCATION_PHOTO)
+                    else state
+                }
+
+                CreatePoiStep.LOCATION_PHOTO -> {
+                    if (state.isStep2Valid) state.copy(currentStep = CreatePoiStep.SELECT_FRIEND)
+                    else state
+                }
+
+                CreatePoiStep.SELECT_FRIEND -> state // Already at the last step
+            }
         }
     }
 
-    // Share Dialog
+    /** Navigate to the previous step in the wizard */
+    fun previousStep() {
+        _createPoiState.update { state ->
+            when (state.currentStep) {
+                CreatePoiStep.BASIC_INFO -> state // Already at first step
+                CreatePoiStep.LOCATION_PHOTO -> state.copy(currentStep = CreatePoiStep.BASIC_INFO)
+                CreatePoiStep.SELECT_FRIEND -> state.copy(currentStep = CreatePoiStep.LOCATION_PHOTO)
+            }
+        }
+    }
 
     fun hideShareDialog() {
-        _isShareDialogVisible.value = false
-        _pendingSharePoi.value = null
+        resetCreatePoiState()
     }
 
     fun shareCustomPoi(recipientId: String, message: String?) {
-        val customPoi = _pendingSharePoi.value ?: return
-
-        // Hide dialog immediately to prevent multiple clicks
-        hideShareDialog()
+        val state = _createPoiState.value
+        if (!state.isValid) return
 
         viewModelScope.launch {
-            val request = SharePoiRequest(
-                recipientId = recipientId,
-                customPoi = customPoi,
-                message = message?.trim()?.ifEmpty { null }
-            )
+            // Mark as uploading
+            _createPoiState.update { it.copy(isUploading = true) }
 
-            sharePoiUseCase(request)
-                .onSuccess {
-                    _uiEvents.emit(SharedPoisUiEvent.ShowMessage("POI shared successfully!"))
-                    _uiEvents.emit(SharedPoisUiEvent.ShareSuccess)
-                    resetCreatePoiState()
-                    refresh()
-                }
-                .onFailure { error ->
-                    _uiEvents.emit(
-                        SharedPoisUiEvent.ShowMessage(
-                            error.message ?: "Failed to share POI"
+            try {
+                // Upload image if present
+                var imageUrl: String? = null
+                if (state.imageBytes != null) {
+                    val uploadResult = sharedPoiRepository.uploadPoiImage(state.imageBytes)
+                    if (uploadResult.isFailure) {
+                        _uiEvents.emit(
+                            SharedPoisUiEvent.ShowMessage(
+                                "Failed to upload image: ${uploadResult.exceptionOrNull()?.message}"
+                            )
                         )
-                    )
+                        _createPoiState.update { it.copy(isUploading = false) }
+                        return@launch
+                    }
+                    imageUrl = uploadResult.getOrNull()
                 }
+
+                // Create CustomPoi with uploaded image URL
+                val customPoi = state.toCustomPoi(imageUrl)
+                if (customPoi == null) {
+                    _createPoiState.update { it.copy(isUploading = false) }
+                    return@launch
+                }
+
+                val request = SharePoiRequest(
+                    recipientId = recipientId,
+                    customPoi = customPoi,
+                    message = message?.trim()?.ifEmpty { null }
+                )
+
+                sharePoiUseCase(request)
+                    .onSuccess {
+                        _uiEvents.emit(SharedPoisUiEvent.ShowMessage("POI shared successfully!"))
+                        _uiEvents.emit(SharedPoisUiEvent.ShareSuccess)
+                        resetCreatePoiState()
+                        refresh()
+                    }
+                    .onFailure { error ->
+                        _createPoiState.update { it.copy(isUploading = false) }
+                        _uiEvents.emit(
+                            SharedPoisUiEvent.ShowMessage(
+                                error.message ?: "Failed to share POI"
+                            )
+                        )
+                    }
+            } catch (e: Exception) {
+                _createPoiState.update { it.copy(isUploading = false) }
+                _uiEvents.emit(SharedPoisUiEvent.ShowMessage("Error: ${e.message}"))
+            }
         }
     }
 
