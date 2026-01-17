@@ -147,6 +147,15 @@ class SharedPoiService(
             )
         }
 
+        // Check limit: max 5 POIs per friend
+        val existingCount = sharedPoiRepository.countBySharerIdAndRecipientId(sharerId, sharePoiRequest.recipientId)
+        if (existingCount >= 5) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "You can share a maximum of 5 POIs with each friend. Delete some to share more."
+            )
+        }
+
         // If sharing an existing POI, validate it exists
         if (hasPoiId && !poiRepository.existsById(sharePoiRequest.poiId)) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "POI not found")
@@ -296,10 +305,47 @@ class SharedPoiService(
     }
 
     /**
-     * Deletes a shared POI record.
+     * Marks a shared POI as discovered by the recipient.
+     *
+     * This method validates that the current user is the intended recipient
+     * before updating the discovered timestamp. Note: This does NOT grant XP.
+     *
+     * @param recipientId the UUID of the user discovering the shared POI
+     * @param sharedId the UUID of the shared POI record to mark as discovered
+     * @return a SharedPoiResponse representing the updated shared POI record
+     * @throws ResponseStatusException if the shared POI does not exist or user has no access
+     */
+    @Transactional
+    fun discoverSharedPoi(recipientId: UUID, sharedId: UUID): SharedPoiResponse {
+        val shared = sharedPoiRepository.findById(sharedId)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Shared POI not found") }
+
+        if (shared.recipientId != recipientId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Not your shared POI")
+        }
+
+        if (shared.discoveredAt != null) {
+            // Already discovered - just return current state
+            val sharer = userRepository.findById(shared.sharerId).orElse(null)
+            val recipient = userRepository.findById(shared.recipientId).orElse(null)
+            return SharedPoiMapper.toResponse(shared, sharer, recipient)
+        }
+
+        shared.discoveredAt = LocalDateTime.now()
+        val updated = sharedPoiRepository.save(shared)
+
+        val sharer = userRepository.findById(updated.sharerId).orElse(null)
+        val recipient = userRepository.findById(updated.recipientId).orElse(null)
+
+        return SharedPoiMapper.toResponse(updated, sharer, recipient)
+    }
+
+    /**
+     * Deletes a shared POI record and its associated image if any.
      *
      * This method allows the sharer to remove a POI they have shared with another user.
      * Only the user who originally shared the POI can delete it.
+     * If the shared POI has an associated image, it will also be deleted from storage.
      *
      * @param sharerId the UUID of the user who shared the POI
      * @param sharedPoiId the UUID of the shared POI record to delete
@@ -312,6 +358,26 @@ class SharedPoiService(
 
         if (sharedPoi.sharerId != sharerId) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "You can only delete POIs that you have shared")
+        }
+
+        // Delete associated image from storage if it exists
+        val imageUrl = sharedPoi.poiData?.imageUrls?.firstOrNull()
+        if (imageUrl != null && imageUrl.contains(poiImagesBucket)) {
+            try {
+                // Extract path from URL: e.g., ".../poi-images/userId/filename.jpg" -> "userId/filename.jpg"
+                val pathStart = imageUrl.indexOf("$poiImagesBucket/")
+                if (pathStart != -1) {
+                    val path = imageUrl.substring(pathStart + poiImagesBucket.length + 1)
+                    val bucket = supabaseClient.storage.from(poiImagesBucket)
+                    runBlocking {
+                        bucket.delete(path)
+                    }
+                    logger.info("Deleted POI image: $path")
+                }
+            } catch (e: Exception) {
+                logger.warn("Failed to delete POI image: ${e.message}")
+                // Continue with deletion even if image deletion fails
+            }
         }
 
         sharedPoiRepository.delete(sharedPoi)

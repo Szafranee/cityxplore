@@ -40,6 +40,7 @@ import app.cityxplore.auth.presentation.RegisterScreen
 import app.cityxplore.journal.presentation.JournalScreen
 import app.cityxplore.journal.presentation.JournalViewModel
 import app.cityxplore.map.presentation.CityXploreMapScreen
+import app.cityxplore.map.presentation.MapUiState
 import app.cityxplore.map.presentation.MapViewModel
 import app.cityxplore.platform.BackHandler
 import app.cityxplore.profile.presentation.OnboardingScreen
@@ -184,6 +185,8 @@ fun MainAppContent(onSignOut: () -> Unit) {
 
                 is CityXploreDestination.Friends -> {
                     val friendsDest = currentDestination.value as CityXploreDestination.Friends
+                    // Get user location from map state
+                    val userLocation = (mapState as? MapUiState.Ready)?.userLocation
                     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
                         SocialScreen(
                             initialTab = friendsDest.initialTab,
@@ -196,7 +199,9 @@ fun MainAppContent(onSignOut: () -> Unit) {
                                         rankingSubTab = if (fromRankings && !isGlobalRanking) 1 else 0
                                     )
                                 )
-                            }
+                            },
+                            currentUserLatitude = userLocation?.latitude,
+                            currentUserLongitude = userLocation?.longitude
                         )
                     }
                 }

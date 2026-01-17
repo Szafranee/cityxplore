@@ -144,7 +144,7 @@ class SharedPoisViewModel(
     fun previousStep() {
         _createPoiState.update { state ->
             when (state.currentStep) {
-                CreatePoiStep.BASIC_INFO -> state // Already at first step
+                CreatePoiStep.BASIC_INFO -> state // Already at the first step
                 CreatePoiStep.LOCATION_PHOTO -> state.copy(currentStep = CreatePoiStep.BASIC_INFO)
                 CreatePoiStep.SELECT_FRIEND -> state.copy(currentStep = CreatePoiStep.LOCATION_PHOTO)
             }
@@ -195,8 +195,10 @@ class SharedPoisViewModel(
 
                 sharePoiUseCase(request)
                     .onSuccess {
-                        _uiEvents.emit(SharedPoisUiEvent.ShowMessage("POI shared successfully!"))
+                        // First, emit ShareSuccess to close the dialogue
                         _uiEvents.emit(SharedPoisUiEvent.ShareSuccess)
+                        // Then show the success message (after the dialogue is closed)
+                        _uiEvents.emit(SharedPoisUiEvent.ShowMessage("POI shared successfully!"))
                         resetCreatePoiState()
                         refresh()
                     }

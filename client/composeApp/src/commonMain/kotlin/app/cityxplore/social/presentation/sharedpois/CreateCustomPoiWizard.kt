@@ -35,7 +35,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -372,16 +371,6 @@ private fun Step2LocationPhoto(
                     if (state.latitude != null) "Change" else "Pick on Map",
                     color = if (state.latitude != null) AppColors.green else MaterialTheme.colorScheme.onPrimary
                 )
-            }
-
-            if (currentUserLatitude != null && currentUserLongitude != null) {
-                OutlinedButton(
-                    onClick = { onLocationPicked(currentUserLatitude, currentUserLongitude) }
-                ) {
-                    Icon(Icons.Default.MyLocation, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("My Location")
-                }
             }
         }
 

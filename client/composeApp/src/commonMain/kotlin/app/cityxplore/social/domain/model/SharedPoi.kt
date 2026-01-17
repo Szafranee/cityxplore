@@ -30,6 +30,7 @@ data class SharedPoi(
     val message: String?,
     val sharedAt: String,
     val viewedAt: String?,
+    val discoveredAt: String? = null,
     val isCustomPoi: Boolean = customPoi != null,
     val sharerName: String? = null,
     val sharerAvatar: String? = null,
@@ -55,6 +56,12 @@ data class SharedPoi(
      */
     val isViewed: Boolean
         get() = viewedAt != null
+
+    /**
+     * Indicates whether this shared POI has been discovered (recipient got close to the location).
+     */
+    val isDiscovered: Boolean
+        get() = discoveredAt != null
 }
 
 /**

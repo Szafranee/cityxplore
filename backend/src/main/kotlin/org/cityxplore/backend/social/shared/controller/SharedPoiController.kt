@@ -172,6 +172,28 @@ class SharedPoiController(
     }
 
     /**
+     * Marks a shared POI as discovered by the recipient.
+     *
+     * This endpoint is called when the recipient gets close to the shared POI location.
+     * Only the intended recipient can discover a shared POI.
+     * Note: Unlike regular POI discoveries, shared POI discoveries do NOT grant XP.
+     *
+     * @param jwt the JSON Web Token of the authenticated user
+     * @param sharedPoiId the unique identifier of the shared POI to mark as discovered
+     * @return a ResponseEntity containing the updated SharedPoiResponse
+     */
+    @PostMapping("/{sharedPoiId}/discover")
+    fun discoverSharedPoi(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable sharedPoiId: UUID
+    ): ResponseEntity<SharedPoiResponse> {
+        val userId = JwtUtils.extractUserId(jwt)
+        val result = sharedPoiService.discoverSharedPoi(userId, sharedPoiId)
+
+        return ResponseEntity.ok(result)
+    }
+
+    /**
      * Deletes a shared POI record.
      *
      * This endpoint allows the user who shared a POI to remove it.

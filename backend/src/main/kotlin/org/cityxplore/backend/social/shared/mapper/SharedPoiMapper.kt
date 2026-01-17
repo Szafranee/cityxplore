@@ -32,6 +32,7 @@ object SharedPoiMapper {
             message = sharedPoi.message,
             sharedAt = sharedPoi.sharedAt,
             viewedAt = sharedPoi.viewedAt,
+            discoveredAt = sharedPoi.discoveredAt,
             sharerName = sharer?.username,
             sharerAvatar = sharer?.avatarUrl,
             recipientName = recipient?.username,
