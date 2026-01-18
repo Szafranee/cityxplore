@@ -1,5 +1,6 @@
 package org.cityxplore.backend.social.shared.service
 
+import io.github.jan.supabase.SupabaseClient
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -32,6 +33,7 @@ class SharedPoiServiceTest {
     private lateinit var poiRepository: PointOfInterestRepository
     private lateinit var userRepository: UserRepository
     private lateinit var friendshipRepository: FriendshipRepository
+    private lateinit var supabaseClient: SupabaseClient
     private lateinit var sharedPoiService: SharedPoiService
 
     @BeforeEach
@@ -40,12 +42,14 @@ class SharedPoiServiceTest {
         poiRepository = mockk()
         userRepository = mockk()
         friendshipRepository = mockk()
+        supabaseClient = mockk()
 
         sharedPoiService = SharedPoiService(
             sharedPoiRepository = sharedPoiRepository,
             poiRepository = poiRepository,
             userRepository = userRepository,
-            friendshipRepository = friendshipRepository
+            friendshipRepository = friendshipRepository,
+            supabaseClient = supabaseClient
         )
     }
 
@@ -79,8 +83,10 @@ class SharedPoiServiceTest {
 
         every { userRepository.existsById(recipientId) } returns true
         every { friendshipRepository.areFriends(sharerId, recipientId) } returns true
+        every { sharedPoiRepository.countBySharerIdAndRecipientId(sharerId, recipientId) } returns 0
         every { poiRepository.existsById(poiId) } returns true
         every { sharedPoiRepository.save(any()) } returns savedSharedPoi
+        every { userRepository.findById(any()) } returns Optional.empty()
 
         // When
         val result = sharedPoiService.sharePoi(sharerId, request)
@@ -134,7 +140,9 @@ class SharedPoiServiceTest {
 
         every { userRepository.existsById(recipientId) } returns true
         every { friendshipRepository.areFriends(sharerId, recipientId) } returns true
+        every { sharedPoiRepository.countBySharerIdAndRecipientId(sharerId, recipientId) } returns 0
         every { sharedPoiRepository.save(any()) } returns savedSharedPoi
+        every { userRepository.findById(any()) } returns Optional.empty()
 
         // When
         val result = sharedPoiService.sharePoi(sharerId, request)
@@ -296,6 +304,7 @@ class SharedPoiServiceTest {
 
         every { userRepository.existsById(recipientId) } returns true
         every { friendshipRepository.areFriends(sharerId, recipientId) } returns true
+        every { sharedPoiRepository.countBySharerIdAndRecipientId(sharerId, recipientId) } returns 0
         every { poiRepository.existsById(poiId) } returns false
 
         // When & Then
@@ -329,6 +338,7 @@ class SharedPoiServiceTest {
         )
 
         every { sharedPoiRepository.findById(sharedPoiId) } returns Optional.of(sharedPoi)
+        every { userRepository.findById(any()) } returns Optional.empty()
 
         // When
         val result = sharedPoiService.getSharedPoiById(sharerId, sharedPoiId)
@@ -362,6 +372,7 @@ class SharedPoiServiceTest {
         )
 
         every { sharedPoiRepository.findById(sharedPoiId) } returns Optional.of(sharedPoi)
+        every { userRepository.findById(any()) } returns Optional.empty()
 
         // When
         val result = sharedPoiService.getSharedPoiById(recipientId, sharedPoiId)
@@ -459,6 +470,8 @@ class SharedPoiServiceTest {
         )
 
         every { sharedPoiRepository.findAllBySharerId(sharerId) } returns sharedPois
+        every { userRepository.findById(any()) } returns Optional.empty()
+        every { userRepository.findAllById(any<Iterable<UUID>>()) } returns emptyList()
 
         // When
         val result = sharedPoiService.getSharedByMe(sharerId)
@@ -479,6 +492,8 @@ class SharedPoiServiceTest {
         val userId = UUID.randomUUID()
 
         every { sharedPoiRepository.findAllBySharerId(userId) } returns emptyList()
+        every { userRepository.findById(any()) } returns Optional.empty()
+        every { userRepository.findAllById(any<Iterable<UUID>>()) } returns emptyList()
 
         // When
         val result = sharedPoiService.getSharedByMe(userId)
@@ -520,6 +535,8 @@ class SharedPoiServiceTest {
         )
 
         every { sharedPoiRepository.findAllByRecipientId(recipientId) } returns sharedPois
+        every { userRepository.findById(any()) } returns Optional.empty()
+        every { userRepository.findAllById(any<Iterable<UUID>>()) } returns emptyList()
 
         // When
         val result = sharedPoiService.getSharedToMe(recipientId)
@@ -538,6 +555,8 @@ class SharedPoiServiceTest {
         val userId = UUID.randomUUID()
 
         every { sharedPoiRepository.findAllByRecipientId(userId) } returns emptyList()
+        every { userRepository.findById(any()) } returns Optional.empty()
+        every { userRepository.findAllById(any<Iterable<UUID>>()) } returns emptyList()
 
         // When
         val result = sharedPoiService.getSharedToMe(userId)
@@ -579,6 +598,8 @@ class SharedPoiServiceTest {
         )
 
         every { sharedPoiRepository.findAllByRecipientIdAndViewedAtIsNull(recipientId) } returns unviewedPois
+        every { userRepository.findById(any()) } returns Optional.empty()
+        every { userRepository.findAllById(any<Iterable<UUID>>()) } returns emptyList()
 
         // When
         val result = sharedPoiService.getUnviewedSharedToMe(recipientId)
@@ -596,6 +617,8 @@ class SharedPoiServiceTest {
         val userId = UUID.randomUUID()
 
         every { sharedPoiRepository.findAllByRecipientIdAndViewedAtIsNull(userId) } returns emptyList()
+        every { userRepository.findById(any()) } returns Optional.empty()
+        every { userRepository.findAllById(any<Iterable<UUID>>()) } returns emptyList()
 
         // When
         val result = sharedPoiService.getUnviewedSharedToMe(userId)
@@ -629,6 +652,8 @@ class SharedPoiServiceTest {
 
         every { sharedPoiRepository.findById(sharedPoiId) } returns Optional.of(sharedPoi)
         every { sharedPoiRepository.save(any()) } returns updatedSharedPoi
+        every { userRepository.findById(any()) } returns Optional.empty()
+
 
         // When
         val result = sharedPoiService.markViewed(recipientId, sharedPoiId)
