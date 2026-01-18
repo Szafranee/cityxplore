@@ -93,7 +93,8 @@ data class CreateCustomPoiState(
                 category == other.category &&
                 latitude == other.latitude &&
                 longitude == other.longitude &&
-                imageBytes.contentEquals(other.imageBytes) &&
+                ((imageBytes == null && other.imageBytes == null) ||
+                        (imageBytes != null && other.imageBytes != null && imageBytes.contentEquals(other.imageBytes))) &&
                 isLocationPickerVisible == other.isLocationPickerVisible &&
                 isUploading == other.isUploading
     }

@@ -1,5 +1,6 @@
 package app.cityxplore.social.presentation.sharedpois
 
+import app.cityxplore.platform.CityXploreBaseViewModel
 import app.cityxplore.social.domain.DeleteSharedPoiUseCase
 import app.cityxplore.social.domain.GetReceivedSharedPoisUseCase
 import app.cityxplore.social.domain.GetSentSharedPoisUseCase
@@ -8,10 +9,6 @@ import app.cityxplore.social.domain.MarkSharedPoiViewedUseCase
 import app.cityxplore.social.domain.SharePoiUseCase
 import app.cityxplore.social.domain.model.SharePoiRequest
 import app.cityxplore.social.domain.model.SharedPoi
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -33,8 +30,7 @@ class SharedPoisViewModel(
     private val markSharedPoiViewedUseCase: MarkSharedPoiViewedUseCase,
     private val deleteSharedPoiUseCase: DeleteSharedPoiUseCase,
     private val sharedPoiRepository: app.cityxplore.social.domain.repository.SharedPoiRepository
-) {
-    private val viewModelScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+) : CityXploreBaseViewModel() {
 
     private val _uiState = MutableStateFlow<SharedPoisUiState>(SharedPoisUiState.Loading)
     val uiState: StateFlow<SharedPoisUiState> = _uiState.asStateFlow()
@@ -51,7 +47,7 @@ class SharedPoisViewModel(
     }
 
     private fun observeData() {
-        viewModelScope.launch {
+        scope.launch {
             combine(
                 getReceivedSharedPoisUseCase(),
                 getSentSharedPoisUseCase(),
@@ -69,7 +65,7 @@ class SharedPoisViewModel(
     }
 
     fun refresh() {
-        viewModelScope.launch {
+        scope.launch {
             _uiState.value = SharedPoisUiState.Loading
 
             val results = listOf(
@@ -160,7 +156,7 @@ class SharedPoisViewModel(
         val state = _createPoiState.value
         if (!state.isValid) return
 
-        viewModelScope.launch {
+        scope.launch {
             // Mark as uploading
             _createPoiState.update { it.copy(isUploading = true) }
 
@@ -225,7 +221,7 @@ class SharedPoisViewModel(
     }
 
     fun shareExistingPoi(poiId: String, recipientId: String, message: String?) {
-        viewModelScope.launch {
+        scope.launch {
             val request = SharePoiRequest(
                 recipientId = recipientId,
                 poiId = poiId,
@@ -252,7 +248,7 @@ class SharedPoisViewModel(
     fun markAsViewed(sharedPoi: SharedPoi) {
         if (sharedPoi.isViewed) return
 
-        viewModelScope.launch {
+        scope.launch {
             markSharedPoiViewedUseCase(sharedPoi.id)
                 .onFailure { error ->
                     _uiEvents.emit(
@@ -265,7 +261,7 @@ class SharedPoisViewModel(
     }
 
     fun deleteSharedPoi(sharedPoi: SharedPoi) {
-        viewModelScope.launch {
+        scope.launch {
             deleteSharedPoiUseCase(sharedPoi.id)
                 .onSuccess {
                     _uiEvents.emit(SharedPoisUiEvent.ShowMessage("Shared POI deleted"))
@@ -296,7 +292,7 @@ class SharedPoisViewModel(
     }
 
     fun navigateToPoiOnMap(sharedPoi: SharedPoi) {
-        viewModelScope.launch {
+        scope.launch {
             val coords = sharedPoi.coordinates
             if (coords != null) {
                 _uiEvents.emit(SharedPoisUiEvent.NavigateToPoiOnMap(coords.first, coords.second))
@@ -315,7 +311,7 @@ class SharedPoisViewModel(
      * Centers the map on the POI's location.
      */
     fun showPoiOnMap(sharedPoi: SharedPoi) {
-        viewModelScope.launch {
+        scope.launch {
             val coords = sharedPoi.coordinates
             if (coords != null) {
                 _uiEvents.emit(SharedPoisUiEvent.NavigateToPoiOnMap(coords.first, coords.second))
@@ -327,13 +323,5 @@ class SharedPoisViewModel(
                 )
             }
         }
-    }
-
-    /**
-     * Cleans up resources when the ViewModel is disposed.
-     * Cancels all coroutines launched from viewModelScope.
-     */
-    fun onCleared() {
-        viewModelScope.cancel()
     }
 }

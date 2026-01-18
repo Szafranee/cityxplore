@@ -157,7 +157,7 @@ fun LocationPickerDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // My Location button overlay in top-right corner
+                    // My Location button overlay in the top-right corner
                     OutlinedButton(
                         onClick = { useMyLocation() },
                         enabled = userLatitude != null && userLongitude != null,
@@ -172,7 +172,7 @@ fun LocationPickerDialog(
                             imageVector = Icons.Default.MyLocation,
                             contentDescription = null,
                             modifier = Modifier.size(16.dp),
-                            tint = if (userLatitude != null) AppColors.green else Color.Gray
+                            tint = if (userLatitude != null && userLongitude != null) AppColors.green else Color.Gray
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(

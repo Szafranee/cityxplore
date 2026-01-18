@@ -138,14 +138,8 @@ class SharedPoiRepositoryImpl(
     }
 
     override suspend fun uploadPoiImage(imageBytes: ByteArray): Result<String> = runCatching {
-        // Simple content type detection - simplified for client side
-        val contentType = if (imageBytes.size >= 8 &&
-            imageBytes[0] == 0x89.toByte() && imageBytes[1] == 0x50.toByte()
-        ) {
-            ContentType.Image.PNG
-        } else {
-            ContentType.Image.JPEG
-        }
+        val contentType = detectMimeType(imageBytes)
+            ?: throw IllegalArgumentException("Unsupported image format")
         val filename = "image.${contentType.contentSubtype}"
 
         val response = client.submitFormWithBinaryData(
@@ -159,5 +153,32 @@ class SharedPoiRepositoryImpl(
         ).body<Map<String, String>>()
 
         response["url"] ?: throw IllegalStateException("Backend returned null URL")
+    }
+
+    private fun detectMimeType(bytes: ByteArray): ContentType? {
+        // Simple magic bytes check
+        // PNG: 89 50 4E 47 0D 0A 1A 0A
+        if (bytes.size >= 8 &&
+            bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() &&
+            bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte()
+        ) {
+            return ContentType.Image.PNG
+        }
+        // JPEG: FF D8 FF
+        if (bytes.size >= 3 &&
+            bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() && bytes[2] == 0xFF.toByte()
+        ) {
+            return ContentType.Image.JPEG
+        }
+        // WEBP: RIFF ... WEBP
+        if (bytes.size >= 12 &&
+            bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() && bytes[2] == 'F'.code.toByte() &&
+            bytes[3] == 'F'.code.toByte() &&
+            bytes[8] == 'W'.code.toByte() && bytes[9] == 'E'.code.toByte() && bytes[10] == 'B'.code.toByte() &&
+            bytes[11] == 'P'.code.toByte()
+        ) {
+            return ContentType.Image.WEBP
+        }
+        return null
     }
 }

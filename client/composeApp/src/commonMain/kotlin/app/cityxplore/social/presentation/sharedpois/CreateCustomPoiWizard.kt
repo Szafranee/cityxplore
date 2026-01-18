@@ -529,11 +529,17 @@ private fun Step3SelectFriend(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            val selectedFriendIsAtLimit = selectedFriendId?.let { id ->
+                (sentPoisPerRecipient[id] ?: 0) >= 5
+            } == true
+
             Button(
                 onClick = {
-                    selectedFriendId?.let { onShare(it, message.ifBlank { null }) }
+                    if (selectedFriendId != null && !selectedFriendIsAtLimit) {
+                        onShare(selectedFriendId!!, message.ifBlank { null })
+                    }
                 },
-                enabled = selectedFriendId != null && !state.isUploading,
+                enabled = selectedFriendId != null && !selectedFriendIsAtLimit && !state.isUploading,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.green)
             ) {
