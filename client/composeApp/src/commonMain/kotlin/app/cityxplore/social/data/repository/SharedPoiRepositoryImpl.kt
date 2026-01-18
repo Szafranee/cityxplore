@@ -108,6 +108,20 @@ class SharedPoiRepositoryImpl(
         updatedPoi
     }
 
+    override suspend fun discoverSharedPoi(sharedPoiId: String): Result<SharedPoi> = runCatching {
+        val response = client.post("$BASE_URL/$sharedPoiId/discover")
+            .body<SharedPoiResponseDto>()
+
+        val updatedPoi = response.toDomain()
+
+        // Update received POIs cache
+        _receivedPois.update { current ->
+            current.map { if (it.id == sharedPoiId) updatedPoi else it }
+        }
+
+        updatedPoi
+    }
+
     override suspend fun deleteSharedPoi(sharedPoiId: String): Result<Unit> = runCatching {
         client.delete("$BASE_URL/$sharedPoiId")
 

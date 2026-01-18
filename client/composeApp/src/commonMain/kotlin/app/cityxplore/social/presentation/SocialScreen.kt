@@ -15,15 +15,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -39,6 +42,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.cityxplore.core.location.Location
+import app.cityxplore.map.presentation.components.SharedPoiDetailsContent
+import app.cityxplore.social.domain.model.SharedPoi
 import app.cityxplore.social.presentation.sharedpois.SharedPoisTab
 import app.cityxplore.social.presentation.sharedpois.SharedPoisUiEvent
 import app.cityxplore.social.presentation.sharedpois.SharedPoisUiState
@@ -48,8 +54,9 @@ import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
 /**
- * Main screen for Social features, containing Friends, Rankings, and Shared POIs tabs.
+ * The Main screen for Social features, containing Friends, Rankings, and Shared POIs tabs.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SocialScreen(
     initialTab: Int = 0,
@@ -67,9 +74,15 @@ fun SocialScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val pagerState = rememberPagerState(initialPage = initialTab, pageCount = { 3 })
     val scope = rememberCoroutineScope()
+    // Renamed state to avoid conflicts
+    val bottomSheetState = rememberModalBottomSheetState()
 
     var showAddFriendDialog by remember { mutableStateOf(false) }
     var showCreatePoiDialog by remember { mutableStateOf(false) }
+
+    // State for viewing shared POI details
+    var currentSelectedSharedPoi by remember { mutableStateOf<SharedPoi?>(null) }
+    var currentSelectedSharedPoiIsReceived by remember { mutableStateOf(false) }
 
     // Unviewed count for badge
     val unviewedCount = (sharedPoisState as? SharedPoisUiState.Content)?.unviewedCount ?: 0
@@ -184,7 +197,14 @@ fun SocialScreen(
                         createPoiState = sharedPoisViewModel.createPoiState.collectAsState().value,
                         showCreateDialog = showCreatePoiDialog,
                         onRefresh = sharedPoisViewModel::refresh,
-                        onNavigate = sharedPoisViewModel::navigateToPoiOnMap,
+                        onNavigate = { poi, isReceived ->
+                            currentSelectedSharedPoi = poi
+                            currentSelectedSharedPoiIsReceived = isReceived
+                            // Mark as viewed if it's a received POI
+                            if (isReceived && !poi.isViewed) {
+                                sharedPoisViewModel.markAsViewed(poi)
+                            }
+                        },
                         onMarkViewed = sharedPoisViewModel::markAsViewed,
                         onDelete = sharedPoisViewModel::deleteSharedPoi,
                         onCreateDialogDismiss = {
@@ -226,6 +246,31 @@ fun SocialScreen(
                 showAddFriendDialog = false
             }
         )
+    }
+
+    if (currentSelectedSharedPoi != null) {
+        ModalBottomSheet(
+            onDismissRequest = { currentSelectedSharedPoi = null },
+            sheetState = bottomSheetState
+        ) {
+            val userLocation = if (currentUserLatitude != null && currentUserLongitude != null) {
+                Location(currentUserLatitude, currentUserLongitude)
+            } else null
+
+            SharedPoiDetailsContent(
+                sharedPoi = currentSelectedSharedPoi!!,
+                userLocation = userLocation,
+                onShowOnMap = if (currentSelectedSharedPoiIsReceived) {
+                    {
+                        val poi = currentSelectedSharedPoi
+                        currentSelectedSharedPoi = null // Close sheet
+                        if (poi != null) {
+                            sharedPoisViewModel.showPoiOnMap(poi)
+                        }
+                    }
+                } else null // Don't show the button for sent POIs
+            )
+        }
     }
 }
 

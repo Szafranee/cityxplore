@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -19,54 +19,45 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import app.cityxplore.theme.AppColors
+import app.cityxplore.map.domain.PoiCategory
 
 /**
- * Special marker for shared POIs that stands out from regular POIs.
- * Features:
- * - Animated ring around the marker
- * - Gradient background (green to cyan)
- * - Friend badge in corner
- * - Optional unread indicator
+ * Unified marker for shared POIs matching the map markers.
+ * Uses category-based gradient coloring and shows discovery status.
  *
- * @param isCustomPoi Whether this is a custom POI (vs existing POI)
- * @param isUnread Whether this shared POI hasn't been viewed yet
- * @param modifier Modifier for the marker container
+ * @param category The POI category
+ * @param isDiscovered Whether this POI has been discovered
  * @param size The diameter of the marker
  */
 @Composable
-fun SharedPoiMarker(
-    isCustomPoi: Boolean,
-    isUnread: Boolean = false,
+fun SharedPoiMarkerCompose(
+    category: PoiCategory,
+    isDiscovered: Boolean,
     modifier: Modifier = Modifier,
-    size: Dp = 52.dp
+    size: Dp = 48.dp
 ) {
-    val primaryColor = if (isCustomPoi) AppColors.orange else AppColors.blue
-    val secondaryColor = AppColors.green
+    val categoryColor = getCategoryColor(category)
+    val greenColor = SharedPoiGreen
+
+    // Dim colors for undiscovered
+    val color1 = if (isDiscovered) categoryColor else categoryColor.copy(alpha = 0.5f)
+    val color2 = if (isDiscovered) greenColor else greenColor.copy(alpha = 0.5f)
+
+    val gradient = Brush.linearGradient(listOf(color1, color2))
+    val ringGradient = Brush.linearGradient(listOf(color1, color2))
 
     Box(
-        modifier = modifier.size(size + 16.dp), // Extra space for the ring
+        modifier = modifier.size(size + 12.dp), // Extra space for the ring
         contentAlignment = Alignment.Center
     ) {
-        // Outer ring (pulsing effect would be added in platform-specific code)
+        // Outer ring (gradient)
         Box(
             modifier = Modifier
-                .size(size + 12.dp)
+                .size(size + 8.dp)
                 .clip(CircleShape)
-                .background(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            primaryColor.copy(alpha = 0.4f),
-                            primaryColor.copy(alpha = 0.2f),
-                            Color.Transparent
-                        )
-                    )
-                )
                 .border(
                     width = 2.dp,
-                    brush = Brush.linearGradient(
-                        colors = listOf(primaryColor, secondaryColor)
-                    ),
+                    brush = ringGradient,
                     shape = CircleShape
                 )
         )
@@ -75,40 +66,40 @@ fun SharedPoiMarker(
         Box(
             modifier = Modifier
                 .size(size)
-                .shadow(elevation = 6.dp, shape = CircleShape)
+                .shadow(elevation = 4.dp, shape = CircleShape)
                 .clip(CircleShape)
-                .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            primaryColor,
-                            secondaryColor
-                        )
-                    )
-                )
-                .border(
-                    width = 2.dp,
-                    color = Color.White.copy(alpha = 0.3f),
-                    shape = CircleShape
-                ),
+                .background(brush = gradient),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.LocationOn,
-                contentDescription = "Shared POI",
-                tint = Color.White,
-                modifier = Modifier.size(size * 0.55f)
-            )
+            if (isDiscovered) {
+                // Show category icon
+                Icon(
+                    imageVector = getCategoryIcon(category),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(size * 0.5f)
+                )
+            } else {
+                // Show X for undiscovered
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.7f),
+                    modifier = Modifier.size(size * 0.5f)
+                )
+            }
         }
 
         // Friend badge (top-right corner)
+        val badgeColor = if (isDiscovered) greenColor else greenColor.copy(alpha = 0.6f)
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .offset(x = (-2).dp, y = 2.dp)
-                .size(20.dp)
+                .size(size * 0.35f)
                 .shadow(elevation = 2.dp, shape = CircleShape)
                 .clip(CircleShape)
-                .background(AppColors.green)
+                .background(badgeColor)
                 .border(1.dp, Color.White, CircleShape),
             contentAlignment = Alignment.Center
         ) {
@@ -116,21 +107,7 @@ fun SharedPoiMarker(
                 imageVector = Icons.Default.Person,
                 contentDescription = "From friend",
                 tint = Color.White,
-                modifier = Modifier.size(12.dp)
-            )
-        }
-
-        // Unread indicator (red dot at top-left)
-        if (isUnread) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .offset(x = 4.dp, y = 4.dp)
-                    .size(12.dp)
-                    .shadow(elevation = 2.dp, shape = CircleShape)
-                    .clip(CircleShape)
-                    .background(AppColors.red)
-                    .border(1.dp, Color.White, CircleShape)
+                modifier = Modifier.size(size * 0.2f)
             )
         }
     }
@@ -138,31 +115,40 @@ fun SharedPoiMarker(
 
 /**
  * A smaller version of the shared POI marker for use in lists and cards.
+ * Uses the same styling as map markers.
+ *
+ * @param category The POI category
+ * @param isDiscovered Whether this POI has been discovered by the recipient
+ * @param size The diameter of the marker
  */
 @Composable
 fun SharedPoiMarkerSmall(
-    isCustomPoi: Boolean,
-    isUnread: Boolean = false,
+    category: PoiCategory,
+    isDiscovered: Boolean,
     modifier: Modifier = Modifier,
-    size: Dp = 36.dp
+    size: Dp = 40.dp
 ) {
-    val primaryColor = if (isCustomPoi) AppColors.orange else AppColors.blue
-    val secondaryColor = AppColors.green
+    val categoryColor = getCategoryColor(category)
+    val greenColor = SharedPoiGreen
+
+    // Dim colors for undiscovered
+    val color1 = if (isDiscovered) categoryColor else categoryColor.copy(alpha = 0.5f)
+    val color2 = if (isDiscovered) greenColor else greenColor.copy(alpha = 0.5f)
+
+    val gradient = Brush.linearGradient(listOf(color1, color2))
 
     Box(
         modifier = modifier.size(size + 8.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Ring
+        // Ring (gradient border)
         Box(
             modifier = Modifier
                 .size(size + 6.dp)
                 .clip(CircleShape)
                 .border(
                     width = 1.5.dp,
-                    brush = Brush.linearGradient(
-                        colors = listOf(primaryColor, secondaryColor)
-                    ),
+                    brush = Brush.linearGradient(listOf(color1, color2)),
                     shape = CircleShape
                 )
         )
@@ -171,29 +157,38 @@ fun SharedPoiMarkerSmall(
         Box(
             modifier = Modifier
                 .size(size)
+                .shadow(elevation = 2.dp, shape = CircleShape)
                 .clip(CircleShape)
-                .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(primaryColor, secondaryColor)
-                    )
-                ),
+                .background(brush = gradient),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.LocationOn,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(size * 0.55f)
-            )
+            if (isDiscovered) {
+                // Show category icon for discovered
+                Icon(
+                    imageVector = getCategoryIcon(category),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(size * 0.5f)
+                )
+            } else {
+                // Show X for undiscovered
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.7f),
+                    modifier = Modifier.size(size * 0.5f)
+                )
+            }
         }
 
         // Friend badge
+        val badgeColor = if (isDiscovered) greenColor else greenColor.copy(alpha = 0.6f)
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .size(14.dp)
+                .size(size * 0.35f)
                 .clip(CircleShape)
-                .background(AppColors.green)
+                .background(badgeColor)
                 .border(1.dp, Color.White, CircleShape),
             contentAlignment = Alignment.Center
         ) {
@@ -201,21 +196,29 @@ fun SharedPoiMarkerSmall(
                 imageVector = Icons.Default.Person,
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(8.dp)
-            )
-        }
-
-        // Unread indicator
-        if (isUnread) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .offset(x = 2.dp, y = 2.dp)
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(AppColors.red)
-                    .border(0.5.dp, Color.White, CircleShape)
+                modifier = Modifier.size(size * 0.18f)
             )
         }
     }
+}
+
+/**
+ * Legacy version for backward compatibility - maps old params to new API.
+ * @deprecated Use SharedPoiMarkerSmall(category, isDiscovered) instead
+ */
+@Composable
+@Deprecated("Use SharedPoiMarkerSmall with category parameter")
+fun SharedPoiMarkerSmall(
+    isCustomPoi: Boolean,
+    isUnread: Boolean = false,
+    modifier: Modifier = Modifier,
+    size: Dp = 36.dp
+) {
+    // Map old params to new - treat as the OTHER category and always discovered for sent items
+    SharedPoiMarkerSmall(
+        category = PoiCategory.OTHER,
+        isDiscovered = true,
+        modifier = modifier,
+        size = size
+    )
 }

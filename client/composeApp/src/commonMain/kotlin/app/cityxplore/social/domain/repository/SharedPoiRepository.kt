@@ -66,6 +66,15 @@ interface SharedPoiRepository {
     suspend fun markViewed(sharedPoiId: String): Result<SharedPoi>
 
     /**
+     * Marks a shared POI as discovered.
+     * Called when the recipient gets close to the shared POI location.
+     * Note: Unlike regular POI discoveries, shared POI discoveries do NOT grant XP.
+     * @param sharedPoiId The ID of the shared POI to mark as discovered.
+     * @return Result containing the updated SharedPoi on success.
+     */
+    suspend fun discoverSharedPoi(sharedPoiId: String): Result<SharedPoi>
+
+    /**
      * Deletes a shared POI record.
      * Only the sharer can delete a shared POI.
      * @param sharedPoiId The ID of the shared POI to delete.

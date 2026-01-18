@@ -29,7 +29,7 @@ fun SharedPoisTab(
     createPoiState: CreateCustomPoiState,
     showCreateDialog: Boolean,
     onRefresh: () -> Unit,
-    onNavigate: (SharedPoi) -> Unit,
+    onNavigate: (SharedPoi, Boolean) -> Unit, // Boolean = isReceived
     onMarkViewed: (SharedPoi) -> Unit,
     onDelete: (SharedPoi) -> Unit,
     onCreateDialogDismiss: () -> Unit,
@@ -80,9 +80,16 @@ fun SharedPoisTab(
             else -> emptyList()
         }
 
+        // Calculate sent POIs per recipient
+        val sentPois = (state as? SharedPoisUiState.Content)?.sentPois ?: emptyList()
+        val sentPoisPerRecipient = sentPois
+            .groupBy { it.recipientId }
+            .mapValues { it.value.size }
+
         CreateCustomPoiWizard(
             state = createPoiState,
             friends = friends,
+            sentPoisPerRecipient = sentPoisPerRecipient,
             onNameChange = onNameChange,
             onDescriptionChange = onDescriptionChange,
             onCategoryChange = onCategoryChange,
@@ -103,7 +110,7 @@ fun SharedPoisTab(
 private fun SharedPoisContent(
     receivedPois: List<SharedPoi>,
     sentPois: List<SharedPoi>,
-    onNavigate: (SharedPoi) -> Unit,
+    onNavigate: (SharedPoi, Boolean) -> Unit,
     onMarkViewed: (SharedPoi) -> Unit,
     onDelete: (SharedPoi) -> Unit
 ) {
@@ -127,7 +134,7 @@ private fun SharedPoisContent(
             0 -> SharedPoiListContent(
                 pois = receivedPois,
                 isReceived = true,
-                onNavigate = onNavigate,
+                onNavigate = { onNavigate(it, true) },
                 onMarkViewed = onMarkViewed,
                 onDelete = onDelete
             )
@@ -135,7 +142,7 @@ private fun SharedPoisContent(
             1 -> SharedPoiListContent(
                 pois = sentPois,
                 isReceived = false,
-                onNavigate = onNavigate,
+                onNavigate = { onNavigate(it, false) },
                 onMarkViewed = onMarkViewed,
                 onDelete = onDelete
             )

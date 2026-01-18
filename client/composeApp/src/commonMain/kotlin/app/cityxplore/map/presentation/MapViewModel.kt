@@ -15,11 +15,17 @@ import app.cityxplore.map.domain.toMapPoi
 import app.cityxplore.platform.CityXploreBaseViewModel
 import app.cityxplore.profile.domain.DistanceSyncRepository
 import app.cityxplore.profile.domain.ProfileRepository
+import app.cityxplore.social.domain.model.SharedPoi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * ViewModel managing the map screen state and POI discovery logic.
@@ -70,7 +76,7 @@ class MapViewModel(
     private var lastKnownLocation: Location? = null
     private var cachedWarsawHexagons: Set<String> = emptySet()
     private var cachedRevealedHexagons: Set<String> = emptySet()
-    private var cachedSharedPois: List<app.cityxplore.social.domain.model.SharedPoi> = emptyList()
+    private var cachedSharedPois: List<SharedPoi> = emptyList()
 
     // Track previous level for level-up detection
     private var previousLevel: Int? = null
@@ -160,7 +166,7 @@ class MapViewModel(
                     warsawHexagons = warsawResult.getOrDefault(emptySet()),
                     sharedPois = cachedSharedPois
                 )
-                // Trigger profile load again if loadData finishes later
+                // Trigger a profile load again if loadData finishes later
                 loadProfile()
             }
 
@@ -202,11 +208,65 @@ class MapViewModel(
             MapAction.DismissAchievementNotification -> dismissAchievementNotification()
             MapAction.DismissLevelUpDialog -> dismissLevelUpDialog()
             is MapAction.SelectSharedPoi -> selectSharedPoi(action.sharedPoiId)
+            is MapAction.CenterOnLocation -> centerOnLocation(action.latitude, action.longitude)
+            is MapAction.DismissSharedDiscoveryNotification -> dismissSharedDiscoveryNotification(action.sharedPoiId)
+            is MapAction.ViewDiscoveredSharedPoi -> viewDiscoveredSharedPoi(action.sharedPoiId)
+            MapAction.DismissAllSharedDiscoveryNotifications -> dismissAllSharedDiscoveryNotifications()
         }
     }
 
     /**
-     * Handles "View Details" action for a discovered POI notification.
+     * Centers the map on specific coordinates.
+     * Sets the target location that the map component will animate to.
+     */
+    private fun centerOnLocation(latitude: Double, longitude: Double) {
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            _state.value = currentState.copy(
+                targetCameraLocation = Location(latitude, longitude),
+                isFollowingUser = false // Disable follow mode when manually centering
+            )
+        }
+    }
+
+    /**
+     * Handles the "View Details" action for a discovered Shared POI notification.
+     * Selects the POI and dismisses its notification.
+     */
+    private fun viewDiscoveredSharedPoi(sharedPoiId: String) {
+        selectSharedPoi(sharedPoiId)
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            _state.value = currentState.copy(
+                newlyDiscoveredSharedPoiIds = currentState.newlyDiscoveredSharedPoiIds - sharedPoiId
+            )
+        }
+    }
+
+    /**
+     * Dismisses the discovery notification for a specific Shared POI.
+     */
+    private fun dismissSharedDiscoveryNotification(sharedPoiId: String) {
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            _state.value = currentState.copy(
+                newlyDiscoveredSharedPoiIds = currentState.newlyDiscoveredSharedPoiIds - sharedPoiId
+            )
+        }
+    }
+
+    /**
+     * Dismisses all shared discovery notifications at once.
+     */
+    private fun dismissAllSharedDiscoveryNotifications() {
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            _state.value = currentState.copy(newlyDiscoveredSharedPoiIds = emptySet())
+        }
+    }
+
+    /**
+     * Handles the "View Details" action for a discovered POI notification.
      * Selects the POI and dismisses its notification.
      */
     private fun viewDiscoveredPoi(poiId: String) {
@@ -230,7 +290,7 @@ class MapViewModel(
     }
 
     /**
-     * Dismisses the achievement unlock notification dialog.
+     * Dismisses the achievement unlock the notification dialogue.
      */
     private fun dismissAchievementNotification() {
         val currentState = _state.value
@@ -240,7 +300,7 @@ class MapViewModel(
     }
 
     /**
-     * Dismisses the level up dialog.
+     * Dismisses the level-up dialogue.
      */
     private fun dismissLevelUpDialog() {
         val currentState = _state.value
@@ -321,7 +381,7 @@ class MapViewModel(
         scope.launch(cityXploreDispatchers.io) {
             val currentState = _state.value
 
-            // Only show full loading screen if we don't have data yet
+            // Only show the full loading screen if we don't have data yet
             if (currentState !is MapUiState.Ready) {
                 _state.value = MapUiState.Loading
             }
@@ -410,7 +470,7 @@ class MapViewModel(
                     checkForNearbyPois(location)
                     updateFogOfWar(location)
 
-                    // Track distance and sync when threshold reached
+                    // Track distance and sync when the threshold reached
                     val shouldSync = distanceTracker.onNewLocation(location)
                     if (shouldSync) {
                         syncDistance()
@@ -436,7 +496,7 @@ class MapViewModel(
                 .onSuccess { result ->
                     val currentState = _state.value
                     if (currentState is MapUiState.Ready && result.newlyUnlockedAchievements.isNotEmpty()) {
-                        // Merge newly unlocked achievements from distance with any existing ones
+                        // Merge newly unlocked achievements from a distance with any existing ones
                         val mergedAchievements =
                             (currentState.newlyUnlockedAchievements + result.newlyUnlockedAchievements).distinctBy { it.id }
 
@@ -456,7 +516,7 @@ class MapViewModel(
     }
 
     /**
-     * Updates the Fog of War based on user's current location.
+     * Updates the Fog of War based on the user's current location.
      * Reveals hexagons within the configured radius.
      *
      * @param location The user's current location.
@@ -488,17 +548,19 @@ class MapViewModel(
 
     /**
      * Checks if any undiscovered POIs are within discovery range and triggers discovery.
+     * Also, checks for undiscovered shared POIs nearby.
      * Updates the state with newly discovered POI IDs for UI notifications.
      *
      * @param userLocation The current location of the user.
      */
     private fun checkForNearbyPois(userLocation: Location) {
         scope.launch(cityXploreDispatchers.io) {
+            // Check regular POIs
             val result = autoDiscoverUseCase.checkAndDiscoverNearbyPois(userLocation)
 
             result.onSuccess { discoveryResult ->
                 if (discoveryResult.newlyDiscoveredPoiIds.isNotEmpty()) {
-                    // Refresh POIs to get updated discovery status
+                    // Refresh POIs to get an updated discovery status
                     val poisResult = getPoisUseCase()
 
                     poisResult.onSuccess { pois ->
@@ -536,9 +598,80 @@ class MapViewModel(
             result.onFailure { error ->
                 // Log auto-discovery failure
                 println("Auto-discovery failed: ${error.message}")
-                // Optionally emit a UI error event here if needed
+            }
+
+            // Check shared POIs for discovery (no XP awarded)
+            checkForNearbySharedPois(userLocation)
+        }
+    }
+
+    /**
+     * Checks if any undiscovered shared POIs are within discovery range.
+     * Note: Shared POI discoveries do NOT grant XP or count towards regular achievements.
+     *
+     * @param userLocation The current location of the user.
+     */
+    private suspend fun checkForNearbySharedPois(userLocation: Location) {
+        val currentState = _state.value
+        if (currentState !is MapUiState.Ready) return
+
+        val undiscoveredSharedPois = currentState.sharedPois.filter { !it.isDiscovered }
+        if (undiscoveredSharedPois.isEmpty()) return
+
+        // Use the same discovery radius as regular POIs (200 m)
+        val discoveryRadiusMeters = AutoDiscoverPoisUseCase.DISCOVERY_RADIUS_METERS
+
+        for (sharedPoi in undiscoveredSharedPois) {
+            val coords = sharedPoi.coordinates ?: continue
+            val distance = calculateHaversineDistance(
+                userLocation.latitude, userLocation.longitude,
+                coords.first, coords.second
+            )
+
+            if (distance <= discoveryRadiusMeters) {
+                // Discover the shared POI
+                sharedPoiRepository.discoverSharedPoi(sharedPoi.id)
+                    .onSuccess { updatedPoi ->
+                        // Update the cached shared POIs
+                        cachedSharedPois = cachedSharedPois.map {
+                            if (it.id == sharedPoi.id) updatedPoi else it
+                        }
+
+                        // Update state
+                        val freshState = _state.value
+                        if (freshState is MapUiState.Ready) {
+                            _state.value = freshState.copy(
+                                sharedPois = cachedSharedPois,
+                                newlyDiscoveredSharedPoiIds = freshState.newlyDiscoveredSharedPoiIds + sharedPoi.id
+                            )
+                        }
+                    }
+                    .onFailure { error ->
+                        println("Failed to discover shared POI ${sharedPoi.id}: ${error.message}")
+                    }
             }
         }
+    }
+
+    /**
+     * Calculates distance between two coordinates using Haversine formula.
+     */
+    private fun calculateHaversineDistance(
+        lat1: Double, lon1: Double,
+        lat2: Double, lon2: Double
+    ): Double {
+        val earthRadius = 6371000.0 // meters
+
+        val dLat = (lat2 - lat1) * PI / 180.0
+        val dLon = (lon2 - lon1) * PI / 180.0
+
+        val a = sin(dLat / 2) * sin(dLat / 2) +
+                cos(lat1 * PI / 180.0) * cos(lat2 * PI / 180.0) *
+                sin(dLon / 2) * sin(dLon / 2)
+
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+        return earthRadius * c
     }
 
     /**

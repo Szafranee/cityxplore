@@ -27,10 +27,11 @@ sealed interface MapUiState {
      * @property revealedHexagons Set of H3 hex indices that have been revealed (for Fog of War).
      * @property warsawHexagons Set of all H3 hex indices covering the Warsaw region (for Fog of War).
      * @property profile The current user's profile data, or null if not yet loaded.
-     * @property newlyUnlockedAchievements List of achievements just unlocked (for showing celebration dialog).
+     * @property newlyUnlockedAchievements List of achievements just unlocked (for showing celebration dialogue).
      * @property newLevel The new level if the user just levelled up, null otherwise.
      * @property sharedPois List of POIs shared by friends to display on the map.
      * @property selectedSharedPoi The currently selected shared POI for displaying details.
+     * @property targetCameraLocation Location to centre the camera on (set externally, e.g. from Journal).
      */
     data class Ready(
         val pois: List<MapPoi>,
@@ -44,7 +45,9 @@ sealed interface MapUiState {
         val newlyUnlockedAchievements: List<Achievement> = emptyList(),
         val newLevel: Int? = null,
         val sharedPois: List<SharedPoi> = emptyList(),
-        val selectedSharedPoi: SharedPoi? = null
+        val selectedSharedPoi: SharedPoi? = null,
+        val newlyDiscoveredSharedPoiIds: Set<String> = emptySet(),
+        val targetCameraLocation: Location? = null
     ) : MapUiState
 
     /**
@@ -127,4 +130,31 @@ sealed interface MapAction {
      * @property sharedPoiId The ID of the shared POI.
      */
     data class SelectSharedPoi(val sharedPoiId: String) : MapAction
+
+    /**
+     * Center the map on specific coordinates.
+     * Used when navigating to a POI from the Journal or Shared POIs list.
+     *
+     * @property latitude The latitude to centre on.
+     * @property longitude The longitude to centre on.
+     */
+    data class CenterOnLocation(val latitude: Double, val longitude: Double) : MapAction
+
+    /**
+     * User dismissed the discovery notification for a Shared POI.
+     *
+     * @property sharedPoiId The ID of the Shared POI whose notification should be dismissed.
+     */
+    data class DismissSharedDiscoveryNotification(val sharedPoiId: String) : MapAction
+
+    /**
+     * User tapped "View Details" on a single discovered Shared POI notification.
+     * Selects the Shared POI and dismisses the notification.
+     *
+     * @property sharedPoiId The ID of the Shared POI to view.
+     */
+    data class ViewDiscoveredSharedPoi(val sharedPoiId: String) : MapAction
+
+    /** User dismissed all Shared POI discovery notifications at once */
+    data object DismissAllSharedDiscoveryNotifications : MapAction
 }

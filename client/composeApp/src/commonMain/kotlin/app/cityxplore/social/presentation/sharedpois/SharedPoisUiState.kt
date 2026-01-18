@@ -112,17 +112,15 @@ data class CreateCustomPoiState(
 }
 
 /**
- * Available categories for custom POIs - matching regular POI categories.
+ * Available categories for custom POIs - matching PoiCategory enum values.
+ * The first value (key) must match the PoiCategory enum name for proper icon/color mapping.
  */
 val customPoiCategories = listOf(
-    "landmark" to "Landmark",
-    "museum" to "Museum",
-    "park" to "Park",
-    "restaurant" to "Restaurant",
-    "cafe" to "Café",
-    "bar" to "Bar",
-    "viewpoint" to "Viewpoint",
-    "monument" to "Monument",
-    "church" to "Church",
-    "other" to "Other"
+    "HISTORICAL" to "Historical",
+    "CULTURAL" to "Cultural",
+    "NATURE" to "Nature",
+    "FOOD" to "Food & Dining",
+    "SPORTS" to "Sports",
+    "ENTERTAINMENT" to "Entertainment",
+    "OTHER" to "Other"
 )

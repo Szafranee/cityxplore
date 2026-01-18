@@ -462,6 +462,26 @@ private fun dimColor(color: Int): Int {
 }
 
 /**
+ * Desaturates a color while keeping some of the original hue.
+ * Used for undiscovered shared POIs to show a muted gradient.
+ *
+ * @param color The original color
+ * @param saturationFactor How much saturation to keep (0.0 = grayscale, 1.0 = original)
+ * @return The desaturated color
+ */
+private fun desaturateColor(color: Int, saturationFactor: Float): Int {
+    val hsv = FloatArray(3)
+    Color.colorToHSV(color, hsv)
+
+    // Reduce saturation
+    hsv[1] = hsv[1] * saturationFactor
+    // Slightly reduce brightness too for a more "undiscovered" look
+    hsv[2] = hsv[2] * 0.7f
+
+    return Color.HSVToColor(hsv)
+}
+
+/**
  * Lightens a color by increasing its brightness.
  * Used for the X symbol on undiscovered POIs to ensure visibility on a dimmed background.
  *
@@ -480,17 +500,21 @@ private fun lightenColor(color: Int, factor: Float): Int {
 }
 
 /**
- * Creates a marker bitmap for a shared POI with a gradient ring effect.
+ * Creates a marker bitmap for a shared POI.
+ * Uses a gradient background (category color -> green) with friend badge.
  *
- * @param isCustomPoi Whether this is a custom POI (orange) or existing (blue)
- * @param isUnread Whether this shared POI hasn't been viewed yet
+ * For discovered POIs: Full color gradient and white category icon
+ * For undiscovered POIs: Desaturated gradient + grey X
+ *
+ * @param category The POI category (from customPoi.category)
+ * @param isDiscovered Whether the shared POI has been discovered
  * @param size The size of the bitmap in pixels
  * @return A Bitmap representing the shared POI marker
  */
 fun createSharedPoiMarkerBitmap(
-    isCustomPoi: Boolean,
-    isUnread: Boolean,
-    size: Int = 120
+    category: PoiCategory,
+    isDiscovered: Boolean,
+    size: Int = 100
 ): Bitmap {
     val bitmap = createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
@@ -498,77 +522,105 @@ fun createSharedPoiMarkerBitmap(
     val centerX = size / 2f
     val centerY = size / 2f
 
-    // Colors
-    val primaryColor = if (isCustomPoi) {
-        Color.rgb(255, 149, 0) // Orange
-    } else {
-        Color.rgb(0, 122, 255) // Blue
-    }
-    val secondaryColor = Color.rgb(52, 199, 89) // Green
-    val redColor = Color.rgb(255, 59, 48) // Red for unread
+    val themeColor = getCategoryBaseColor(category)
+    val greenColor = Color.rgb(52, 199, 89) // Green for shared POIs
 
-    // Draw outer glow ring
-    val ringPaint = Paint().apply {
-        color = primaryColor
-        alpha = 100
+    // Draw shadow for better visibility
+    val shadowPaint = Paint().apply {
+        color = Color.BLACK
+        alpha = 80
         isAntiAlias = true
-        style = Paint.Style.STROKE
-        strokeWidth = size * 0.04f
+        setShadowLayer(size * 0.05f, 0f, size * 0.02f, Color.BLACK)
     }
-    val ringRadius = size / 2f - size * 0.08f
-    canvas.drawCircle(centerX, centerY, ringRadius, ringPaint)
+    val shadowRadius = (size / 2f) * 0.95f
+    canvas.drawCircle(centerX, centerY, shadowRadius, shadowPaint)
 
-    // Draw main marker circle with gradient-like effect (simplified for bitmap)
-    val gradientPaint = Paint().apply {
+    // Gradient colors based on discovery state
+    val gradientColor1: Int
+    val gradientColor2: Int
+
+    if (isDiscovered) {
+        // Full color gradient for discovered
+        gradientColor1 = themeColor
+        gradientColor2 = greenColor
+    } else {
+        // Desaturated/dimmed gradient for undiscovered
+        gradientColor1 = desaturateColor(themeColor, 0.4f)
+        gradientColor2 = desaturateColor(greenColor, 0.4f)
+    }
+
+    // Ring (gradient border stroke)
+    val ringPaint = Paint().apply {
         shader = android.graphics.LinearGradient(
-            0f, 0f, size.toFloat(), size.toFloat(),
-            primaryColor, secondaryColor,
+            centerX - shadowRadius, centerY - shadowRadius,
+            centerX + shadowRadius, centerY + shadowRadius,
+            gradientColor1, gradientColor2,
             android.graphics.Shader.TileMode.CLAMP
         )
         isAntiAlias = true
-        style = Paint.Style.FILL
+        style = Paint.Style.STROKE
+        strokeWidth = size * 0.05f // Thicker ring
     }
-    val markerRadius = size / 2f - size * 0.15f
-    canvas.drawCircle(centerX, centerY, markerRadius, gradientPaint)
+    val ringRadius = (size / 2f) * 0.9f
+    canvas.drawCircle(centerX, centerY, ringRadius, ringPaint)
 
-    // Draw inner white border
-    val innerBorderPaint = Paint().apply {
-        color = Color.WHITE
-        alpha = 80
+    val mainRadius = ringRadius - (size * 0.05f) // Adjust the main radius to fit inside the ring
+
+    // Gap between ring and main circle
+    val gapPaint = Paint().apply {
+        color = Color.TRANSPARENT
+        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
         isAntiAlias = true
         style = Paint.Style.STROKE
         strokeWidth = size * 0.02f
     }
-    canvas.drawCircle(centerX, centerY, markerRadius - size * 0.01f, innerBorderPaint)
+    canvas.drawCircle(centerX, centerY, mainRadius + (size * 0.01f), gapPaint)
 
-    // Draw the location pin icon in the centre (simplified)
-    val iconPaint = Paint().apply {
-        color = Color.WHITE
+    // Draw gradient background
+    val gradientPaint = Paint().apply {
+        shader = android.graphics.LinearGradient(
+            centerX - mainRadius, centerY - mainRadius,
+            centerX + mainRadius, centerY + mainRadius,
+            gradientColor1, gradientColor2,
+            android.graphics.Shader.TileMode.CLAMP
+        )
         isAntiAlias = true
         style = Paint.Style.FILL
+        alpha = if (isDiscovered) 255 else 200
+    }
+    canvas.drawCircle(centerX, centerY, mainRadius, gradientPaint)
+
+    if (isDiscovered) {
+        // Discovered: Draw WHITE category icon on gradient
+        val icon = getCategoryIcon(category)
+        val iconTargetSize = mainRadius * 2 * 0.6f
+        drawIconOnCanvas(canvas, icon, centerX, centerY, iconTargetSize, Color.WHITE)
+    } else {
+        // Undiscovered: Draw grey X
+        val xColor = Color.rgb(200, 200, 200)
+
+        val xPaint = Paint().apply {
+            color = xColor
+            strokeWidth = size * 0.1f
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            isAntiAlias = true
+        }
+
+        val xRadius = mainRadius * 0.45f
+        canvas.drawLine(centerX - xRadius, centerY - xRadius, centerX + xRadius, centerY + xRadius, xPaint)
+        canvas.drawLine(centerX + xRadius, centerY - xRadius, centerX - xRadius, centerY + xRadius, xPaint)
     }
 
-    // Pin head (circle)
-    val pinHeadRadius = size * 0.12f
-    val pinHeadY = centerY - size * 0.05f
-    canvas.drawCircle(centerX, pinHeadY, pinHeadRadius, iconPaint)
+    // Draw the friend badge (green circle with person icon) - top right
+    val badgeRadius = size * 0.15f
+    val badgeX = centerX + mainRadius * 0.6f
+    val badgeY = centerY - mainRadius * 0.6f
 
-    // Pin tip (triangle)
-    val tipPath = android.graphics.Path().apply {
-        moveTo(centerX - size * 0.08f, pinHeadY + pinHeadRadius * 0.5f)
-        lineTo(centerX + size * 0.08f, pinHeadY + pinHeadRadius * 0.5f)
-        lineTo(centerX, pinHeadY + pinHeadRadius * 2f)
-        close()
-    }
-    canvas.drawPath(tipPath, iconPaint)
-
-    // Draw the friend badge (green circle with person icon silhouette) - top right
-    val badgeRadius = size * 0.12f
-    val badgeX = centerX + markerRadius * 0.65f
-    val badgeY = centerY - markerRadius * 0.65f
-
+    // Badge background: slightly darker for undiscovered
+    val badgeBgColor = if (isDiscovered) greenColor else dimColor(greenColor)
     val badgePaint = Paint().apply {
-        color = secondaryColor
+        color = badgeBgColor
         isAntiAlias = true
         style = Paint.Style.FILL
     }
@@ -579,7 +631,7 @@ fun createSharedPoiMarkerBitmap(
         color = Color.WHITE
         isAntiAlias = true
         style = Paint.Style.STROKE
-        strokeWidth = size * 0.015f
+        strokeWidth = size * 0.02f
     }
     canvas.drawCircle(badgeX, badgeY, badgeRadius, badgeBorderPaint)
 
@@ -590,14 +642,14 @@ fun createSharedPoiMarkerBitmap(
         style = Paint.Style.FILL
     }
     // Head
-    canvas.drawCircle(badgeX, badgeY - badgeRadius * 0.3f, badgeRadius * 0.35f, personPaint)
+    canvas.drawCircle(badgeX, badgeY - badgeRadius * 0.25f, badgeRadius * 0.3f, personPaint)
     // Body (small arc)
     val bodyPath = android.graphics.Path().apply {
         arcTo(
-            badgeX - badgeRadius * 0.6f,
-            badgeY - badgeRadius * 0.1f,
-            badgeX + badgeRadius * 0.6f,
-            badgeY + badgeRadius * 0.7f,
+            badgeX - badgeRadius * 0.5f,
+            badgeY,
+            badgeX + badgeRadius * 0.5f,
+            badgeY + badgeRadius * 0.6f,
             180f,
             180f,
             false
@@ -606,27 +658,6 @@ fun createSharedPoiMarkerBitmap(
     }
     canvas.drawPath(bodyPath, personPaint)
 
-    // Draw the unread indicator (red dot) - top left
-    if (isUnread) {
-        val dotRadius = size * 0.08f
-        val dotX = centerX - markerRadius * 0.65f
-        val dotY = centerY - markerRadius * 0.65f
-
-        val dotPaint = Paint().apply {
-            color = redColor
-            isAntiAlias = true
-            style = Paint.Style.FILL
-        }
-        canvas.drawCircle(dotX, dotY, dotRadius, dotPaint)
-
-        val dotBorderPaint = Paint().apply {
-            color = Color.WHITE
-            isAntiAlias = true
-            style = Paint.Style.STROKE
-            strokeWidth = size * 0.01f
-        }
-        canvas.drawCircle(dotX, dotY, dotRadius, dotBorderPaint)
-    }
 
     return bitmap
 }

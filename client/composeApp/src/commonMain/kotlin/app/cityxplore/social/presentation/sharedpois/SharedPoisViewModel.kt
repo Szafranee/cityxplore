@@ -262,7 +262,8 @@ class SharedPoisViewModel(
             deleteSharedPoiUseCase(sharedPoi.id)
                 .onSuccess {
                     _uiEvents.emit(SharedPoisUiEvent.ShowMessage("Shared POI deleted"))
-                    refresh()
+                    // Refresh data without showing the Loading state
+                    refreshSilently()
                 }
                 .onFailure { error ->
                     _uiEvents.emit(
@@ -274,6 +275,19 @@ class SharedPoisViewModel(
         }
     }
 
+    /**
+     * Refreshes data without changing to Loading state.
+     * Used after delete operations to avoid UI flicker.
+     */
+    private suspend fun refreshSilently() {
+        listOf(
+            getReceivedSharedPoisUseCase.refresh(),
+            getSentSharedPoisUseCase.refresh(),
+            getUnviewedSharedPoisUseCase.refresh()
+        )
+        // Success/failure is handled by observeData() flow collection
+    }
+
     fun navigateToPoiOnMap(sharedPoi: SharedPoi) {
         viewModelScope.launch {
             val coords = sharedPoi.coordinates
@@ -283,6 +297,25 @@ class SharedPoisViewModel(
                 _uiEvents.emit(
                     SharedPoisUiEvent.ShowMessage(
                         "Cannot navigate to this POI - location unavailable"
+                    )
+                )
+            }
+        }
+    }
+
+    /**
+     * Shows a shared POI on the map without navigating to it.
+     * Centers the map on the POI's location.
+     */
+    fun showPoiOnMap(sharedPoi: SharedPoi) {
+        viewModelScope.launch {
+            val coords = sharedPoi.coordinates
+            if (coords != null) {
+                _uiEvents.emit(SharedPoisUiEvent.NavigateToPoiOnMap(coords.first, coords.second))
+            } else {
+                _uiEvents.emit(
+                    SharedPoisUiEvent.ShowMessage(
+                        "Cannot show this POI on map - location unavailable"
                     )
                 )
             }

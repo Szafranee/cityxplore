@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -71,11 +72,15 @@ import coil3.compose.AsyncImage
 
 /**
  * Multistep wizard dialogue for creating and sharing a custom POI.
+ *
+ * @param sentPoisPerRecipient Map of recipientId to count of POIs already sent to that user.
+ *                             Used to disable friends who already received 5 POIs.
  */
 @Composable
 fun CreateCustomPoiWizard(
     state: CreateCustomPoiState,
     friends: List<Friendship>,
+    sentPoisPerRecipient: Map<String, Int>,
     onNameChange: (String) -> Unit,
     onDescriptionChange: (String) -> Unit,
     onCategoryChange: (String) -> Unit,
@@ -145,6 +150,7 @@ fun CreateCustomPoiWizard(
                         CreatePoiStep.SELECT_FRIEND -> Step3SelectFriend(
                             state = state,
                             friends = friends,
+                            sentPoisPerRecipient = sentPoisPerRecipient,
                             onShare = onShare
                         )
                     }
@@ -438,10 +444,16 @@ private fun Step2LocationPhoto(
 private fun Step3SelectFriend(
     state: CreateCustomPoiState,
     friends: List<Friendship>,
+    sentPoisPerRecipient: Map<String, Int>,
     onShare: (recipientId: String, message: String?) -> Unit
 ) {
     var selectedFriendId by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf("") }
+
+    // Check if selected friend has reached the limit
+    selectedFriendId?.let { id ->
+        (sentPoisPerRecipient[id] ?: 0) >= 5
+    } ?: false
 
     Column(modifier = Modifier.fillMaxWidth()) {
         if (friends.isEmpty()) {
@@ -486,10 +498,19 @@ private fun Step3SelectFriend(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(friends) { friend ->
+                    val sentCount = sentPoisPerRecipient[friend.otherUserId] ?: 0
+                    val isAtLimit = sentCount >= 5
+
                     FriendSelectionItem(
                         friend = friend,
                         isSelected = selectedFriendId == friend.otherUserId,
-                        onClick = { selectedFriendId = friend.otherUserId }
+                        isDisabled = isAtLimit,
+                        sentCount = sentCount,
+                        onClick = {
+                            if (!isAtLimit) {
+                                selectedFriendId = friend.otherUserId
+                            }
+                        }
                     )
                 }
             }
@@ -538,21 +559,33 @@ private fun Step3SelectFriend(
 private fun FriendSelectionItem(
     friend: Friendship,
     isSelected: Boolean,
+    isDisabled: Boolean = false,
+    sentCount: Int = 0,
     onClick: () -> Unit
 ) {
+    val containerColor = when {
+        isDisabled -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        isSelected -> AppColors.green.copy(alpha = 0.15f)
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+
     Card(
-        onClick = onClick,
+        onClick = { if (!isDisabled) onClick() },
+        enabled = !isDisabled,
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) AppColors.green.copy(alpha = 0.15f)
-            else MaterialTheme.colorScheme.surfaceVariant
-        ),
-        border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, AppColors.green) else null
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        border = if (isSelected && !isDisabled) androidx.compose.foundation.BorderStroke(
+            2.dp,
+            AppColors.green
+        ) else null
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Avatar with dimming for disabled
+            val avatarAlpha = if (isDisabled) 0.5f else 1f
+
             if (friend.otherUserAvatar != null) {
                 AsyncImage(
                     model = friend.otherUserAvatar,
@@ -560,14 +593,18 @@ private fun FriendSelectionItem(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop,
+                    alpha = avatarAlpha
                 )
             } else {
                 Box(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(AppColors.green),
+                        .background(
+                            if (isDisabled) AppColors.green.copy(alpha = 0.3f)
+                            else AppColors.green
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -580,18 +617,42 @@ private fun FriendSelectionItem(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            Text(
-                text = friend.otherUserName ?: "Unknown",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = friend.otherUserName ?: "Unknown",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isDisabled) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    else MaterialTheme.colorScheme.onSurface
+                )
 
-            if (isSelected) {
+                if (isDisabled) {
+                    Text(
+                        text = "Limit reached (5/5 POIs)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                    )
+                } else if (sentCount > 0) {
+                    Text(
+                        text = "$sentCount/5 POIs shared",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (isSelected && !isDisabled) {
                 Icon(
                     Icons.Default.Check,
                     contentDescription = null,
                     tint = AppColors.green
+                )
+            } else if (isDisabled) {
+                Icon(
+                    Icons.Default.Lock,
+                    contentDescription = "Limit reached",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }

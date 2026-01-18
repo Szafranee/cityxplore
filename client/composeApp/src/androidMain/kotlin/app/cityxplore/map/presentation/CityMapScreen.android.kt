@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import app.cityxplore.domain.service.H3Service
+import app.cityxplore.map.domain.PoiCategory
 import app.cityxplore.theme.AppColors
 import com.mapbox.android.gestures.MoveGestureDetector
 import com.mapbox.geojson.Point
@@ -201,9 +202,17 @@ private fun ReadyMap(
             val coords = sharedPoi.coordinates ?: return@forEach
             val point = Point.fromLngLat(coords.second, coords.first)
 
+            // Parse category from customPoi, default to OTHER
+            val categoryString = sharedPoi.customPoi?.category ?: "other"
+            val category = try {
+                PoiCategory.valueOf(categoryString.uppercase())
+            } catch (_: IllegalArgumentException) {
+                PoiCategory.OTHER
+            }
+
             val icon = createSharedPoiMarkerBitmap(
-                isCustomPoi = sharedPoi.isCustomPoi,
-                isUnread = !sharedPoi.isViewed
+                category = category,
+                isDiscovered = sharedPoi.isDiscovered
             )
 
             val pointAnnotationOptions = PointAnnotationOptions()
@@ -267,7 +276,7 @@ private fun ReadyMap(
             }
         }
 
-        // Show error notification if fog initialization failed
+        // Show error notification if fog initialisation failed
         LaunchedEffect(fogInitError.value) {
             if (fogInitError.value) {
                 Toast.makeText(
@@ -290,7 +299,7 @@ private fun ReadyMap(
                 if (shouldCenterOnFirstLocation.value) {
                     shouldCenterOnFirstLocation.value = false
                     locationInitialized.value = true
-                    // First center with zoom
+                    // First centre with zoom
                     mapView?.mapboxMap?.setCamera(
                         CameraOptions.Builder()
                             .center(point)
@@ -298,7 +307,7 @@ private fun ReadyMap(
                             .build()
                     )
                 } else if (mapState.isFollowingUser) {
-                    // Smooth follow using setCamera (puck provides interpolation)
+                    // Smooth follow using setCamera (the puck provides interpolation)
                     mapView?.mapboxMap?.setCamera(
                         CameraOptions.Builder()
                             .center(point)
@@ -336,6 +345,13 @@ private fun ReadyMap(
                     it.gestures.removeOnMoveListener(onMoveListener)
                 }
             }
+        }
+
+        // Handle external requests to centre on a location (from Journal, Shared POIs, etc.)
+        LaunchedEffect(mapState.targetCameraLocation) {
+            val target = mapState.targetCameraLocation ?: return@LaunchedEffect
+            val point = Point.fromLngLat(target.longitude, target.latitude)
+            animateToLocation(point, zoom = 16.0)
         }
 
         // Re-center button

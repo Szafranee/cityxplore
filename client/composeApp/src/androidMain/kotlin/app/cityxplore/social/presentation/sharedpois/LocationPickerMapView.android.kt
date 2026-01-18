@@ -73,12 +73,24 @@ actual fun LocationPickerMapView(
         )
     }
 
-    // Update selected point when props change
+    // Update the selected point and centre camera when props change
     LaunchedEffect(latitude, longitude) {
-        selectedPoint.value = if (latitude != null && longitude != null) {
-            Point.fromLngLat(longitude, latitude)
+        if (latitude != null && longitude != null) {
+            val point = Point.fromLngLat(longitude, latitude)
+            selectedPoint.value = point
+
+            // Center camera on the new location
+            mapViewRef.value?.mapboxMap?.let { mapboxMap ->
+                mapViewRef.value?.camera?.easeTo(
+                    CameraOptions.Builder()
+                        .center(point)
+                        .zoom(14.0)
+                        .build(),
+                    MapAnimationOptions.Builder().duration(300).build()
+                )
+            }
         } else {
-            null
+            selectedPoint.value = null
         }
     }
 
@@ -89,7 +101,7 @@ actual fun LocationPickerMapView(
                     mapViewRef.value = this
 
                     mapboxMap.loadStyle("mapbox://styles/mapbox/dark-v11") { _ ->
-                        // Set initial camera position
+                        // Set the initial camera position
                         val initialCenter = when {
                             latitude != null && longitude != null -> Point.fromLngLat(longitude, latitude)
                             userLatitude != null && userLongitude != null -> Point.fromLngLat(
@@ -123,7 +135,7 @@ actual fun LocationPickerMapView(
                         selectedPoint.value = point
                         onLocationSelected(point.latitude(), point.longitude())
 
-                        // Animate to selected point
+                        // Animate to the selected point
                         camera.easeTo(
                             CameraOptions.Builder()
                                 .center(point)
@@ -137,7 +149,7 @@ actual fun LocationPickerMapView(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Center marker overlay (always visible in center)
+        // Center marker overlay (always visible in the centre)
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
@@ -159,7 +171,7 @@ actual fun LocationPickerMapView(
             }
         }
 
-        // Instruction hint at bottom
+        // Instruction hint at the bottom
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)

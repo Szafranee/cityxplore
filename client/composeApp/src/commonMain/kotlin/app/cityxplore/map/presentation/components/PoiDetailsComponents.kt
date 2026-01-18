@@ -1,0 +1,263 @@
+package app.cityxplore.map.presentation.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import app.cityxplore.map.domain.PoiCategory
+import kotlin.math.roundToInt
+
+/**
+ * Shared POI green color used for badges and gradients.
+ */
+val SharedPoiGreen = Color(0xFF34C759)
+
+/**
+ * Gets the display name for a POI category.
+ */
+fun getCategoryDisplayName(category: PoiCategory): String {
+    return when (category) {
+        PoiCategory.HISTORICAL -> "Historical"
+        PoiCategory.CULTURAL -> "Cultural"
+        PoiCategory.NATURE -> "Nature"
+        PoiCategory.FOOD -> "Food & Dining"
+        PoiCategory.SPORTS -> "Sports"
+        PoiCategory.ENTERTAINMENT -> "Entertainment"
+        PoiCategory.CUSTOM -> "Custom"
+        PoiCategory.OTHER -> "Other"
+        PoiCategory.UNKNOWN -> "Unknown"
+    }
+}
+
+/**
+ * A circular marker displaying the POI category, styled like the map marker.
+ * Used in POI details to show visual consistency with the map.
+ *
+ * @param category The POI category
+ * @param isMajor Whether this is a major landmark (shows gold star)
+ * @param isSharedPoi Whether this is a shared POI (uses a gradient background)
+ * @param isDiscovered Whether the POI has been discovered (affects styling for shared POIs)
+ * @param size The size of the marker
+ */
+@Composable
+fun PoiCategoryMarker(
+    category: PoiCategory,
+    isMajor: Boolean = false,
+    isSharedPoi: Boolean = false,
+    isDiscovered: Boolean = true,
+    size: Dp = 80.dp
+) {
+    val displayColor = if (isMajor) Color(0xFFFFD700) else getCategoryColor(category)
+
+    Box(
+        modifier = Modifier
+            .size(size)
+            .then(
+                if (isSharedPoi) {
+                    // Gradient background for shared POIs
+                    val color1 = if (isDiscovered) displayColor else displayColor.copy(alpha = 0.5f)
+                    val color2 = if (isDiscovered) SharedPoiGreen else SharedPoiGreen.copy(alpha = 0.5f)
+                    Modifier.background(
+                        brush = Brush.linearGradient(listOf(color1, color2)),
+                        shape = CircleShape
+                    )
+                } else {
+                    // Solid background for regular POIs
+                    Modifier.background(
+                        color = displayColor.copy(alpha = 0.15f),
+                        shape = CircleShape
+                    )
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = if (isMajor) Icons.Rounded.Star else getCategoryIcon(category),
+            contentDescription = null,
+            tint = if (isSharedPoi && isDiscovered) Color.White else displayColor,
+            modifier = Modifier.size(size * 0.5f)
+        )
+    }
+}
+
+/**
+ * Card displaying distance to a POI with clear labelling.
+ *
+ * @param distanceMeters Distance in meters
+ * @param modifier Modifier for the card
+ */
+@Composable
+fun PoiDistanceCard(
+    distanceMeters: Double,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ),
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Place,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = formatDistance(distanceMeters),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = "away",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/**
+ * Card prompting user to get closer to discover the POI.
+ *
+ * @param discoveryRadiusMeters The radius within which POIs are discovered
+ * @param modifier Modifier for the card
+ */
+@Composable
+fun PoiDiscoverPrompt(
+    discoveryRadiusMeters: Int = 200,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+        ),
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "✨ Get within ${discoveryRadiusMeters}m to discover!",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Unlock the name, photos, description, and other details by exploring this location.",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/**
+ * Category badge chip showing the POI category with icon.
+ *
+ * @param category The POI category
+ * @param isMajor Whether this is a major landmark
+ * @param isSharedPoi Whether this is a shared POI (uses green color)
+ */
+@Composable
+fun PoiCategoryBadge(
+    category: PoiCategory,
+    isMajor: Boolean = false,
+    isSharedPoi: Boolean = false
+) {
+    val displayColor = when {
+        isMajor -> Color(0xFFFFD700)
+        isSharedPoi -> SharedPoiGreen
+        else -> getCategoryColor(category)
+    }
+    val displayText = when {
+        isMajor -> "Major Landmark"
+        else -> getCategoryDisplayName(category)
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = displayColor.copy(alpha = 0.2f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = if (isMajor) Icons.Rounded.Star else getCategoryIcon(category),
+                contentDescription = null,
+                tint = displayColor,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = displayText,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = displayColor
+            )
+        }
+    }
+}
+
+/**
+ * Formats distance in a user-friendly way.
+ */
+fun formatDistance(distanceMeters: Double): String {
+    return when {
+        distanceMeters < 1000 -> {
+            val rounded = ((distanceMeters / 10).toInt() * 10).coerceAtLeast(10)
+            "$rounded m"
+        }
+
+        else -> {
+            val km = distanceMeters / 1000
+            val rounded = (km * 10).roundToInt() / 10.0
+            "$rounded km"
+        }
+    }
+}

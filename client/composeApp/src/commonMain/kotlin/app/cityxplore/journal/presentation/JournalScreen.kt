@@ -73,6 +73,7 @@ fun JournalScreen(
     onFilterChange: (JournalFilter) -> Unit,
     onSortChange: (JournalSort) -> Unit,
     onToggleFavorite: (MapPoi) -> Unit,
+    onShowOnMap: (MapPoi) -> Unit,
     onBack: () -> Unit
 ) {
     BackHandler(onBack = onBack)
@@ -164,10 +165,11 @@ fun JournalScreen(
                             poi = selectedPoi!!,
                             onToggleFavorite = {
                                 onToggleFavorite(selectedPoi!!)
-                                // Update local selectedPoi state immediately for better UX (Optimistic update).
+                                // Update the local selectedPoi state immediately for better UX (Optimistic update).
                                 // The parent list will eventually refresh, but this ensures instant visual feedback in the modal.
                                 selectedPoi = selectedPoi!!.copy(isFavorite = !selectedPoi!!.isFavorite)
-                            }
+                            },
+                            onShowOnMap = { onShowOnMap(selectedPoi!!) }
                         )
                     }
                 }
@@ -333,8 +335,10 @@ private fun JournalEntryCard(
         ) {
             // POI Marker
             PoiCategoryMarker(
-                poi = entry,
-                modifier = Modifier.size(48.dp),
+                category = entry.category,
+                isMajor = entry.isMajor,
+                isSharedPoi = false,
+                isDiscovered = entry.discovered,
                 size = 48.dp
             )
 

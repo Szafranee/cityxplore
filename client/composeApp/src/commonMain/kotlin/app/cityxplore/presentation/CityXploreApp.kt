@@ -21,6 +21,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -40,6 +41,7 @@ import app.cityxplore.auth.presentation.RegisterScreen
 import app.cityxplore.journal.presentation.JournalScreen
 import app.cityxplore.journal.presentation.JournalViewModel
 import app.cityxplore.map.presentation.CityXploreMapScreen
+import app.cityxplore.map.presentation.MapAction
 import app.cityxplore.map.presentation.MapUiState
 import app.cityxplore.map.presentation.MapViewModel
 import app.cityxplore.platform.BackHandler
@@ -142,6 +144,18 @@ fun MainAppContent(onSignOut: () -> Unit) {
 
     val currentDestination = remember { mutableStateOf<CityXploreDestination>(CityXploreDestination.Map) }
 
+    // Pending coordinates to centre the map on after navigation
+    val pendingMapCoordinates = remember { mutableStateOf<Pair<Double, Double>?>(null) }
+
+    // When navigating to the map with pending coordinates, centre on them
+    LaunchedEffect(currentDestination.value, pendingMapCoordinates.value) {
+        if (currentDestination.value == CityXploreDestination.Map && pendingMapCoordinates.value != null) {
+            val coords = pendingMapCoordinates.value!!
+            mapViewModel.onAction(MapAction.CenterOnLocation(coords.first, coords.second))
+            pendingMapCoordinates.value = null
+        }
+    }
+
     if (currentDestination.value == CityXploreDestination.Profile || currentDestination.value is CityXploreDestination.Friends) {
         BackHandler {
             currentDestination.value = CityXploreDestination.Map
@@ -200,6 +214,10 @@ fun MainAppContent(onSignOut: () -> Unit) {
                                     )
                                 )
                             },
+                            onNavigateToMap = { lat, lon ->
+                                pendingMapCoordinates.value = Pair(lat, lon)
+                                currentDestination.value = CityXploreDestination.Map
+                            },
                             currentUserLatitude = userLocation?.latitude,
                             currentUserLongitude = userLocation?.longitude
                         )
@@ -229,6 +247,11 @@ fun MainAppContent(onSignOut: () -> Unit) {
                             onFilterChange = journalViewModel::setFilter,
                             onSortChange = journalViewModel::setSort,
                             onToggleFavorite = journalViewModel::toggleFavorite,
+                            onShowOnMap = { poi ->
+                                // Navigate to the map and centre on this POI
+                                pendingMapCoordinates.value = Pair(poi.latitude, poi.longitude)
+                                currentDestination.value = CityXploreDestination.Map
+                            },
                             onBack = { currentDestination.value = CityXploreDestination.Profile }
                         )
                     }
