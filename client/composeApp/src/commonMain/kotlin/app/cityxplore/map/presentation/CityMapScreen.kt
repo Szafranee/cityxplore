@@ -35,6 +35,7 @@ import app.cityxplore.map.presentation.components.AchievementUnlockedDialog
 import app.cityxplore.map.presentation.components.DiscoveryNotification
 import app.cityxplore.map.presentation.components.LevelUpDialog
 import app.cityxplore.map.presentation.components.PoiDetailsContent
+import app.cityxplore.map.presentation.components.SharedPoiDetailsContent
 import app.cityxplore.profile.domain.UserProfile
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
@@ -47,7 +48,7 @@ import coil3.request.crossfade
  * This screen handles:
  * - Displaying the map via platform-specific implementation.
  * - Showing user profile badge overlay.
- * - Handling POI selection and displaying details via bottom sheet.
+ * - Handling POI selection and displaying details via a bottom sheet.
  *
  * @param state The current UI state of the map.
  * @param onAction Callback for user actions on the map.
@@ -64,7 +65,7 @@ fun CityXploreMapScreen(
 ) {
     val sheetState = rememberModalBottomSheetState()
 
-    // Refresh map data (POIs only) when screen enters composition (e.g. returning from another tab)
+    // Refresh map data (POIs only) when the screen enters composition (e.g. returning from another tab)
     LaunchedEffect(Unit) {
         onAction(MapAction.RefreshPois)
     }
@@ -98,25 +99,42 @@ fun CityXploreMapScreen(
             ) {
                 PoiDetailsContent(
                     poi = state.selectedPoi,
-                    onToggleFavorite = { onAction(MapAction.ToggleFavorite(it)) },
+                    onToggleFavorite = { poiId -> onAction(MapAction.ToggleFavorite(poiId)) },
                     userLocation = state.userLocation
                 )
             }
         }
 
-        // Discovery notification (positioned at bottom above navigation)
-        if (state is MapUiState.Ready && state.newlyDiscoveredPoiIds.isNotEmpty()) {
+        if (state is MapUiState.Ready && state.selectedSharedPoi != null) {
+            ModalBottomSheet(
+                onDismissRequest = { onAction(MapAction.DeselectPoi) },
+                sheetState = sheetState
+            ) {
+                SharedPoiDetailsContent(
+                    sharedPoi = state.selectedSharedPoi,
+                    userLocation = state.userLocation
+                )
+            }
+        }
+
+        // Discovery Notification Overlay
+        if (state is MapUiState.Ready && (state.newlyDiscoveredPoiIds.isNotEmpty() || state.newlyDiscoveredSharedPoiIds.isNotEmpty())) {
             DiscoveryNotification(
                 discoveredPoiIds = state.newlyDiscoveredPoiIds,
                 pois = state.pois,
+                discoveredSharedPoiIds = state.newlyDiscoveredSharedPoiIds,
+                sharedPois = state.sharedPois,
                 onViewDetails = { poiId -> onAction(MapAction.ViewDiscoveredPoi(poiId)) },
                 onDismiss = { poiId -> onAction(MapAction.DismissDiscoveryNotification(poiId)) },
                 onDismissAll = { onAction(MapAction.DismissAllDiscoveryNotifications) },
+                onViewSharedDetails = { poiId -> onAction(MapAction.ViewDiscoveredSharedPoi(poiId)) },
+                onDismissShared = { poiId -> onAction(MapAction.DismissSharedDiscoveryNotification(poiId)) },
+                onDismissAllShared = { onAction(MapAction.DismissAllSharedDiscoveryNotifications) },
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
 
-        // Achievement unlock dialog (shown as modal)
+        // Achievement unlock dialogue (shown as modal)
         if (state is MapUiState.Ready && state.newlyUnlockedAchievements.isNotEmpty()) {
             AchievementUnlockedDialog(
                 achievements = state.newlyUnlockedAchievements,
@@ -124,7 +142,7 @@ fun CityXploreMapScreen(
             )
         }
 
-        // Level up dialog (shown after achievement dialog if both exist)
+        // Level up dialogue (shown after the achievement dialogue if both exist)
         if (state is MapUiState.Ready && state.newLevel != null && state.newlyUnlockedAchievements.isEmpty()) {
             LevelUpDialog(
                 newLevel = state.newLevel,

@@ -49,5 +49,17 @@ object AppColors {
     val textWhite = CityXplorePalette.TextMuted
     val white = CityXplorePalette.PureWhite
     val background = CityXplorePalette.Background
-    val gold = Color(0xffefbf04) // Gold color for level up star
+    val gold = Color(0xffefbf04) // Gold colour for level up star
+    val red = Color(0xFFFF3B30) // Error/notification red
+    val orange = Color(0xFFFF9500) // Custom POI orange
+    val blue = Color(0xFF007AFF) // System POI blue
+
+    // POI-specific colors
+    val majorLandmarkGold = Color(0xFFFFD700) // Gold for major landmarks
+    val majorLandmarkLabel = Color(0xFFFFA000) // Darker gold for text labels
+    val sharedPoiGreen = CityXplorePalette.Primary // Shared POI accent (same as primary green)
+
+    // Status colors
+    val openStatus = Color(0xFF2E7D32) // Green for "Open Now"
+    val closedStatus = Color(0xFFC62828) // Red for "Closed"
 }

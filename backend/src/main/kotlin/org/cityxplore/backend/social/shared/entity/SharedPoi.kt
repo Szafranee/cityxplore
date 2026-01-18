@@ -58,7 +58,10 @@ data class SharedPoi(
     val sharedAt: LocalDateTime = LocalDateTime.now(),
 
     @Column(name = "viewed_at")
-    var viewedAt: LocalDateTime? = null
+    var viewedAt: LocalDateTime? = null,
+
+    @Column(name = "discovered_at")
+    var discoveredAt: LocalDateTime? = null
 ) {
     final override fun equals(other: Any?): Boolean {
         if (this === other) return true
