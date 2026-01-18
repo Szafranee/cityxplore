@@ -260,6 +260,7 @@ fun SocialScreen(
             SharedPoiDetailsContent(
                 sharedPoi = currentSelectedSharedPoi!!,
                 userLocation = userLocation,
+                isSentByMe = !currentSelectedSharedPoiIsReceived,
                 onShowOnMap = if (currentSelectedSharedPoiIsReceived) {
                     {
                         val poi = currentSelectedSharedPoi

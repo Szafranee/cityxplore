@@ -57,9 +57,10 @@ fun SharedPoiDetailsContent(
     sharedPoi: SharedPoi,
     userLocation: Location?,
     modifier: Modifier = Modifier,
+    isSentByMe: Boolean = false,
     onShowOnMap: (() -> Unit)? = null
 ) {
-    val isDiscovered = sharedPoi.isDiscovered
+    val isDiscovered = sharedPoi.isDiscovered || isSentByMe
     val title = sharedPoi.customPoi?.name ?: "Unknown Place"
     val categoryString = sharedPoi.customPoi?.category ?: "OTHER"
     val description = sharedPoi.customPoi?.description

@@ -67,7 +67,7 @@ fun DiscoveryNotification(
                     .fillMaxWidth()
                     .padding(16.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = AppColors.orange),
+                colors = CardDefaults.cardColors(containerColor = AppColors.green),
                 elevation = CardDefaults.cardElevation(4.dp)
             ) {
                 MultiplePoiDiscovery(

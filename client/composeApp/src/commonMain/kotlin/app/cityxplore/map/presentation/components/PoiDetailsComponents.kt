@@ -1,6 +1,7 @@
 package app.cityxplore.map.presentation.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -75,34 +76,56 @@ fun PoiCategoryMarker(
 ) {
     val displayColor = if (isMajor) Color(0xFFFFD700) else getCategoryColor(category)
 
-    Box(
-        modifier = Modifier
-            .size(size)
-            .then(
-                if (isSharedPoi) {
-                    // Gradient background for shared POIs
-                    val color1 = if (isDiscovered) displayColor else displayColor.copy(alpha = 0.5f)
-                    val color2 = if (isDiscovered) SharedPoiGreen else SharedPoiGreen.copy(alpha = 0.5f)
-                    Modifier.background(
-                        brush = Brush.linearGradient(listOf(color1, color2)),
-                        shape = CircleShape
-                    )
-                } else {
-                    // Solid background for regular POIs
-                    Modifier.background(
-                        color = displayColor.copy(alpha = 0.15f),
-                        shape = CircleShape
-                    )
-                }
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = if (isMajor) Icons.Rounded.Star else getCategoryIcon(category),
-            contentDescription = null,
-            tint = if (isSharedPoi && isDiscovered) Color.White else displayColor,
-            modifier = Modifier.size(size * 0.5f)
-        )
+    if (isSharedPoi) {
+        val color1 = if (isDiscovered) displayColor else displayColor.copy(alpha = 0.5f)
+        val color2 = if (isDiscovered) SharedPoiGreen else SharedPoiGreen.copy(alpha = 0.5f)
+        val ringGradient = Brush.linearGradient(listOf(color1, color2))
+        val gradient = Brush.linearGradient(listOf(color1, color2))
+
+        Box(
+            modifier = Modifier.size(size),
+            contentAlignment = Alignment.Center
+        ) {
+            // Ring
+            Box(
+                modifier = Modifier
+                    .size(size)
+                    .padding(2.dp) // Gap between content and ring
+                    .border(width = 2.dp, brush = ringGradient, shape = CircleShape)
+            )
+
+            // Inner Circle
+            Box(
+                modifier = Modifier
+                    .size(size - 8.dp) // Adjust size to fit inside ring
+                    .background(brush = gradient, shape = CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isMajor) Icons.Rounded.Star else getCategoryIcon(category),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size((size - 8.dp) * 0.5f)
+                )
+            }
+        }
+    } else {
+        Box(
+            modifier = Modifier
+                .size(size)
+                .background(
+                    color = displayColor.copy(alpha = 0.15f),
+                    shape = CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (isMajor) Icons.Rounded.Star else getCategoryIcon(category),
+                contentDescription = null,
+                tint = displayColor,
+                modifier = Modifier.size(size * 0.5f)
+            )
+        }
     }
 }
 
