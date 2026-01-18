@@ -66,24 +66,38 @@ fun LocationPickerDialog(
     val hasValidCoordinates = parsedLat != null && parsedLng != null &&
             parsedLat in -90.0..90.0 && parsedLng in -180.0..180.0
 
-    fun validateAndSubmit() {
+    /**
+     * Validates input fields and sets error messages.
+     * Returns true if both coordinates are valid.
+     */
+    fun validateInputs(): Boolean {
         val lat = latitudeText.toDoubleOrNull()
         val lng = longitudeText.toDoubleOrNull()
 
         latitudeError = when {
+            latitudeText.isBlank() -> "Required"
             lat == null -> "Invalid number"
             lat < -90 || lat > 90 -> "Must be between -90 and 90"
             else -> null
         }
 
         longitudeError = when {
+            longitudeText.isBlank() -> "Required"
             lng == null -> "Invalid number"
             lng < -180 || lng > 180 -> "Must be between -180 and 180"
             else -> null
         }
 
-        if (latitudeError == null && longitudeError == null && lat != null && lng != null) {
-            onLocationSelected(lat, lng)
+        return latitudeError == null && longitudeError == null && lat != null && lng != null
+    }
+
+    fun validateAndSubmit() {
+        if (validateInputs()) {
+            val lat = latitudeText.toDoubleOrNull()
+            val lng = longitudeText.toDoubleOrNull()
+            if (lat != null && lng != null) {
+                onLocationSelected(lat, lng)
+            }
         }
     }
 
@@ -219,7 +233,6 @@ fun LocationPickerDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = { validateAndSubmit() },
-                        enabled = hasValidCoordinates,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = AppColors.green
                         )

@@ -209,6 +209,7 @@ class MapViewModel(
             MapAction.DismissLevelUpDialog -> dismissLevelUpDialog()
             is MapAction.SelectSharedPoi -> selectSharedPoi(action.sharedPoiId)
             is MapAction.CenterOnLocation -> centerOnLocation(action.latitude, action.longitude)
+            MapAction.ClearTargetCameraLocation -> clearTargetCameraLocation()
             is MapAction.DismissSharedDiscoveryNotification -> dismissSharedDiscoveryNotification(action.sharedPoiId)
             is MapAction.ViewDiscoveredSharedPoi -> viewDiscoveredSharedPoi(action.sharedPoiId)
             MapAction.DismissAllSharedDiscoveryNotifications -> dismissAllSharedDiscoveryNotifications()
@@ -226,6 +227,17 @@ class MapViewModel(
                 targetCameraLocation = Location(latitude, longitude),
                 isFollowingUser = false // Disable follow mode when manually centering
             )
+        }
+    }
+
+    /**
+     * Clears the target camera location after animation completes.
+     * This allows the same location to be targeted again.
+     */
+    private fun clearTargetCameraLocation() {
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            _state.value = currentState.copy(targetCameraLocation = null)
         }
     }
 

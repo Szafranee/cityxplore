@@ -352,6 +352,8 @@ private fun ReadyMap(
             val target = mapState.targetCameraLocation ?: return@LaunchedEffect
             val point = Point.fromLngLat(target.longitude, target.latitude)
             animateToLocation(point, zoom = 16.0)
+            // Clear the target after handling so the effect can fire again for the same location
+            onAction(MapAction.ClearTargetCameraLocation)
         }
 
         // Re-center button

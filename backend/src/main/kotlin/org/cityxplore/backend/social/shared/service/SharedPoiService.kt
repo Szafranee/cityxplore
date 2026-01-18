@@ -368,11 +368,22 @@ class SharedPoiService(
                 val pathStart = imageUrl.indexOf("$poiImagesBucket/")
                 if (pathStart != -1) {
                     val path = imageUrl.substring(pathStart + poiImagesBucket.length + 1)
-                    val bucket = supabaseClient.storage.from(poiImagesBucket)
-                    runBlocking {
-                        bucket.delete(path)
+
+                    // Security check: Validate that the path starts with the sharer's ID
+                    // to prevent deletion of other users' files
+                    val expectedPrefix = "$sharerId/"
+                    if (!path.startsWith(expectedPrefix)) {
+                        logger.warn(
+                            "Skipping image deletion - path '$path' does not start with expected prefix '$expectedPrefix'. " +
+                                    "This may indicate tampered imageUrls."
+                        )
+                    } else {
+                        val bucket = supabaseClient.storage.from(poiImagesBucket)
+                        runBlocking {
+                            bucket.delete(path)
+                        }
+                        logger.info("Deleted POI image: $path")
                     }
-                    logger.info("Deleted POI image: $path")
                 }
             } catch (e: Exception) {
                 logger.warn("Failed to delete POI image: ${e.message}")

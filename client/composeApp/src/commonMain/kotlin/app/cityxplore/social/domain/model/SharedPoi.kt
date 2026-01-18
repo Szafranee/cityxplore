@@ -15,7 +15,6 @@ package app.cityxplore.social.domain.model
  * @property message Optional message accompanying the shared POI.
  * @property sharedAt ISO timestamp when the POI was shared.
  * @property viewedAt ISO timestamp when the recipient viewed the POI, null if not yet viewed.
- * @property isCustomPoi Convenience flag indicating if this is a custom POI.
  * @property sharerName Display the name of the user who shared the POI.
  * @property sharerAvatar Avatar URL of the user who shared the POI.
  * @property recipientName Display the name of the recipient (for sent POIs).
@@ -31,12 +30,18 @@ data class SharedPoi(
     val sharedAt: String,
     val viewedAt: String?,
     val discoveredAt: String? = null,
-    val isCustomPoi: Boolean = customPoi != null,
     val sharerName: String? = null,
     val sharerAvatar: String? = null,
     val recipientName: String? = null,
     val recipientAvatar: String? = null
 ) {
+    /**
+     * Convenience flag indicating if this is a custom POI.
+     * Derived from customPoi presence to ensure it stays consistent after copy().
+     */
+    val isCustomPoi: Boolean
+        get() = customPoi != null
+
     /**
      * Returns the display name for this shared POI.
      * For custom POIs, uses the custom POI name.

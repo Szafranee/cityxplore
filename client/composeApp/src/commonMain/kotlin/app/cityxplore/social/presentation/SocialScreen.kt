@@ -248,7 +248,9 @@ fun SocialScreen(
         )
     }
 
-    if (currentSelectedSharedPoi != null) {
+    // Capture the selected shared POI to a local val to prevent NPE during recomposition
+    val selectedPoi = currentSelectedSharedPoi
+    if (selectedPoi != null) {
         ModalBottomSheet(
             onDismissRequest = { currentSelectedSharedPoi = null },
             sheetState = bottomSheetState
@@ -258,16 +260,15 @@ fun SocialScreen(
             } else null
 
             SharedPoiDetailsContent(
-                sharedPoi = currentSelectedSharedPoi!!,
+                sharedPoi = selectedPoi,
                 userLocation = userLocation,
                 isSentByMe = !currentSelectedSharedPoiIsReceived,
                 onShowOnMap = if (currentSelectedSharedPoiIsReceived) {
                     {
-                        val poi = currentSelectedSharedPoi
+                        // Capture the POI reference before closing sheet
+                        val poiToShow = selectedPoi
                         currentSelectedSharedPoi = null // Close sheet
-                        if (poi != null) {
-                            sharedPoisViewModel.showPoiOnMap(poi)
-                        }
+                        sharedPoisViewModel.showPoiOnMap(poiToShow)
                     }
                 } else null // Don't show the button for sent POIs
             )

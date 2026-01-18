@@ -11,6 +11,7 @@ import app.cityxplore.social.domain.model.SharedPoi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -183,7 +184,13 @@ class SharedPoisViewModel(
                 // Create CustomPoi with uploaded image URL
                 val customPoi = state.toCustomPoi(imageUrl)
                 if (customPoi == null) {
-                    _createPoiState.update { it.copy(isUploading = false) }
+                    _createPoiState.update {
+                        it.copy(
+                            isUploading = false,
+                            createError = "Failed to create POI: Invalid data. Please check all fields."
+                        )
+                    }
+                    _uiEvents.emit(SharedPoisUiEvent.ShowMessage("Failed to create POI: Invalid data"))
                     return@launch
                 }
 
@@ -320,5 +327,13 @@ class SharedPoisViewModel(
                 )
             }
         }
+    }
+
+    /**
+     * Cleans up resources when the ViewModel is disposed.
+     * Cancels all coroutines launched from viewModelScope.
+     */
+    fun onCleared() {
+        viewModelScope.cancel()
     }
 }

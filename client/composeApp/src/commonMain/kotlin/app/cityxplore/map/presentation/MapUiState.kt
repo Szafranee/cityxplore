@@ -141,6 +141,12 @@ sealed interface MapAction {
     data class CenterOnLocation(val latitude: Double, val longitude: Double) : MapAction
 
     /**
+     * Clear the target camera location after the animation completes.
+     * This allows the same location to be targeted again.
+     */
+    data object ClearTargetCameraLocation : MapAction
+
+    /**
      * User dismissed the discovery notification for a Shared POI.
      *
      * @property sharedPoiId The ID of the Shared POI whose notification should be dismissed.

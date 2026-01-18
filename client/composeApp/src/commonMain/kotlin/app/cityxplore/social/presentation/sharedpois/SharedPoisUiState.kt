@@ -48,12 +48,13 @@ data class CreateCustomPoiState(
     val currentStep: CreatePoiStep = CreatePoiStep.BASIC_INFO,
     val name: String = "",
     val description: String = "",
-    val category: String = "landmark",
+    val category: String = "HISTORICAL", // Must match a key from customPoiCategories
     val latitude: Double? = null,
     val longitude: Double? = null,
     val imageBytes: ByteArray? = null,
     val isLocationPickerVisible: Boolean = false,
-    val isUploading: Boolean = false
+    val isUploading: Boolean = false,
+    val createError: String? = null
 ) {
     /** Step 1 is valid when the name and category are filled */
     val isStep1Valid: Boolean

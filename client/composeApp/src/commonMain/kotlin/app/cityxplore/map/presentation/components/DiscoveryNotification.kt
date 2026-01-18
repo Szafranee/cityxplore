@@ -53,8 +53,11 @@ fun DiscoveryNotification(
 ) {
     // 1. Handle Regular POIs
     val discoveredPois = pois.filter { it.id in discoveredPoiIds }
+    // Check if a single full-screen regular POI popup is visible
+    val isRegularPopupVisible = discoveredPois.size == 1
+
     if (discoveredPois.isNotEmpty()) {
-        if (discoveredPois.size == 1) {
+        if (isRegularPopupVisible) {
             val poi = discoveredPois.first()
             PoiDiscoveryPopup(
                 poi = poi,
@@ -78,9 +81,10 @@ fun DiscoveryNotification(
         }
     }
 
-    // 2. Handle Shared POIs
+    // 2. Handle Shared POIs - only show when the regular POI popup is not visible
+    // to avoid UI overlap with full-screen modal
     val discoveredSharedPois = sharedPois.filter { it.id in discoveredSharedPoiIds }
-    if (discoveredSharedPois.isNotEmpty()) {
+    if (discoveredSharedPois.isNotEmpty() && !isRegularPopupVisible) {
         if (discoveredSharedPois.size == 1) {
             val sharedPoi = discoveredSharedPois.first()
             SharedPoiDiscoveryPopup(

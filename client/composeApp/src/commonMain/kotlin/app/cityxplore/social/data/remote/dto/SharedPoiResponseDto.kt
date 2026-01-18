@@ -37,7 +37,6 @@ data class SharedPoiResponseDto(
         sharedAt = sharedAt,
         viewedAt = viewedAt,
         discoveredAt = discoveredAt,
-        isCustomPoi = poiData != null,
         sharerName = sharerName,
         sharerAvatar = sharerAvatar,
         recipientName = recipientName,

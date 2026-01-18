@@ -22,8 +22,14 @@ actual fun rememberImagePicker(onImagePicked: (ByteArray?) -> Unit): ImagePicker
             if (uri != null) {
                 coroutineScope.launch {
                     val bytes = withContext(Dispatchers.IO) {
-                        context.contentResolver.openInputStream(uri)?.use {
-                            it.readBytes()
+                        try {
+                            context.contentResolver.openInputStream(uri)?.use {
+                                it.readBytes()
+                            }
+                        } catch (e: Exception) {
+                            // Log error and return null to signal failure
+                            e.printStackTrace()
+                            null
                         }
                     }
                     onImagePicked(bytes)

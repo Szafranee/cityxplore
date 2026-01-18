@@ -28,7 +28,8 @@ import kotlin.math.roundToInt
 fun formatDistanceForDisplay(distanceMeters: Double): String {
     return when {
         distanceMeters < 1000 -> {
-            val rounded = ((distanceMeters / 10).toInt() * 10).coerceAtLeast(10)
+            // Round to the nearest 10, coerce to at least 10
+            val rounded = ((distanceMeters / 10).roundToInt() * 10).coerceAtLeast(10)
             "$rounded m"
         }
 

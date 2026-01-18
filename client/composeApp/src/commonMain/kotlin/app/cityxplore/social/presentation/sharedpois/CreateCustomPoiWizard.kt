@@ -69,6 +69,7 @@ import app.cityxplore.core.rememberImagePicker
 import app.cityxplore.social.domain.model.Friendship
 import app.cityxplore.theme.AppColors
 import coil3.compose.AsyncImage
+import kotlin.math.roundToInt
 
 /**
  * Multistep wizard dialogue for creating and sharing a custom POI.
@@ -338,8 +339,11 @@ private fun Step2LocationPhoto(
                         fontWeight = FontWeight.Medium,
                         color = AppColors.green
                     )
+                    // Manual formatting for KMP compatibility (String.format is JVM only)
+                    val lat = ((state.latitude * 10000).roundToInt() / 10000.0).toString()
+                    val lng = ((state.longitude * 10000).roundToInt() / 10000.0).toString()
                     Text(
-                        text = "%.4f, %.4f".format(state.latitude, state.longitude),
+                        text = "$lat, $lng",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -450,10 +454,6 @@ private fun Step3SelectFriend(
     var selectedFriendId by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf("") }
 
-    // Check if selected friend has reached the limit
-    selectedFriendId?.let { id ->
-        (sentPoisPerRecipient[id] ?: 0) >= 5
-    } ?: false
 
     Column(modifier = Modifier.fillMaxWidth()) {
         if (friends.isEmpty()) {
