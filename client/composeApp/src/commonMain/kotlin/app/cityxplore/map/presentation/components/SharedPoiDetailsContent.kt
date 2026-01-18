@@ -13,14 +13,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Map
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -41,7 +38,6 @@ import app.cityxplore.core.utils.calculateDistance
 import app.cityxplore.map.domain.AutoDiscoverPoisUseCase
 import app.cityxplore.map.domain.PoiCategory
 import app.cityxplore.social.domain.model.SharedPoi
-import app.cityxplore.theme.AppColors
 import coil3.compose.AsyncImage
 
 /**
@@ -62,17 +58,13 @@ fun SharedPoiDetailsContent(
 ) {
     val isDiscovered = sharedPoi.isDiscovered || isSentByMe
     val title = sharedPoi.customPoi?.name ?: "Unknown Place"
-    val categoryString = sharedPoi.customPoi?.category ?: "OTHER"
+    val categoryString = sharedPoi.customPoi?.category
     val description = sharedPoi.customPoi?.description
     val imageUrl = sharedPoi.customPoi?.imageUrls?.firstOrNull()
     val coords = sharedPoi.coordinates
 
-    // Parse category to PoiCategory enum
-    val category = try {
-        PoiCategory.valueOf(categoryString.uppercase())
-    } catch (_: IllegalArgumentException) {
-        PoiCategory.OTHER
-    }
+    // Parse category using centralised utility
+    val category = safeParsePoiCategory(categoryString)
 
     // Calculate distance if we have user location and POI coordinates
     val distanceMeters = if (userLocation != null && coords != null) {
@@ -91,8 +83,12 @@ fun SharedPoiDetailsContent(
     ) {
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Sharer info banner (always shown)
-        SharedByBanner(sharedPoi = sharedPoi)
+        // Sharer info banner (always shown) - using a shared component
+        SharedByBanner(
+            sharerName = sharedPoi.sharerName,
+            sharerAvatar = sharedPoi.sharerAvatar,
+            message = sharedPoi.message
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -120,68 +116,6 @@ fun SharedPoiDetailsContent(
     }
 }
 
-/**
- * Banner showing who shared the POI and their message.
- */
-@Composable
-private fun SharedByBanner(sharedPoi: SharedPoi) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = AppColors.green.copy(alpha = 0.1f)
-        ),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Avatar
-            if (sharedPoi.sharerAvatar != null) {
-                AsyncImage(
-                    model = sharedPoi.sharerAvatar,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(AppColors.green),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = sharedPoi.sharerName?.firstOrNull()?.toString()?.uppercase() ?: "?",
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column {
-                Text(
-                    text = "Shared by ${sharedPoi.sharerName ?: "Unknown"}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = AppColors.green
-                )
-                if (sharedPoi.message != null) {
-                    Text(
-                        text = "\"${sharedPoi.message}\"",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-}
 
 /**
  * Content for discovered shared POIs - shows full details.
@@ -324,22 +258,7 @@ private fun UndiscoveredSharedPoiContent(
 
         // Show on Map button (if available)
         if (onShowOnMap != null) {
-            Button(
-                onClick = onShowOnMap,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Map,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Show on map")
-            }
+            ShowOnMapButton(onShowOnMap)
             Spacer(modifier = Modifier.height(16.dp))
         }
 

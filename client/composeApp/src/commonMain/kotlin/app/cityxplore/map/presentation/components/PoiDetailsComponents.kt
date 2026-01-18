@@ -16,9 +16,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -35,40 +38,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.cityxplore.core.utils.formatDistanceForDisplay
 import app.cityxplore.map.domain.PoiCategory
-import kotlin.math.roundToInt
-
-/**
- * Shared POI green color used for badges and gradients.
- */
-val SharedPoiGreen = Color(0xFF34C759)
-
-/**
- * Gets the display name for a POI category.
- */
-fun getCategoryDisplayName(category: PoiCategory): String {
-    return when (category) {
-        PoiCategory.HISTORICAL -> "Historical"
-        PoiCategory.CULTURAL -> "Cultural"
-        PoiCategory.NATURE -> "Nature"
-        PoiCategory.FOOD -> "Food & Dining"
-        PoiCategory.SPORTS -> "Sports"
-        PoiCategory.ENTERTAINMENT -> "Entertainment"
-        PoiCategory.CUSTOM -> "Custom"
-        PoiCategory.OTHER -> "Other"
-        PoiCategory.UNKNOWN -> "Unknown"
-    }
-}
+import app.cityxplore.theme.AppColors
 
 /**
  * A circular marker displaying the POI category, styled like the map marker.
  * Used in POI details to show visual consistency with the map.
+ *
+ * Supports both regular POIs and shared POIs with different visual styles:
+ * - Regular POIs: Simple circular background with category icon
+ * - Shared POIs: Gradient background with friend badge indicator
+ * - Major landmarks: Gold color scheme regardless of category
  *
  * @param category The POI category
  * @param isMajor Whether this is a major landmark (shows gold star)
  * @param isSharedPoi Whether this is a shared POI (uses a gradient background)
  * @param isDiscovered Whether the POI has been discovered (affects styling for shared POIs)
  * @param size The size of the marker
+ *
+ * @see getCategoryColor for category-specific colors
+ * @see getCategoryIcon for category-specific icons
  */
 @Composable
 fun PoiCategoryMarker(
@@ -78,11 +68,11 @@ fun PoiCategoryMarker(
     isDiscovered: Boolean = true,
     size: Dp = 80.dp
 ) {
-    val displayColor = if (isMajor) Color(0xFFFFD700) else getCategoryColor(category)
+    val displayColor = if (isMajor) AppColors.majorLandmarkGold else getCategoryColor(category)
 
     if (isSharedPoi) {
         val color1 = if (isDiscovered) displayColor else displayColor.copy(alpha = 0.5f)
-        val color2 = if (isDiscovered) SharedPoiGreen else SharedPoiGreen.copy(alpha = 0.5f)
+        val color2 = if (isDiscovered) AppColors.sharedPoiGreen else AppColors.sharedPoiGreen.copy(alpha = 0.5f)
         val ringGradient = Brush.linearGradient(listOf(color1, color2))
         val gradient = Brush.linearGradient(listOf(color1, color2))
 
@@ -143,7 +133,7 @@ fun PoiCategoryMarker(
             }
 
             // Friend Badge (Top Right)
-            val badgeColor = if (isDiscovered) SharedPoiGreen else SharedPoiGreen.copy(alpha = 0.6f)
+            val badgeColor = if (isDiscovered) AppColors.sharedPoiGreen else AppColors.sharedPoiGreen.copy(alpha = 0.6f)
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -217,7 +207,7 @@ fun PoiDistanceCard(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = formatDistance(distanceMeters),
+                text = formatDistanceForDisplay(distanceMeters),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -272,11 +262,96 @@ fun PoiDiscoverPrompt(
 }
 
 /**
+ * Banner displaying information about who shared a POI.
+ *
+ * Shows the sharer's avatar (or initial placeholder), name, and optional message.
+ * Used in shared POI details to indicate the social context.
+ *
+ * @param sharerName The name of the person who shared the POI
+ * @param sharerAvatar URL to the sharer's avatar image (nullable)
+ * @param message Optional message from the sharer
+ * @param modifier Modifier for the banner
+ *
+ * @see SharedPoiDetailsContent
+ */
+@Composable
+fun SharedByBanner(
+    sharerName: String?,
+    sharerAvatar: String?,
+    message: String?,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = AppColors.sharedPoiGreen.copy(alpha = 0.1f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Avatar
+            if (sharerAvatar != null) {
+                coil3.compose.AsyncImage(
+                    model = sharerAvatar,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(AppColors.sharedPoiGreen),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = sharerName?.firstOrNull()?.toString()?.uppercase() ?: "?",
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column {
+                Text(
+                    text = "Shared by ${sharerName ?: "Unknown"}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = AppColors.sharedPoiGreen
+                )
+                if (message != null) {
+                    Text(
+                        text = "\"$message\"",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
  * Category badge chip showing the POI category with icon.
  *
+ * Displays a styled badge with:
+ * - Category-specific color and icon for regular POIs
+ * - Gold color and star icon for major landmarks
+ * - Green color scheme for shared POIs
+ *
  * @param category The POI category
- * @param isMajor Whether this is a major landmark
- * @param isSharedPoi Whether this is a shared POI (uses green color)
+ * @param isMajor Whether this is a major landmark (overrides category styling)
+ * @param isSharedPoi Whether this is a shared POI (uses green accent color)
+ *
+ * @see PoiCategoryMarker for the circular marker variant
  */
 @Composable
 fun PoiCategoryBadge(
@@ -285,8 +360,8 @@ fun PoiCategoryBadge(
     isSharedPoi: Boolean = false
 ) {
     val displayColor = when {
-        isMajor -> Color(0xFFFFD700)
-        isSharedPoi -> SharedPoiGreen
+        isMajor -> AppColors.majorLandmarkGold
+        isSharedPoi -> AppColors.sharedPoiGreen
         else -> getCategoryColor(category)
     }
     val displayText = when {
@@ -323,19 +398,33 @@ fun PoiCategoryBadge(
 }
 
 /**
- * Formats distance in a user-friendly way.
+ * A shared button component for "Show on map" functionality.
+ * Consistent styling across all POI detail views.
+ *
+ * @param onClick Action to perform when clicked. If null, nothing happens (but checking for null is typically done by caller).
+ * @param modifier Modifier for the button.
  */
-fun formatDistance(distanceMeters: Double): String {
-    return when {
-        distanceMeters < 1000 -> {
-            val rounded = ((distanceMeters / 10).toInt() * 10).coerceAtLeast(10)
-            "$rounded m"
-        }
-
-        else -> {
-            val km = distanceMeters / 1000
-            val rounded = (km * 10).roundToInt() / 10.0
-            "$rounded km"
+@Composable
+fun ShowOnMapButton(
+    onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier
+) {
+    if (onClick != null) {
+        Button(
+            onClick = onClick,
+            modifier = modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        ) {
+            Icon(
+                imageVector = Icons.Default.Map,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Show on map")
         }
     }
 }

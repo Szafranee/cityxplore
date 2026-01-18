@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -45,7 +44,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.cityxplore.map.domain.MapPoi
-import app.cityxplore.map.domain.PoiCategory
 import app.cityxplore.theme.AppColors
 import coil3.compose.AsyncImage
 
@@ -54,8 +52,8 @@ import coil3.compose.AsyncImage
  * Same as PoiDiscoveryPopup but with added "Shared by" info.
  *
  * @param sharedPoi The newly discovered Shared POI to display
- * @param onViewDetails Callback when user wants to view full details
- * @param onDismiss Callback when user dismisses the popup
+ * @param onViewDetails Callback when the user wants to view full details
+ * @param onDismiss Callback when the user dismisses the popup
  */
 @Composable
 fun SharedPoiDiscoveryPopup(
@@ -64,12 +62,12 @@ fun SharedPoiDiscoveryPopup(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Full-screen overlay with semi-transparent background
+    // Full-screen overlay with a semi-transparent background
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.6f))
-            // Capture clicks to prevent interacting with map below
+            // Capture clicks to prevent interacting with the map below
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { },
         contentAlignment = Alignment.Center
     ) {
@@ -160,13 +158,8 @@ fun SharedPoiDiscoveryPopup(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Category Badge
-                    val categoryString = sharedPoi.customPoi?.category ?: "OTHER"
-                    val category = try {
-                        PoiCategory.valueOf(categoryString.uppercase())
-                    } catch (_: IllegalArgumentException) {
-                        PoiCategory.OTHER
-                    }
+                    // Category Badge - using centralised parsing
+                    val category = safeParsePoiCategory(sharedPoi.customPoi?.category)
 
                     PoiCategoryBadge(category = category, isSharedPoi = true)
 
@@ -207,8 +200,8 @@ fun SharedPoiDiscoveryPopup(
  * - "View Details" and "Close" buttons
  *
  * @param poi The newly discovered POI to display
- * @param onViewDetails Callback when user wants to view full POI details
- * @param onDismiss Callback when user dismisses the popup
+ * @param onViewDetails Callback when the user wants to view full POI details
+ * @param onDismiss Callback when the user dismisses the popup
  */
 @Composable
 fun PoiDiscoveryPopup(
@@ -217,7 +210,7 @@ fun PoiDiscoveryPopup(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Full-screen overlay with semi-transparent background
+    // Full-screen overlay with a semi-transparent background
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -315,8 +308,8 @@ fun PoiDiscoveryPopup(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Category Badge
-                    CategoryBadge(category = poi.category)
+                    // Category Badge - using shared component
+                    PoiCategoryBadge(category = poi.category)
 
                     Spacer(modifier = Modifier.height(24.dp))
 
@@ -349,54 +342,5 @@ fun PoiDiscoveryPopup(
                 }
             }
         }
-    }
-}
-
-/**
- * Badge displaying the POI category with icon.
- * Uses category-specific colors for better visual distinction.
- */
-@Composable
-private fun CategoryBadge(
-    category: PoiCategory,
-    modifier: Modifier = Modifier
-) {
-    val categoryColor = getCategoryColor(category)
-    val icon = getCategoryIcon(category)
-    val categoryName = when (category) {
-        PoiCategory.HISTORICAL -> "Historical"
-        PoiCategory.CULTURAL -> "Cultural"
-        PoiCategory.NATURE -> "Nature"
-        PoiCategory.FOOD -> "Food & Dining"
-        PoiCategory.SPORTS -> "Sports"
-        PoiCategory.ENTERTAINMENT -> "Entertainment"
-        PoiCategory.CUSTOM -> "Custom"
-        PoiCategory.OTHER -> "Other"
-        PoiCategory.UNKNOWN -> "Unknown"
-    }
-
-    Row(
-        modifier = modifier
-            .background(
-                color = categoryColor,
-                shape = RoundedCornerShape(12.dp)
-            )
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-            tint = Color.White
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(
-            text = categoryName,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = Color.White
-        )
     }
 }

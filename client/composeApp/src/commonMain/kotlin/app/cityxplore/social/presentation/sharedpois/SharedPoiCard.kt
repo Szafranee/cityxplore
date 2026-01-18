@@ -35,8 +35,9 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import app.cityxplore.map.domain.PoiCategory
 import app.cityxplore.map.presentation.components.PoiCategoryMarker
+import app.cityxplore.map.presentation.components.formatCategoryName
+import app.cityxplore.map.presentation.components.safeParsePoiCategory
 import app.cityxplore.social.domain.model.SharedPoi
 import app.cityxplore.theme.AppColors
 import kotlin.math.roundToInt
@@ -58,13 +59,8 @@ fun SharedPoiCard(
     val isDiscovered = sharedPoi.isDiscovered
     val clipboardManager = LocalClipboardManager.current
 
-    // Parse category
-    val categoryString = sharedPoi.customPoi?.category ?: "OTHER"
-    val category = try {
-        PoiCategory.valueOf(categoryString.uppercase())
-    } catch (_: IllegalArgumentException) {
-        PoiCategory.OTHER
-    }
+    // Parse category using centralised utility
+    val category = safeParsePoiCategory(sharedPoi.customPoi?.category)
 
     Card(
         modifier = modifier
@@ -120,7 +116,7 @@ fun SharedPoiCard(
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = categoryName.lowercase().replaceFirstChar { it.uppercase() },
+                            text = formatCategoryName(categoryName),
                             style = MaterialTheme.typography.labelSmall,
                             color = AppColors.green
                         )

@@ -67,6 +67,7 @@ import app.cityxplore.map.domain.AutoDiscoverPoisUseCase
 import app.cityxplore.map.domain.MapPoi
 import app.cityxplore.map.domain.PhotoSource
 import app.cityxplore.map.domain.PoiPhoto
+import app.cityxplore.theme.AppColors
 import coil3.compose.AsyncImage
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -234,9 +235,9 @@ fun PoiDetailsContent(
                         )
                     },
                     colors = AssistChipDefaults.assistChipColors(
-                        containerColor = Color(0xFFFFD700).copy(alpha = 0.15f),
-                        labelColor = Color(0xFFFFA000),
-                        leadingIconContentColor = Color(0xFFFFD700)
+                        containerColor = AppColors.majorLandmarkGold.copy(alpha = 0.15f),
+                        labelColor = AppColors.majorLandmarkLabel,
+                        leadingIconContentColor = AppColors.majorLandmarkGold
                     )
                 )
             } else {
@@ -281,8 +282,8 @@ fun PoiDetailsContent(
                     label = { Text(if (isOpen) "Open Now" else "Closed") },
                     onClick = { showOpeningHoursDialog = true },
                     colors = AssistChipDefaults.assistChipColors(
-                        labelColor = if (isOpen) Color(0xFF2E7D32) else Color(0xFFC62828),
-                        leadingIconContentColor = if (isOpen) Color(0xFF2E7D32) else Color(0xFFC62828)
+                        labelColor = if (isOpen) AppColors.openStatus else AppColors.closedStatus,
+                        leadingIconContentColor = if (isOpen) AppColors.openStatus else AppColors.closedStatus
                     )
                 )
             }
@@ -533,25 +534,7 @@ private fun UndiscoveredPoiContent(
         }
 
         // Show on Map button (if available)
-        if (onShowOnMap != null) {
-            Button(
-                onClick = onShowOnMap,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Map,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Show on map")
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-        }
+        ShowOnMapButton(onShowOnMap)
 
         Spacer(modifier = Modifier.height(8.dp))
 
