@@ -5,6 +5,7 @@ import app.cityxplore.core.cityXploreDispatchers
 import app.cityxplore.core.location.DistanceTracker
 import app.cityxplore.core.location.Location
 import app.cityxplore.core.location.LocationService
+import app.cityxplore.core.utils.calculateDistance
 import app.cityxplore.journal.domain.ToggleFavoriteUseCase
 import app.cityxplore.map.domain.AutoDiscoverPoisUseCase
 import app.cityxplore.map.domain.FogOfWarRepository
@@ -21,11 +22,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlin.math.PI
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.math.sqrt
 
 /**
  * ViewModel managing the map screen state and POI discovery logic.
@@ -627,63 +623,53 @@ class MapViewModel(
         val currentState = _state.value
         if (currentState !is MapUiState.Ready) return
 
-        val undiscoveredSharedPois = currentState.sharedPois.filter { !it.isDiscovered }
-        if (undiscoveredSharedPois.isEmpty()) return
-
         // Use the same discovery radius as regular POIs (200 m)
         val discoveryRadiusMeters = AutoDiscoverPoisUseCase.DISCOVERY_RADIUS_METERS
 
-        for (sharedPoi in undiscoveredSharedPois) {
-            val coords = sharedPoi.coordinates ?: continue
-            val distance = calculateHaversineDistance(
+        // 1. Identify undiscovered shared POIs within range
+        val poisToDiscover = currentState.sharedPois.filter { sharedPoi ->
+            if (sharedPoi.isDiscovered) return@filter false
+
+            val coords = sharedPoi.coordinates ?: return@filter false
+            val distance = calculateDistance(
                 userLocation.latitude, userLocation.longitude,
                 coords.first, coords.second
             )
-
-            if (distance <= discoveryRadiusMeters) {
-                // Discover the shared POI
-                sharedPoiRepository.discoverSharedPoi(sharedPoi.id)
-                    .onSuccess { updatedPoi ->
-                        // Update the cached shared POIs
-                        cachedSharedPois = cachedSharedPois.map {
-                            if (it.id == sharedPoi.id) updatedPoi else it
-                        }
-
-                        // Update state
-                        val freshState = _state.value
-                        if (freshState is MapUiState.Ready) {
-                            _state.value = freshState.copy(
-                                sharedPois = cachedSharedPois,
-                                newlyDiscoveredSharedPoiIds = freshState.newlyDiscoveredSharedPoiIds + sharedPoi.id
-                            )
-                        }
-                    }
-                    .onFailure { error ->
-                        println("Failed to discover shared POI ${sharedPoi.id}: ${error.message}")
-                    }
-            }
+            distance <= discoveryRadiusMeters
         }
-    }
 
-    /**
-     * Calculates distance between two coordinates using Haversine formula.
-     */
-    private fun calculateHaversineDistance(
-        lat1: Double, lon1: Double,
-        lat2: Double, lon2: Double
-    ): Double {
-        val earthRadius = 6371000.0 // meters
+        if (poisToDiscover.isEmpty()) return
 
-        val dLat = (lat2 - lat1) * PI / 180.0
-        val dLon = (lon2 - lon1) * PI / 180.0
+        // 2. Discover them sequentially and collect results to avoid race conditions
+        val successfullyDiscovered = mutableListOf<SharedPoi>()
 
-        val a = sin(dLat / 2) * sin(dLat / 2) +
-                cos(lat1 * PI / 180.0) * cos(lat2 * PI / 180.0) *
-                sin(dLon / 2) * sin(dLon / 2)
+        poisToDiscover.forEach { poi ->
+            sharedPoiRepository.discoverSharedPoi(poi.id)
+                .onSuccess { updatedPoi ->
+                    successfullyDiscovered.add(updatedPoi)
+                }
+                .onFailure { error ->
+                    println("Failed to discover shared POI ${poi.id}: ${error.message}")
+                }
+        }
 
-        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        if (successfullyDiscovered.isEmpty()) return
 
-        return earthRadius * c
+        // 3. Batch update state once
+        val freshState = _state.value
+        if (freshState is MapUiState.Ready) {
+            // Update the cached list first
+            cachedSharedPois = cachedSharedPois.map { current ->
+                successfullyDiscovered.find { it.id == current.id } ?: current
+            }
+
+            // Update UI state
+            _state.value = freshState.copy(
+                sharedPois = cachedSharedPois,
+                newlyDiscoveredSharedPoiIds = freshState.newlyDiscoveredSharedPoiIds + successfullyDiscovered.map { it.id }
+                    .toSet()
+            )
+        }
     }
 
     /**
