@@ -36,9 +36,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.cityxplore.map.domain.PoiCategory
-import app.cityxplore.map.presentation.components.SharedPoiMarkerSmall
+import app.cityxplore.map.presentation.components.PoiCategoryMarker
 import app.cityxplore.social.domain.model.SharedPoi
 import app.cityxplore.theme.AppColors
+import kotlin.math.roundToInt
 
 /**
  * Card component displaying a shared POI with actions.
@@ -86,10 +87,11 @@ fun SharedPoiCard(
             verticalAlignment = Alignment.Top
         ) {
             // Unified marker based on category and discovery status
-            SharedPoiMarkerSmall(
+            PoiCategoryMarker(
                 category = category,
+                isSharedPoi = true,
                 isDiscovered = if (isReceived) isDiscovered else true, // Sent POIs are always "discovered" for the sender
-                size = 44.dp
+                size = 48.dp
             )
 
             Spacer(modifier = Modifier.width(12.dp))
@@ -118,7 +120,7 @@ fun SharedPoiCard(
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = categoryName.replaceFirstChar { it.uppercase() },
+                            text = categoryName.lowercase().replaceFirstChar { it.uppercase() },
                             style = MaterialTheme.typography.labelSmall,
                             color = AppColors.green
                         )
@@ -277,7 +279,7 @@ fun SharedPoiCard(
  * Formats coordinate to 4 decimal places.
  */
 private fun formatCoordinate(value: Double): String {
-    return "%.4f".format(value)
+    return ((value * 10000).roundToInt() / 10000.0).toString()
 }
 
 /**

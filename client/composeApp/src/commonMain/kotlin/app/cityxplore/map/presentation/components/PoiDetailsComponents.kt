@@ -9,12 +9,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.Card
@@ -25,6 +27,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -101,15 +105,66 @@ fun PoiCategoryMarker(
                     .background(brush = gradient, shape = CircleShape),
                 contentAlignment = Alignment.Center
             ) {
+                if (isDiscovered) {
+                    val iconVector = if (isMajor) Icons.Rounded.Star else getCategoryIcon(category)
+                    Icon(
+                        imageVector = iconVector,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size((size - 8.dp) * 0.5f)
+                    )
+                } else {
+                    // Draw custom X for undiscovered to match map style (thicker lines)
+                    val markerSize = size // Capture size to avoid shadowing in DrawScope
+                    androidx.compose.foundation.Canvas(modifier = Modifier.size((markerSize - 8.dp) * 0.5f)) {
+                        val totalSizePx = markerSize.toPx()
+                        val strokeWidth = totalSizePx * 0.1f
+                        val xRadius = totalSizePx * 0.15f
+                        val centerOffset = this.center
+
+                        val pathColor = Color(0xFFC8C8C8)
+
+                        drawLine(
+                            color = pathColor,
+                            start = centerOffset + androidx.compose.ui.geometry.Offset(-xRadius, -xRadius),
+                            end = centerOffset + androidx.compose.ui.geometry.Offset(xRadius, xRadius),
+                            strokeWidth = strokeWidth,
+                            cap = androidx.compose.ui.graphics.StrokeCap.Round
+                        )
+                        drawLine(
+                            color = pathColor,
+                            start = centerOffset + androidx.compose.ui.geometry.Offset(xRadius, -xRadius),
+                            end = centerOffset + androidx.compose.ui.geometry.Offset(-xRadius, xRadius),
+                            strokeWidth = strokeWidth,
+                            cap = androidx.compose.ui.graphics.StrokeCap.Round
+                        )
+                    }
+                }
+            }
+
+            // Friend Badge (Top Right)
+            val badgeColor = if (isDiscovered) SharedPoiGreen else SharedPoiGreen.copy(alpha = 0.6f)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 0.dp, y = 0.dp) // Adjust as needed
+                    .size(size * 0.3f)
+                    .shadow(elevation = 2.dp, shape = CircleShape)
+                    .clip(CircleShape)
+                    .background(badgeColor)
+                    .border(1.dp, Color.White, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
                 Icon(
-                    imageVector = if (isMajor) Icons.Rounded.Star else getCategoryIcon(category),
+                    imageVector = Icons.Default.Person,
                     contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size((size - 8.dp) * 0.5f)
+                    modifier = Modifier.size(size * 0.2f)
                 )
             }
         }
     } else {
+        // Regular POI Marker
         Box(
             modifier = Modifier
                 .size(size)
