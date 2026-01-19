@@ -350,4 +350,34 @@ class AchievementMapperTest {
         assertNotNull(achievement.criteria)
         assertTrue(achievement.criteria.isEmpty())
     }
+
+    @Test
+    fun `toUserAchievementDto should handle null UserAchievement correctly`() {
+        // Given - achievement exists but user has no progress
+        val achievementId = UUID.randomUUID()
+
+        val achievement = Achievement(
+            id = achievementId,
+            name = "Locked Achievement",
+            description = "User has not started this achievement",
+            category = "Exploration",
+            criteria = mapOf("count" to 10),
+            iconUrl = "https://example.com/icon.png",
+            points = 50,
+            isActive = true
+        )
+
+        // When - userAchievement is null (user has no progress)
+        val response = toUserAchievementDto(achievement, null)
+
+        // Then
+        assertEquals(achievementId, response.achievement.id)
+        assertEquals("Locked Achievement", response.achievement.name)
+        assertEquals("User has not started this achievement", response.achievement.description)
+        assertEquals("Exploration", response.achievement.category)
+        assertEquals("https://example.com/icon.png", response.achievement.iconUrl)
+        assertEquals(50, response.achievement.points)
+        assertNull(response.achievedAt) // Not unlocked
+        assertNull(response.progress)   // No progress
+    }
 }

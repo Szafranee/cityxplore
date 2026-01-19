@@ -228,84 +228,84 @@ class AchievementServiceTest {
     }
 
     @Test
-    @DisplayName("getUserAchievements should return all user achievements")
-    fun `getUserAchievements should return all user achievements`() {
-        // Given
-        val userAchievements = listOf(
-            testUserAchievement,
-            UserAchievement(
-                userId = testUserId,
-                achievementId = UUID.randomUUID(),
-                achievedAt = LocalDateTime.now(),
-                progressData = null
-            )
+    @DisplayName("getUserAchievements should return all achievements with user progress")
+    fun `getUserAchievements should return all achievements with user progress`() {
+        // Given - two achievements exist, user has progress on one
+        val secondAchievementId = UUID.randomUUID()
+        val secondAchievement = Achievement(
+            id = secondAchievementId,
+            name = "Second Achievement",
+            description = "Description",
+            category = "Category",
+            criteria = mapOf("type" to "test"),
+            iconUrl = null,
+            points = 20,
+            isActive = true
         )
-        val achievements = userAchievements.mapIndexed { index, ua ->
-            if (index == 0) testAchievement
-            else Achievement(
-                id = ua.achievementId,
-                name = "Second Achievement",
-                description = "Description",
-                category = "Category",
-                criteria = mapOf("type" to "test"),
-                iconUrl = null,
-                points = 20,
-                isActive = true
-            )
-        }
+        val allAchievements = listOf(testAchievement, secondAchievement)
+        val userAchievements = listOf(testUserAchievement) // User only has progress on first
+
+        every { achievementRepository.findAllByIsActiveTrue() } returns allAchievements
         every { userAchievementRepository.findAllByUserId(testUserId) } returns userAchievements
-        every { achievementRepository.findAllById(any()) } returns achievements
 
         // When
         val result = achievementService.getUserAchievements(testUserId)
 
-        // Then
+        // Then - should return ALL achievements
         assertEquals(2, result.size)
-        assertEquals("First Discovery", result[0].achievement.name)
-        assertEquals(10, result[0].achievement.points)
+
+        // First achievement - user has progress
+        val first = result.find { it.achievement.id == testAchievementId }
+        assertNotNull(first)
+        assertEquals("First Discovery", first!!.achievement.name)
+        assertNotNull(first.achievedAt)
+
+        // Second achievement - user has no progress
+        val second = result.find { it.achievement.id == secondAchievementId }
+        assertNotNull(second)
+        assertEquals("Second Achievement", second!!.achievement.name)
+        assertNull(second.achievedAt) // Not unlocked
+        assertNull(second.progress)   // No progress
+
+        verify { achievementRepository.findAllByIsActiveTrue() }
         verify { userAchievementRepository.findAllByUserId(testUserId) }
-        verify { achievementRepository.findAllById(any()) }
     }
 
     @Test
-    @DisplayName("getUserAchievements should return empty list when user has no achievements")
-    fun `getUserAchievements should return empty list when user has no achievements`() {
-        // Given
+    @DisplayName("getUserAchievements should return all achievements even when user has none")
+    fun `getUserAchievements should return all achievements even when user has none`() {
+        // Given - achievements exist but user has no progress
+        val allAchievements = listOf(testAchievement)
+        every { achievementRepository.findAllByIsActiveTrue() } returns allAchievements
         every { userAchievementRepository.findAllByUserId(testUserId) } returns emptyList()
-        every { achievementRepository.findAllById(any()) } returns emptyList()
+
+        // When
+        val result = achievementService.getUserAchievements(testUserId)
+
+        // Then - should still return all achievements with null progress
+        assertEquals(1, result.size)
+        assertEquals("First Discovery", result[0].achievement.name)
+        assertNull(result[0].achievedAt)
+        assertNull(result[0].progress)
+
+        verify { achievementRepository.findAllByIsActiveTrue() }
+        verify { userAchievementRepository.findAllByUserId(testUserId) }
+    }
+
+    @Test
+    @DisplayName("getUserAchievements should return empty list when no achievements exist")
+    fun `getUserAchievements should return empty list when no achievements exist`() {
+        // Given - no achievements in system
+        every { achievementRepository.findAllByIsActiveTrue() } returns emptyList()
+        every { userAchievementRepository.findAllByUserId(testUserId) } returns emptyList()
 
         // When
         val result = achievementService.getUserAchievements(testUserId)
 
         // Then
         assertTrue(result.isEmpty())
+        verify { achievementRepository.findAllByIsActiveTrue() }
         verify { userAchievementRepository.findAllByUserId(testUserId) }
-    }
-
-    @Test
-    @DisplayName("getUserAchievements should filter out achievements without definitions")
-    fun `getUserAchievements should filter out achievements without definitions`() {
-        // Given
-        val userAchievements = listOf(
-            testUserAchievement,
-            UserAchievement(
-                userId = testUserId,
-                achievementId = UUID.randomUUID(),
-                achievedAt = LocalDateTime.now(),
-                progressData = null
-            )
-        )
-        every { userAchievementRepository.findAllByUserId(testUserId) } returns userAchievements
-        every { achievementRepository.findAllById(any()) } returns listOf(testAchievement) // Only first one exists
-
-        // When
-        val result = achievementService.getUserAchievements(testUserId)
-
-        // Then
-        assertEquals(1, result.size)
-        assertEquals("First Discovery", result[0].achievement.name)
-        verify { userAchievementRepository.findAllByUserId(testUserId) }
-        verify { achievementRepository.findAllById(any()) }
     }
 
     @Test

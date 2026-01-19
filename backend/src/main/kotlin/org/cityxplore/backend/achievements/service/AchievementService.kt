@@ -85,23 +85,28 @@ class AchievementService(
     }
 
     /**
-     * Fetches the achievements a user has earned and returns them as DTOs.
+     * Fetches ALL achievements with the user's progress.
      *
-     * Only user achievement records that correspond to an existing achievement definition are included.
-     * Each returned entry contains the achievement details, the timestamp when it was achieved, and optional progress
-     * mapped under the "progress" key.
+     * Returns all active achievements. For achievements the user has earned or has progress on,
+     * includes the achievement timestamp and progress data. For achievements the user hasn't
+     * started, returns them with achievedAt = null and progress = null.
+     *
+     * This allows the client to display all achievements (locked/unlocked) in the profile.
      */
     @Transactional(readOnly = true)
     fun getUserAchievements(userId: UUID): List<UserAchievementResponse> {
+        // Get all active achievements
+        val allAchievements = achievementRepository.findAllByIsActiveTrue()
+
+        // Get user's progress/unlocks
         val userAchievements = userAchievementRepository.findAllByUserId(userId)
-        val ids = userAchievements.map { it.achievementId }.toSet()
-        val achievements = achievementRepository.findAllById(ids).associateBy { it.id }
+        val userAchievementsMap = userAchievements.associateBy { it.achievementId }
 
-        val result = userAchievements.mapNotNull { ua ->
-            achievements[ua.achievementId]?.let { ach -> toUserAchievementDto(ach, ua) }
+        // Map all achievements with the user's progress (or null if no progress)
+        return allAchievements.map { achievement ->
+            val userAchievement = userAchievementsMap[achievement.id]
+            toUserAchievementDto(achievement, userAchievement)
         }
-
-        return result
     }
 
     /**
