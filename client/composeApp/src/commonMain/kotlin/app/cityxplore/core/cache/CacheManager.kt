@@ -1,8 +1,5 @@
 package app.cityxplore.core.cache
 
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlin.time.Clock
 
 /**
@@ -59,10 +56,6 @@ class CacheManager(
     private val config: CacheConfig = CacheConfig()
 ) {
     private val cacheTimestamps = mutableMapOf<CacheKey, Long>()
-    private val _cacheStates = MutableStateFlow<Map<CacheKey, CacheState>>(emptyMap())
-
-    /** Observable cache states for all keys */
-    val cacheStates: StateFlow<Map<CacheKey, CacheState>> = _cacheStates.asStateFlow()
 
     private fun currentTimeMillis(): Long = Clock.System.now().toEpochMilliseconds()
 
@@ -82,63 +75,10 @@ class CacheManager(
     }
 
     /**
-     * Checks if the cache for a key is valid (fresh or stale but usable).
-     */
-    fun isValid(key: CacheKey): Boolean {
-        val state = getCacheState(key)
-        return state == CacheState.FRESH || state == CacheState.STALE
-    }
-
-    /**
-     * Checks if the cache for a key needs refresh (stale or expired).
-     */
-    fun needsRefresh(key: CacheKey): Boolean {
-        val state = getCacheState(key)
-        return state != CacheState.FRESH
-    }
-
-    /**
-     * Checks if the cache requires immediate refresh (expired or empty).
-     */
-    fun requiresImmediateRefresh(key: CacheKey): Boolean {
-        val state = getCacheState(key)
-        return state == CacheState.EXPIRED || state == CacheState.EMPTY
-    }
-
-    /**
      * Marks a cache key as freshly updated.
      */
     fun markAsFresh(key: CacheKey) {
         cacheTimestamps[key] = currentTimeMillis()
-        updateStates()
-    }
-
-    /**
-     * Invalidates a specific cache key, forcing refresh on next access.
-     */
-    fun invalidate(key: CacheKey) {
-        cacheTimestamps.remove(key)
-        updateStates()
-    }
-
-    /**
-     * Invalidates all cache entries.
-     */
-    fun invalidateAll() {
-        cacheTimestamps.clear()
-        updateStates()
-    }
-
-    /**
-     * Gets the age of cached data in milliseconds, or null if not cached.
-     */
-    fun getCacheAge(key: CacheKey): Long? {
-        val timestamp = cacheTimestamps[key] ?: return null
-        return currentTimeMillis() - timestamp
-    }
-
-    private fun updateStates() {
-        _cacheStates.value = CacheKey.entries.associateWith { getCacheState(it) }
     }
 }
 

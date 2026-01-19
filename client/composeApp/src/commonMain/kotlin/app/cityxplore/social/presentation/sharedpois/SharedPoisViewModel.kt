@@ -205,10 +205,6 @@ class SharedPoisViewModel(
         }
     }
 
-    fun hideShareDialog() {
-        resetCreatePoiState()
-    }
-
     fun shareCustomPoi(recipientId: String, message: String?) {
         val state = _createPoiState.value
         if (!state.isValid) return
@@ -283,35 +279,6 @@ class SharedPoisViewModel(
         }
     }
 
-    fun shareExistingPoi(poiId: String, recipientId: String, message: String?) {
-        scope.launch {
-            // Check connectivity first
-            if (!connectivityObserver.isNetworkAvailable()) {
-                _uiEvents.emit(SharedPoisUiEvent.ShowMessage(offlineMessage))
-                return@launch
-            }
-
-            val request = SharePoiRequest(
-                recipientId = recipientId,
-                poiId = poiId,
-                message = message?.trim()?.ifEmpty { null }
-            )
-
-            sharePoiUseCase(request)
-                .onSuccess {
-                    _uiEvents.emit(SharedPoisUiEvent.ShowMessage("POI shared successfully!"))
-                    refresh()
-                }
-                .onFailure { error ->
-                    _uiEvents.emit(
-                        SharedPoisUiEvent.ShowMessage(
-                            error.message ?: "Failed to share POI"
-                        )
-                    )
-                }
-        }
-    }
-
     // Actions on Shared POIs
 
     fun markAsViewed(sharedPoi: SharedPoi) {
@@ -366,23 +333,8 @@ class SharedPoisViewModel(
         // Success/failure is handled by observeData() flow collection
     }
 
-    fun navigateToPoiOnMap(sharedPoi: SharedPoi) {
-        scope.launch {
-            val coords = sharedPoi.coordinates
-            if (coords != null) {
-                _uiEvents.emit(SharedPoisUiEvent.NavigateToPoiOnMap(coords.first, coords.second))
-            } else {
-                _uiEvents.emit(
-                    SharedPoisUiEvent.ShowMessage(
-                        "Cannot navigate to this POI - location unavailable"
-                    )
-                )
-            }
-        }
-    }
-
     /**
-     * Shows a shared POI on the map without navigating to it.
+     * Shows a shared POI on the map.
      * Centers the map on the POI's location.
      */
     fun showPoiOnMap(sharedPoi: SharedPoi) {

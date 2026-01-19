@@ -48,22 +48,6 @@ data class PoiEntity(
     )
 
     companion object {
-        /**
-         * Creates an entity from a domain model.
-         */
-        fun fromDomain(poi: PoiModel): PoiEntity = PoiEntity(
-            id = poi.id,
-            name = poi.name,
-            description = poi.description,
-            latitude = poi.latitude,
-            longitude = poi.longitude,
-            category = poi.category.name,
-            isMajor = poi.isMajor,
-            discovered = poi.discovered,
-            discoveryDate = poi.discoveryDate,
-            isFavorite = poi.isFavorite,
-            lastSyncedAt = currentTimeMillis()
-        )
 
         /**
          * Creates an entity from a domain model with explicit discovery info.

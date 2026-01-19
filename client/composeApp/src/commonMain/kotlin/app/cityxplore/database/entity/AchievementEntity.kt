@@ -4,7 +4,6 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import app.cityxplore.achievements.domain.Achievement
 import app.cityxplore.database.currentTimeMillis
-import kotlin.time.Instant
 
 /**
  * Room entity for caching achievement definitions.
@@ -90,22 +89,4 @@ data class UserAchievementEntity(
             lastSyncedAt = currentTimeMillis()
         )
     }
-}
-
-/**
- * Combines achievement definition with user progress into a domain model.
- */
-fun AchievementEntity.toDomainWithProgress(userProgress: UserAchievementEntity?): Achievement {
-    return Achievement(
-        id = id,
-        name = name,
-        description = description,
-        category = category,
-        iconUrl = iconUrl,
-        points = points,
-        isUnlocked = userProgress?.isUnlocked ?: false,
-        unlockedAt = userProgress?.unlockedAtMillis?.let { Instant.fromEpochMilliseconds(it) },
-        progress = userProgress?.progress ?: 0f,
-        progressFormatted = userProgress?.progressFormatted ?: ""
-    )
 }
