@@ -1,7 +1,12 @@
 package app.cityxplore.map.presentation
 
 import app.cityxplore.achievements.domain.Achievement
+import app.cityxplore.core.cache.CacheKey
+import app.cityxplore.core.cache.CacheManager
+import app.cityxplore.core.cache.CacheState
 import app.cityxplore.core.cityXploreDispatchers
+import app.cityxplore.core.lifecycle.AppLifecycleObserver
+import app.cityxplore.core.lifecycle.AppLifecycleState
 import app.cityxplore.core.location.DistanceTracker
 import app.cityxplore.core.location.Location
 import app.cityxplore.core.location.LocationService
@@ -17,6 +22,7 @@ import app.cityxplore.platform.CityXploreBaseViewModel
 import app.cityxplore.profile.domain.DistanceSyncRepository
 import app.cityxplore.profile.domain.ProfileRepository
 import app.cityxplore.social.domain.model.SharedPoi
+import app.cityxplore.social.domain.repository.SharedPoiRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,9 +38,10 @@ import kotlinx.coroutines.launch
  * - Managing map camera follow mode
  * - Handling POI selection for detail display
  * - Tracking newly discovered POIs for UI notifications
- * - Managing Fog of War (revealed hexagons)
+ * - Managing Fog of War (revealed hexagons) with offline-first approach
  * - Tracking distance travelled and syncing to backend
  * - Displaying achievement unlock notifications
+ * - Lifecycle-aware caching to prevent unnecessary reloads
  *
  * POIs are automatically discovered when the user is within the discovery radius
  * (defined in [AutoDiscoverPoisUseCase]). The discovery is handled by the use case,
@@ -43,10 +50,12 @@ import kotlinx.coroutines.launch
  * @property getPoisUseCase Use case for fetching POIs with discovery status.
  * @property autoDiscoverUseCase Use case for automatic POI discovery based on location.
  * @property updateFogOfWarUseCase Use case for updating fog of war based on user location.
- * @property fogOfWarRepository Repository for fetching revealed hexagons.
+ * @property fogOfWarRepository Repository for fetching revealed hexagons (offline-first).
  * @property locationService The service providing user location updates.
  * @property distanceTracker Tracker for accumulating distance between GPS points.
  * @property distanceSyncRepository Repository for syncing distance to the backend.
+ * @property cacheManager Manager for tracking data freshness.
+ * @property appLifecycleObserver Observer for app lifecycle events.
  */
 class MapViewModel(
     private val getPoisUseCase: GetPoisWithDiscoveriesUseCase,
@@ -58,7 +67,9 @@ class MapViewModel(
     private val toggleFavoriteUseCase: ToggleFavoriteUseCase,
     private val distanceTracker: DistanceTracker,
     private val distanceSyncRepository: DistanceSyncRepository,
-    private val sharedPoiRepository: app.cityxplore.social.domain.repository.SharedPoiRepository
+    private val sharedPoiRepository: SharedPoiRepository,
+    private val cacheManager: CacheManager,
+    private val appLifecycleObserver: AppLifecycleObserver
 ) : CityXploreBaseViewModel() {
     private val _state = MutableStateFlow<MapUiState>(MapUiState.Loading)
 
@@ -69,18 +80,139 @@ class MapViewModel(
     val state: StateFlow<MapUiState> = _state.asStateFlow()
 
     private var locationObserverJob: Job? = null
+    private var fogOfWarObserverJob: Job? = null
     private var lastKnownLocation: Location? = null
     private var cachedWarsawHexagons: Set<String> = emptySet()
-    private var cachedRevealedHexagons: Set<String> = emptySet()
     private var cachedSharedPois: List<SharedPoi> = emptyList()
 
     // Track previous level for level-up detection
     private var previousLevel: Int? = null
 
     init {
-        loadData()
+        observeLifecycle()
+        observeFogOfWar()
+        loadDataIfNeeded()
         startLocationTracking()
         observeSharedPois()
+    }
+
+    /**
+     * Observes app lifecycle to handle resume events.
+     * Prevents unnecessary data reloads on quick app switches.
+     */
+    private fun observeLifecycle() {
+        scope.launch {
+            appLifecycleObserver.lifecycleState.collect { state ->
+                when (state) {
+                    AppLifecycleState.RESUMED -> handleResume()
+                    else -> { /* no action needed */
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Handles app resume - decides whether to refresh data based on background duration.
+     */
+    private fun handleResume() {
+        if (appLifecycleObserver.wasQuickSwitch()) {
+            // Quick switch - don't reload anything
+            return
+        }
+
+        if (appLifecycleObserver.shouldRefreshOnResume()) {
+            // Long background - refresh data in the background
+            refreshDataInBackground()
+        }
+    }
+
+    /**
+     * Refreshes data in the background without showing loading state.
+     */
+    private fun refreshDataInBackground() {
+        scope.launch(cityXploreDispatchers.io) {
+            // Refresh fog of war from server (will update local DB, Flow will notify)
+            fogOfWarRepository.refreshRevealedHexagons()
+            cacheManager.markAsFresh(CacheKey.FOG_OF_WAR)
+
+            // Refresh POIs
+            loadPois()
+            cacheManager.markAsFresh(CacheKey.POIS)
+        }
+    }
+
+    /**
+     * Observes revealed hexagons from the local database.
+     * This is the primary source of truth for fog of war - updates automatically.
+     */
+    private fun observeFogOfWar() {
+        fogOfWarObserverJob?.cancel()
+        fogOfWarObserverJob = scope.launch(cityXploreDispatchers.io) {
+            fogOfWarRepository.observeRevealedHexagons().collect { revealedHexagons ->
+                val currentState = _state.value
+                if (currentState is MapUiState.Ready) {
+                    _state.value = currentState.copy(revealedHexagons = revealedHexagons)
+                }
+            }
+        }
+    }
+
+    /**
+     * Loads data based on cache freshness.
+     * - FRESH: Use cached data, don't load
+     * - STALE: Use cached data, refresh in background
+     * - EXPIRED/EMPTY: Full load
+     */
+    private fun loadDataIfNeeded() {
+        val fogOfWarCacheState = cacheManager.getCacheState(CacheKey.FOG_OF_WAR)
+        val poisCacheState = cacheManager.getCacheState(CacheKey.POIS)
+
+        when {
+            fogOfWarCacheState == CacheState.FRESH && poisCacheState == CacheState.FRESH -> {
+                // Everything is fresh - just load from local
+                loadDataFromLocal()
+            }
+
+            fogOfWarCacheState == CacheState.EMPTY || poisCacheState == CacheState.EMPTY -> {
+                // First load - full load with loading state
+                loadData()
+            }
+
+            else -> {
+                // Stale or expired - load from local, refresh in background
+                loadDataFromLocal()
+                refreshDataInBackground()
+            }
+        }
+    }
+
+    /**
+     * Loads data from local sources only (fast, no network).
+     */
+    private fun loadDataFromLocal() {
+        scope.launch(cityXploreDispatchers.io) {
+            val revealedResult = fogOfWarRepository.getRevealedHexagons()
+            val warsawResult = fogOfWarRepository.getWarsawHexagons()
+
+            cachedWarsawHexagons = warsawResult.getOrElse { cachedWarsawHexagons }
+
+            // Set initial state - revealed hexagons will be updated by Flow
+            _state.value = MapUiState.Ready(
+                pois = emptyList(), // Will be loaded
+                userLocation = lastKnownLocation,
+                isFollowingUser = true,
+                selectedPoi = null,
+                newlyDiscoveredPoiIds = emptySet(),
+                revealedHexagons = revealedResult.getOrDefault(emptySet()),
+                warsawHexagons = cachedWarsawHexagons,
+                sharedPois = cachedSharedPois
+            )
+
+            // Load POIs (will update state)
+            loadPois()
+            loadProfile()
+        }
     }
 
     /**
@@ -148,7 +280,6 @@ class MapViewModel(
             val revealedResult = fogOfWarRepository.getRevealedHexagons()
             val warsawResult = fogOfWarRepository.getWarsawHexagons()
 
-            cachedRevealedHexagons = revealedResult.getOrElse { cachedRevealedHexagons }
             cachedWarsawHexagons = warsawResult.getOrElse { cachedWarsawHexagons }
 
             poisResult.onSuccess { pois ->
@@ -396,7 +527,7 @@ class MapViewModel(
 
             // Default values to fall back on if we are not in Ready state
             var currentIsFollowing = true
-            var currentRevealedHexagons = cachedRevealedHexagons
+            var currentRevealedHexagons = emptySet<String>()
             var currentWarsawHexagons = cachedWarsawHexagons
             var currentUserLocation: Location? = lastKnownLocation
             var currentAchievements: List<Achievement> = emptyList()
@@ -444,23 +575,25 @@ class MapViewModel(
 
     /**
      * Loads the Fog of War state from the backend.
-     * Fetches revealed hexagons and updates the map state.
+     * Refreshes revealed hexagons from server - local DB will be updated,
+     * and the observing Flow will automatically update the UI.
      */
     private fun loadFogOfWar() {
         scope.launch(cityXploreDispatchers.io) {
-            val revealedResult = fogOfWarRepository.getRevealedHexagons()
-            val warsawResult = fogOfWarRepository.getWarsawHexagons()
+            // Refresh from server - this updates local DB, and Flow will notify UI
+            fogOfWarRepository.refreshRevealedHexagons()
 
-            cachedRevealedHexagons = revealedResult.getOrElse { cachedRevealedHexagons }
+            val warsawResult = fogOfWarRepository.getWarsawHexagons()
             cachedWarsawHexagons = warsawResult.getOrElse { cachedWarsawHexagons }
 
             val currentState = _state.value
             if (currentState is MapUiState.Ready) {
                 _state.value = currentState.copy(
-                    revealedHexagons = cachedRevealedHexagons,
                     warsawHexagons = cachedWarsawHexagons
                 )
             }
+
+            cacheManager.markAsFresh(CacheKey.FOG_OF_WAR)
         }
     }
 
@@ -614,7 +747,7 @@ class MapViewModel(
     }
 
     /**
-     * Checks if any undiscovered shared POIs are within discovery range.
+     * Checks if any undiscovered shared POIs are within the discovery range.
      * Note: Shared POI discoveries do NOT grant XP or count towards regular achievements.
      *
      * @param userLocation The current location of the user.
@@ -727,5 +860,6 @@ class MapViewModel(
     override fun onCleared() {
         super.onCleared()
         locationObserverJob?.cancel()
+        fogOfWarObserverJob?.cancel()
     }
 }

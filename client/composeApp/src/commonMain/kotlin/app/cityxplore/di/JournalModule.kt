@@ -8,5 +8,12 @@ import org.koin.dsl.module
 val journalModule = module {
     factory { GetJournalEntriesUseCase(getPoisWithDiscoveriesUseCase = get()) }
     factory { ToggleFavoriteUseCase(poiRepository = get()) }
-    factory { JournalViewModel(getJournalEntriesUseCase = get(), toggleFavoriteUseCase = get()) }
+    factory {
+        JournalViewModel(
+            poiRepository = get(),
+            toggleFavoriteUseCase = get(),
+            cacheManager = get(),
+            appLifecycleObserver = get()
+        )
+    }
 }

@@ -2,15 +2,23 @@ package app.cityxplore.profile.presentation
 
 import app.cityxplore.achievements.domain.Achievement
 import app.cityxplore.achievements.domain.AchievementRepository
+import app.cityxplore.core.cache.CacheKey
+import app.cityxplore.core.cache.CacheManager
+import app.cityxplore.core.cache.CacheState
+import app.cityxplore.core.cityXploreDispatchers
+import app.cityxplore.core.lifecycle.AppLifecycleObserver
+import app.cityxplore.core.lifecycle.AppLifecycleState
 import app.cityxplore.platform.CityXploreBaseViewModel
 import app.cityxplore.profile.data.UsernameAlreadyTakenException
 import app.cityxplore.profile.domain.ProfileRepository
 import app.cityxplore.profile.domain.UserProfile
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -38,30 +46,115 @@ sealed interface ProfileEvent {
 }
 
 /**
- * ViewModel managing user profile state and operations.
+ * Internal UI state holder for combine
+ */
+private data class UiStateHolder(
+    val isLoading: Boolean = false,
+    val isUpdating: Boolean = false,
+    val updateError: String? = null,
+    val error: String? = null
+)
+
+/**
+ * Offline-first, lifecycle-aware ViewModel for the Profile screen.
  *
- * This ViewModel handles fetching and displaying user profile data including
- * username, avatar, total distance travelled, and total POIs discovered.
+ * Key behaviors:
+ * - **Reading:** Observes Flows from local Room database (single source of truth)
+ * - **Refreshing:** Triggers network refresh, Room updates automatically
+ * - **Lifecycle:** Doesn't reload on quick app switches, background refresh on long pause
  *
  * @property repository The profile repository for backend operations.
+ * @property achievementRepository Repository for achievement data.
+ * @property cacheManager Manager for tracking data freshness.
+ * @property appLifecycleObserver Observer for app lifecycle events.
  */
 class ProfileViewModel(
     private val repository: ProfileRepository,
-    private val achievementRepository: AchievementRepository
+    private val achievementRepository: AchievementRepository,
+    private val cacheManager: CacheManager,
+    private val appLifecycleObserver: AppLifecycleObserver
 ) : CityXploreBaseViewModel() {
-    private val _state = MutableStateFlow<ProfileState>(ProfileState.Loading)
+
+    private val _uiState = MutableStateFlow(UiStateHolder())
 
     /**
      * StateFlow emitting the current profile state.
-     * UI components observe this to display profile data or loading/error states.
+     * Combines profile and achievements from Room with the UI state.
      */
-    val state = _state.asStateFlow()
+    val state: StateFlow<ProfileState> = combine(
+        repository.observeProfile(),
+        achievementRepository.observeMyAchievements(),
+        _uiState
+    ) { profile: UserProfile?, achievements: List<Achievement>, uiState: UiStateHolder ->
+        when {
+            uiState.isLoading && profile == null -> ProfileState.Loading
+            uiState.error != null && profile == null -> ProfileState.Error(uiState.error)
+            profile != null -> ProfileState.Success(
+                profile = profile,
+                achievements = achievements.sortedWith(
+                    compareByDescending<Achievement> { it.isUnlocked }
+                        .thenBy { it.points }
+                ),
+                isUpdating = uiState.isUpdating,
+                updateError = uiState.updateError
+            )
+
+            else -> ProfileState.Loading
+        }
+    }.stateIn(scope, SharingStarted.WhileSubscribed(5000), ProfileState.Loading)
 
     private val _events = Channel<ProfileEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
     init {
-        fetchProfile()
+        observeLifecycle()
+        loadDataIfNeeded()
+    }
+
+    /**
+     * Observes app lifecycle to handle resume events.
+     * Prevents unnecessary data reloads on quick app switches.
+     */
+    private fun observeLifecycle() {
+        scope.launch {
+            appLifecycleObserver.lifecycleState.collect { state ->
+                when (state) {
+                    AppLifecycleState.RESUMED -> handleResume()
+                    else -> { /* no action needed */
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Handles app resume - decides whether to refresh data based on background duration.
+     */
+    private fun handleResume() {
+        if (appLifecycleObserver.wasQuickSwitch()) {
+            // Quick switch - don't reload anything
+            return
+        }
+
+        if (appLifecycleObserver.shouldRefreshOnResume()) {
+            // Long background - refresh data in the background
+            refreshInBackground()
+        }
+    }
+
+    /**
+     * Loads data based on the cache state.
+     */
+    private fun loadDataIfNeeded() {
+        val profileCacheState = cacheManager.getCacheState(CacheKey.PROFILE)
+        val achievementsCacheState = cacheManager.getCacheState(CacheKey.ACHIEVEMENTS)
+
+        when {
+            profileCacheState == CacheState.EMPTY || achievementsCacheState == CacheState.EMPTY -> fetchProfile()
+            profileCacheState == CacheState.EXPIRED || achievementsCacheState == CacheState.EXPIRED -> fetchProfile()
+            profileCacheState == CacheState.STALE || achievementsCacheState == CacheState.STALE -> refreshInBackground()
+            // FRESH - Room Flow will provide data
+        }
     }
 
     /**
@@ -69,28 +162,48 @@ class ProfileViewModel(
      * Updates the state to [ProfileState.Success] on success, or [ProfileState.Error] on failure.
      */
     fun fetchProfile() {
-        scope.launch {
-            // Only set loading if we don't have data, or if we want to refresh fully
-            if (_state.value !is ProfileState.Success) {
-                _state.value = ProfileState.Loading
+        scope.launch(cityXploreDispatchers.io) {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+
+            // Refresh both profile and achievements
+            val profileResult = repository.refreshProfile()
+            val achievementsResult = achievementRepository.refreshMyAchievements()
+
+            if (profileResult.isSuccess) {
+                cacheManager.markAsFresh(CacheKey.PROFILE)
+            }
+            if (achievementsResult.isSuccess) {
+                cacheManager.markAsFresh(CacheKey.ACHIEVEMENTS)
             }
 
-            fetchAndMergeData()
-                .onSuccess { (profile, achievements) ->
-                    _state.value = ProfileState.Success(
-                        profile = profile,
-                        achievements = achievements
-                    )
-                }
-                .onFailure { error ->
-                    _state.value =
-                        ProfileState.Error(error.message ?: "Failed to load profile")
-                }
+            // If both failed, show an error (only if we have no cached data)
+            if (profileResult.isFailure && achievementsResult.isFailure) {
+                _uiState.value = _uiState.value.copy(
+                    error = profileResult.exceptionOrNull()?.message ?: "Failed to load profile"
+                )
+            }
+
+            _uiState.value = _uiState.value.copy(isLoading = false)
         }
     }
 
     /**
-     * Updates the user's profile with new username and/or avatar.
+     * Refreshes data in the background without showing loading state.
+     */
+    private fun refreshInBackground() {
+        scope.launch(cityXploreDispatchers.io) {
+            repository.refreshProfile().onSuccess {
+                cacheManager.markAsFresh(CacheKey.PROFILE)
+            }
+            achievementRepository.refreshMyAchievements().onSuccess {
+                cacheManager.markAsFresh(CacheKey.ACHIEVEMENTS)
+            }
+            // Silently ignore errors during background refresh
+        }
+    }
+
+    /**
+     * Updates the user's profile with a new username and/or avatar.
      *
      * Validates that the username is not blank before attempting the update.
      * Handles [UsernameAlreadyTakenException] specially to provide clear feedback
@@ -100,39 +213,27 @@ class ProfileViewModel(
      * @param avatarUrl The new avatar URL, or null to keep the existing avatar.
      */
     fun updateProfile(username: String, avatarUrl: String?) {
-        val currentState = _state.value
-        if (currentState !is ProfileState.Success) return
-
         if (username.isBlank()) {
-            _state.value = currentState.copy(updateError = "Username cannot be empty")
+            _uiState.value = _uiState.value.copy(updateError = "Username cannot be empty")
             return
         }
 
-        scope.launch {
-            _state.value = currentState.copy(isUpdating = true, updateError = null)
+        scope.launch(cityXploreDispatchers.io) {
+            _uiState.value = _uiState.value.copy(isUpdating = true, updateError = null)
 
             repository.createProfile(username, avatarUrl)
                 .onSuccess {
-                    fetchAndMergeData()
-                        .onSuccess { (profile, achievements) ->
-                            _state.value = ProfileState.Success(
-                                profile = profile,
-                                achievements = achievements
-                            )
-                            _events.send(ProfileEvent.ProfileUpdated)
-                        }
-                        .onFailure {
-                            _state.value = currentState.copy(
-                                isUpdating = false,
-                                updateError = "Profile updated but failed to refresh"
-                            )
-                        }
+                    // Refresh to get updated data
+                    repository.refreshProfile().onSuccess {
+                        cacheManager.markAsFresh(CacheKey.PROFILE)
+                    }
+                    _uiState.value = _uiState.value.copy(isUpdating = false)
+                    _events.send(ProfileEvent.ProfileUpdated)
                 }
                 .onFailure { error ->
-                    val errorMessage = parseProfileError(error)
-                    _state.value = currentState.copy(
+                    _uiState.value = _uiState.value.copy(
                         isUpdating = false,
-                        updateError = errorMessage
+                        updateError = parseProfileError(error)
                     )
                 }
         }
@@ -155,19 +256,16 @@ class ProfileViewModel(
      * Deletes the user account.
      */
     fun deleteAccount(onSuccess: () -> Unit) {
-        val currentState = _state.value
-        if (currentState !is ProfileState.Success) return
-
-        scope.launch {
-            _state.value = currentState.copy(isUpdating = true, updateError = null)
+        scope.launch(cityXploreDispatchers.io) {
+            _uiState.value = _uiState.value.copy(isUpdating = true, updateError = null)
 
             repository.deleteAccount()
                 .onSuccess {
-                    _state.value = currentState.copy(isUpdating = false)
+                    _uiState.value = _uiState.value.copy(isUpdating = false)
                     onSuccess()
                 }
                 .onFailure { error ->
-                    _state.value = currentState.copy(
+                    _uiState.value = _uiState.value.copy(
                         isUpdating = false,
                         updateError = error.message ?: "Failed to delete account"
                     )
@@ -181,17 +279,16 @@ class ProfileViewModel(
      * @param imageBytes The image data.
      */
     fun updateAvatar(imageBytes: ByteArray) {
-        val currentState = _state.value
-        if (currentState !is ProfileState.Success) return
+        val currentProfile = (state.value as? ProfileState.Success)?.profile ?: return
 
-        scope.launch {
-            _state.value = currentState.copy(isUpdating = true, updateError = null)
+        scope.launch(cityXploreDispatchers.io) {
+            _uiState.value = _uiState.value.copy(isUpdating = true, updateError = null)
 
             // 1. Upload avatar to storage
             val uploadResult = repository.uploadAvatar(imageBytes)
 
             if (uploadResult.isFailure) {
-                _state.value = currentState.copy(
+                _uiState.value = _uiState.value.copy(
                     isUpdating = false,
                     updateError = uploadResult.exceptionOrNull()?.message ?: "Failed to upload avatar"
                 )
@@ -201,26 +298,16 @@ class ProfileViewModel(
             val publicUrl = uploadResult.getOrThrow()
 
             // 2. Update profile with new URL
-            // Reuse existing update logic but with the new URL
-            repository.createProfile(currentState.profile.username, publicUrl)
+            repository.createProfile(currentProfile.username, publicUrl)
                 .onSuccess {
-                    fetchAndMergeData()
-                        .onSuccess { (profile, achievements) ->
-                            _state.value = ProfileState.Success(
-                                profile = profile,
-                                achievements = achievements
-                            )
-                            _events.send(ProfileEvent.ProfileUpdated)
-                        }
-                        .onFailure {
-                            _state.value = currentState.copy(
-                                isUpdating = false,
-                                updateError = "Avatar uploaded but failed to refresh profile"
-                            )
-                        }
+                    repository.refreshProfile().onSuccess {
+                        cacheManager.markAsFresh(CacheKey.PROFILE)
+                    }
+                    _uiState.value = _uiState.value.copy(isUpdating = false)
+                    _events.send(ProfileEvent.ProfileUpdated)
                 }
                 .onFailure { error ->
-                    _state.value = currentState.copy(
+                    _uiState.value = _uiState.value.copy(
                         isUpdating = false,
                         updateError = error.message ?: "Failed to update profile with new avatar"
                     )
@@ -228,57 +315,8 @@ class ProfileViewModel(
         }
     }
 
-    private suspend fun fetchAndMergeData(): Result<Pair<UserProfile, List<Achievement>>> {
-        val profileResult = repository.getProfile()
-        if (profileResult.isFailure) {
-            return Result.failure(
-                profileResult.exceptionOrNull() ?: Exception("Failed to load profile")
-            )
-        }
-        val profile = profileResult.getOrThrow()
-
-        // Fetch both all achievements and user's unlocked achievements
-        val allAchievementsResult = achievementRepository.getAllAchievements()
-        val myAchievementsResult = achievementRepository.getMyAchievements()
-
-        val allAchievements = allAchievementsResult.getOrDefault(emptyList())
-        val myAchievements = myAchievementsResult.getOrDefault(emptyList())
-
-        // Merge lists: Update the "isUnlocked" status for achievements that the user has
-        val mergedAchievements = if (allAchievements.isNotEmpty()) {
-            val unlockedIds = myAchievements.map { it.id }.toSet()
-            allAchievements.map { achievement ->
-                if (achievement.id in unlockedIds) {
-                    // Use the unlocked version to keep unlockedAt date if needed,
-                    // or just set isUnlocked = true
-                    achievement.copy(isUnlocked = true)
-                } else {
-                    achievement
-                }
-            }
-        } else {
-            // Fallback to myAchievements if allAchievements call failed?
-            // Or a simple empty list if both failed.
-            myAchievements
-        }
-
-        // Sort: Unlocked first, then by points/name
-        val sortedAchievements = mergedAchievements.sortedWith(
-            compareByDescending<Achievement> { it.isUnlocked }
-                .thenBy { it.points }
-        )
-
-        return Result.success(profile to sortedAchievements)
-    }
-
     fun clearError() {
-        _state.update { currentState ->
-            if (currentState is ProfileState.Success) {
-                currentState.copy(updateError = null)
-            } else {
-                currentState
-            }
-        }
+        _uiState.value = _uiState.value.copy(updateError = null)
     }
 
     /**
@@ -287,26 +325,23 @@ class ProfileViewModel(
      * @param newEmail The new email address.
      */
     fun updateEmail(newEmail: String) {
-        val currentState = state.value
-        if (currentState !is ProfileState.Success) return
+        val currentProfile = (state.value as? ProfileState.Success)?.profile ?: return
 
-        if (newEmail.isBlank() || newEmail == currentState.profile.email) return
+        if (newEmail.isBlank() || newEmail == currentProfile.email) return
 
-        _state.update { currentState.copy(isUpdating = true, updateError = null) }
+        scope.launch(cityXploreDispatchers.io) {
+            _uiState.value = _uiState.value.copy(isUpdating = true, updateError = null)
 
-        scope.launch {
             repository.updateEmail(newEmail)
                 .onSuccess {
-                    _state.update { currentState.copy(isUpdating = false) }
+                    _uiState.value = _uiState.value.copy(isUpdating = false)
                     _events.send(ProfileEvent.EmailChangeInitiated(newEmail))
                 }
                 .onFailure { e ->
-                    _state.update {
-                        currentState.copy(
-                            isUpdating = false,
-                            updateError = e.message ?: "Failed to update email"
-                        )
-                    }
+                    _uiState.value = _uiState.value.copy(
+                        isUpdating = false,
+                        updateError = e.message ?: "Failed to update email"
+                    )
                 }
         }
     }

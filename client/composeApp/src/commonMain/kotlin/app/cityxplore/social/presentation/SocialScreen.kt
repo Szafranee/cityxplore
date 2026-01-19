@@ -1,7 +1,6 @@
 package app.cityxplore.social.presentation
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,7 +17,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
@@ -43,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.cityxplore.core.location.Location
+import app.cityxplore.core.ui.OfflineContent
 import app.cityxplore.map.presentation.components.SharedPoiDetailsContent
 import app.cityxplore.social.domain.model.SharedPoi
 import app.cityxplore.social.presentation.sharedpois.SharedPoisTab
@@ -90,7 +89,11 @@ fun SocialScreen(
     LaunchedEffect(Unit) {
         viewModel.uiEvents.collect { event ->
             when (event) {
-                is SocialUiEvent.ShowMessage -> snackbarHostState.showSnackbar(event.message)
+                is SocialUiEvent.ShowMessage -> {
+                    // Cancel any existing snackbar and show the new one immediately
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    snackbarHostState.showSnackbar(event.message)
+                }
             }
         }
     }
@@ -98,7 +101,12 @@ fun SocialScreen(
     LaunchedEffect(Unit) {
         sharedPoisViewModel.uiEvents.collect { event ->
             when (event) {
-                is SharedPoisUiEvent.ShowMessage -> snackbarHostState.showSnackbar(event.message)
+                is SharedPoisUiEvent.ShowMessage -> {
+                    // Cancel any existing snackbar and show the new one immediately
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    snackbarHostState.showSnackbar(event.message)
+                }
+
                 is SharedPoisUiEvent.NavigateToPoiOnMap -> {
                     onNavigateToMap?.invoke(event.latitude, event.longitude)
                 }
@@ -288,11 +296,20 @@ fun RankingsTab(
             CircularProgressIndicator()
         }
 
-        is RankingsUiState.Error -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(
-                text = "Error: ${state.message}\nTap to retry",
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.clickable { onRefresh() }
+        is RankingsUiState.Error -> {
+            // Check if the error is network-related (offline)
+            val isOfflineError = state.message.contains("resolve host", ignoreCase = true) ||
+                    state.message.contains("network", ignoreCase = true) ||
+                    state.message.contains("internet", ignoreCase = true) ||
+                    state.message.contains("connection", ignoreCase = true) ||
+                    state.message.contains("Failed to load", ignoreCase = true)
+
+            OfflineContent(
+                title = if (isOfflineError) "You're Offline" else "Something went wrong",
+                message = if (isOfflineError)
+                    "Rankings requires an internet connection to load. Please check your connection and try again."
+                else state.message,
+                onRetry = onRefresh
             )
         }
 
@@ -323,11 +340,20 @@ fun FriendsTab(
             CircularProgressIndicator()
         }
 
-        is FriendsUiState.Error -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(
-                text = "Error: ${state.message}\nTap to retry",
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.clickable { onRefresh() }
+        is FriendsUiState.Error -> {
+            // Check if the error is network-related (offline)
+            val isOfflineError = state.message.contains("resolve host", ignoreCase = true) ||
+                    state.message.contains("network", ignoreCase = true) ||
+                    state.message.contains("internet", ignoreCase = true) ||
+                    state.message.contains("connection", ignoreCase = true) ||
+                    state.message.contains("Failed to load", ignoreCase = true)
+
+            OfflineContent(
+                title = if (isOfflineError) "You're Offline" else "Something went wrong",
+                message = if (isOfflineError)
+                    "Friends list requires an internet connection to load. Please check your connection and try again."
+                else state.message,
+                onRetry = onRefresh
             )
         }
 

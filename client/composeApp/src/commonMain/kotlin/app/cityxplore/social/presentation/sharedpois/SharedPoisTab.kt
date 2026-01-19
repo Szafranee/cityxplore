@@ -1,11 +1,9 @@
 package app.cityxplore.social.presentation.sharedpois
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -16,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import app.cityxplore.core.ui.OfflineContent
 import app.cityxplore.social.domain.model.SharedPoi
 import app.cityxplore.social.presentation.FriendsUiState
 
@@ -53,11 +52,23 @@ fun SharedPoisTab(
         }
 
         is SharedPoisUiState.Error -> {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = "Error: ${state.message}\nTap to retry",
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.clickable { onRefresh() }
+            // Check if the error is network-related (offline)
+            val isOfflineError = state.message.contains("resolve host", ignoreCase = true) ||
+                    state.message.contains("network", ignoreCase = true) ||
+                    state.message.contains("internet", ignoreCase = true) ||
+                    state.message.contains("connection", ignoreCase = true)
+
+            if (isOfflineError) {
+                OfflineContent(
+                    title = "You're Offline",
+                    message = "Shared POIs requires an internet connection to load. Please check your connection and try again.",
+                    onRetry = onRefresh
+                )
+            } else {
+                OfflineContent(
+                    title = "Something went wrong",
+                    message = state.message,
+                    onRetry = onRefresh
                 )
             }
         }

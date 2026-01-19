@@ -1,10 +1,14 @@
 package app.cityxplore.map.domain
 
+import kotlinx.coroutines.flow.Flow
+
 /**
  * Repository for managing Fog of War state (revealed hexagons).
  *
- * Handles persistence and synchronisation of explored areas.
- * The implementation should sync with the backend for cross-device persistence.
+ * Implements the offline-first pattern:
+ * - Reading: Always returns Flow from local database
+ * - Writing: Saves locally first, then syncs to backend
+ * - Offline: Queues operations for later sync
  */
 interface FogOfWarRepository {
     /**
@@ -18,15 +22,34 @@ interface FogOfWarRepository {
     suspend fun getWarsawHexagons(): Result<Set<String>>
 
     /**
-     * Fetches all revealed hexagon indices for the current user.
+     * Observes all revealed hexagon indices for the current user.
+     * This is the primary way to get revealed hexagons - always returns from local DB.
      *
-     * @return Result containing set of H3 hex indices, or error.
+     * @return Flow of revealed hex indices that updates when data changes.
+     */
+    fun observeRevealedHexagons(): Flow<Set<String>>
+
+    /**
+     * Fetches all revealed hexagon indices for the current user.
+     * Used for one-time reads when Flow is not needed.
+     *
+     * @return Result containing a set of H3 hex indices, or error.
      */
     suspend fun getRevealedHexagons(): Result<Set<String>>
 
     /**
+     * Refreshes revealed hexagons from the server and stores them locally.
+     * This merges server data with any locally revealed hexagons.
+     *
+     * @return Result indicating success or failure.
+     */
+    suspend fun refreshRevealedHexagons(): Result<Unit>
+
+    /**
      * Marks the specified hexagons as revealed.
-     * Should sync with the backend.
+     * - Always saves locally first (optimistic update)
+     * - Syncs to backend if online
+     * - Queues for later sync if offline
      *
      * @param hexIndices Set of H3 hex indices to mark as revealed.
      * @return Result indicating success or failure.
@@ -39,4 +62,9 @@ interface FogOfWarRepository {
      * @return Result indicating success or failure.
      */
     suspend fun clearAllRevealed(): Result<Unit>
+
+    /**
+     * Clears local cache (used on logout).
+     */
+    suspend fun clearLocalCache()
 }

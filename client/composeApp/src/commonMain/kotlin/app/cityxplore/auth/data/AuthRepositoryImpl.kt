@@ -182,15 +182,16 @@ class AuthRepositoryImpl(
      * Checks if the currently authenticated user has a profile in the backend system.
      * Makes a request to the `/api/users/me` endpoint to verify profile existence.
      *
-     * @return `true` if the user has a profile (200 OK response), `false` otherwise.
+     * @return [Result] containing `true` if the user has a profile (200 OK response),
+     *         `false` if not (404), or failure if the request couldn't be made (e.g., no network).
      */
-    override suspend fun hasProfile(): Boolean {
-        auth.currentUserOrNull() ?: return false
+    override suspend fun hasProfile(): Result<Boolean> {
+        auth.currentUserOrNull() ?: return Result.success(false)
         return try {
             val response = client.get("https://api.cityxplore.app/api/users/me")
-            response.status == HttpStatusCode.OK
-        } catch (_: Exception) {
-            false
+            Result.success(response.status == HttpStatusCode.OK)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 

@@ -65,7 +65,8 @@ val socialModule = module {
             getBlockedUsersUseCase = get(),
             sendFriendInviteUseCase = get(),
             respondToFriendInviteUseCase = get(),
-            manageFriendshipUseCase = get()
+            manageFriendshipUseCase = get(),
+            connectivityObserver = get()
         )
     }
 
@@ -77,7 +78,9 @@ val socialModule = module {
             sharePoiUseCase = get(),
             markSharedPoiViewedUseCase = get(),
             deleteSharedPoiUseCase = get(),
-            sharedPoiRepository = get()
+            sharedPoiRepository = get(),
+            appLifecycleObserver = get(),
+            connectivityObserver = get()
         )
     }
 }

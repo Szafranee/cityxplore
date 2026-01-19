@@ -1,6 +1,9 @@
 [versions]
 componentsResources = "1.10.0"
 foundation = "1.10.0"
+room = "2.8.4"
+ksp = "2.3.0"
+sqlite = "2.6.2"
 hibernateCoreVersion = "6.6.29.Final"
 hibernateSpatialVersion = "6.6.29.Final"
 hypersistenceUtilsHibernateX3 = "3.14.1"
@@ -41,10 +44,10 @@ h3 = "4.4.0"
 springBoot = "3.5.9"
 springSecurityTest = "7.0.2"
 lombok = "1.18.42"
-flyway-database-postgresql = "11.20.0"
-flyway-core = "11.20.0"
+flyway-database-postgresql = "11.20.1"
+flyway-core = "11.20.1"
 kotlin-reflect = "2.3.0"
-junit-platform-launcher = "6.0.1"
+junit-platform-launcher = "6.0.2"
 junit-platform-engine = "6.0.2"
 postgresql = "42.7.8"
 commonsCompress = "1.28.0"
@@ -119,6 +122,9 @@ commons-compress = { module = "org.apache.commons:commons-compress", version.ref
 ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "ui" }
 ui-tooling = { module = "org.jetbrains.compose.ui:ui-tooling", version.ref = "uiTooling" }
 ui-tooling-preview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "uiToolingPreview" }
+room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "sqlite" }
 
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
@@ -133,3 +139,5 @@ spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
 springBoot = { id = "org.springframework.boot", version.ref = "springBoot" }
 springDependencyManagement = { id = "io.spring.dependency-management", version = "1.1.7" }
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+room = { id = "androidx.room", version.ref = "room" }
