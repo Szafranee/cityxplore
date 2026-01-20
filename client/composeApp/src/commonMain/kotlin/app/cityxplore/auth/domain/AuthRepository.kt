@@ -83,9 +83,10 @@ interface AuthRepository {
     /**
      * Checks if the currently authenticated user has a profile in the backend.
      *
-     * @return `true` if the user has a profile, `false` otherwise.
+     * @return [Result] containing `true` if the user has a profile, `false` if not,
+     *         or failure if the check couldn't be performed (e.g., no network).
      */
-    suspend fun hasProfile(): Boolean
+    suspend fun hasProfile(): Result<Boolean>
 
     /**
      * Resends the email verification link to the specified email address.

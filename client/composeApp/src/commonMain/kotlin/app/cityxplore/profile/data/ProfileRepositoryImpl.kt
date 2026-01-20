@@ -1,5 +1,7 @@
 package app.cityxplore.profile.data
 
+import app.cityxplore.database.dao.ProfileDao
+import app.cityxplore.database.entity.UserProfileEntity
 import app.cityxplore.profile.domain.ProfileRepository
 import app.cityxplore.profile.domain.UserProfile
 import io.github.jan.supabase.SupabaseClient
@@ -22,25 +24,74 @@ import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.isSuccess
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 
 /**
- * Implementation of [ProfileRepository] using a Ktor HTTP client.
+ * Offline-first implementation of [ProfileRepository].
  *
- * This class manages user profile creation, updates, and retrieval from the backend API.
- * It handles race conditions, duplicate key constraints, and account conflicts gracefully.
+ * Key behaviors:
+ * - **Reading:** Flow from local Room database + network refresh
+ * - **Writing:** Network first, then update local cache
+ * - **Offline:** Returns cached data when network unavailable
  *
  * @property client The HTTP client for making API calls to the backend.
  * @property supabase The Supabase client for retrieving authentication information.
+ * @property profileDao Local database access for profile caching.
  */
 class ProfileRepositoryImpl(
     private val client: HttpClient,
-    private val supabase: SupabaseClient
+    private val supabase: SupabaseClient,
+    private val profileDao: ProfileDao
 ) : ProfileRepository {
 
     private companion object {
         const val API_USERS = "https://api.cityxplore.app/api/users"
         const val API_PROFILE_ME = "$API_USERS/me"
+    }
+
+    /**
+     * Observes the current user's profile from local database.
+     * This is the primary way to get profile data - always returns cached data instantly.
+     */
+    override fun observeProfile(): Flow<UserProfile?> {
+        return profileDao.observeCurrentProfile()
+            .map { entity -> entity?.toDomain() }
+    }
+
+    /**
+     * Retrieves the current user's profile data.
+     * First tries local cache, falls back to network if needed.
+     */
+    override suspend fun getProfile(): Result<UserProfile> = runCatching {
+        // Try local cache first
+        val cachedProfile = profileDao.getCurrentProfile()
+        if (cachedProfile != null) {
+            return@runCatching cachedProfile.toDomain()
+        }
+
+        // No cache - fetch from network and cache
+        val dto = client.get(API_PROFILE_ME).body<ProfileDto>()
+        val profile = dto.toDomain()
+        profileDao.upsertProfile(UserProfileEntity.fromDomain(profile))
+        profile
+    }
+
+    /**
+     * Refreshes the profile from the network and updates local cache.
+     */
+    override suspend fun refreshProfile(): Result<Unit> = runCatching {
+        val dto = client.get(API_PROFILE_ME).body<ProfileDto>()
+        val profile = dto.toDomain()
+        profileDao.upsertProfile(UserProfileEntity.fromDomain(profile))
+    }
+
+    /**
+     * Clears local profile cache (used on logout).
+     */
+    override suspend fun clearLocalCache() {
+        profileDao.clearAll()
     }
 
     /**
@@ -78,10 +129,13 @@ class ProfileRepositoryImpl(
                     avatarUrl = avatarUrl
                 )
                 try {
-                    client.post(API_USERS) {
+                    val response = client.post(API_USERS) {
                         header(HttpHeaders.ContentType, ContentType.Application.Json)
                         setBody(request)
                     }
+                    // Update local cache on success
+                    val dto = response.body<ProfileDto>()
+                    profileDao.upsertProfile(UserProfileEntity.fromDomain(dto.toDomain()))
                 } catch (e: ClientRequestException) {
                     handleCreateProfileError(e, username, avatarUrl)
                 } catch (e: ServerResponseException) {
@@ -153,6 +207,7 @@ class ProfileRepositoryImpl(
      *
      * Handles username conflict errors by extracting the error message from the response
      * and throwing a [UsernameAlreadyTakenException].
+     * Updates local cache on success.
      *
      * @param username The new username for the profile.
      * @param avatarUrl The new avatar URL, or null to keep existing.
@@ -167,10 +222,13 @@ class ProfileRepositoryImpl(
             avatarUrl = avatarUrl
         )
         try {
-            client.patch(API_PROFILE_ME) {
+            val response = client.patch(API_PROFILE_ME) {
                 header(HttpHeaders.ContentType, ContentType.Application.Json)
                 setBody(updateRequest)
             }
+            // Update local cache on success
+            val dto = response.body<ProfileDto>()
+            profileDao.upsertProfile(UserProfileEntity.fromDomain(dto.toDomain()))
         } catch (e: ClientRequestException) {
             if (e.response.status == HttpStatusCode.Conflict) {
                 val errorBody = e.response.bodyAsText()
@@ -197,27 +255,13 @@ class ProfileRepositoryImpl(
     }
 
     /**
-     * Retrieves the current user's profile data from the backend.
+     * Deletes the current user's account.
      *
-     * @return [Result] containing the [UserProfile] on success, or exception on failure.
+     * @return [Result] containing [Unit] on success, or exception on failure.
      */
-    override suspend fun getProfile(): Result<UserProfile> {
-        return runCatching {
-            val dto = client.get(API_PROFILE_ME).body<ProfileDto>()
-            UserProfile(
-                id = dto.id,
-                email = dto.email,
-                username = dto.username,
-                avatarUrl = dto.avatarUrl,
-                totalDistance = dto.totalDistance,
-                totalPoisDiscovered = dto.totalPoisDiscovered,
-                achievementPoints = dto.totalAchievementPoints
-            )
-        }
-    }
-
     /**
      * Deletes the current user's account.
+     * Clears local profile cache on success.
      *
      * @return [Result] containing [Unit] on success, or exception on failure.
      */
@@ -227,6 +271,8 @@ class ProfileRepositoryImpl(
         if (!response.status.isSuccess()) {
             throw Exception("Failed to delete account: ${response.status}")
         }
+        // Clear local cache after successful deletion
+        profileDao.clearAll()
     }
 
     /**

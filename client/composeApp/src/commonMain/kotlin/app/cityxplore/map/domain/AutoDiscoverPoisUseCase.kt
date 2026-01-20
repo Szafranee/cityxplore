@@ -4,6 +4,7 @@ import app.cityxplore.achievements.data.toDomain
 import app.cityxplore.achievements.domain.Achievement
 import app.cityxplore.core.location.Location
 import app.cityxplore.core.utils.calculateDistance
+import app.cityxplore.map.data.PoiRepository
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.http.HttpStatusCode
 
@@ -13,11 +14,13 @@ import io.ktor.http.HttpStatusCode
  * Monitors user location and triggers discovery for POIs within the defined radius.
  * Handles edge cases like concurrent discoveries and network errors gracefully.
  *
- * @property getPoisUseCase Usecase to fetch all POIs with their discovery status
+ * Uses local POI cache for discovery checks, enabling offline discovery.
+ *
+ * @property poiRepository Repository to access local POI data
  * @property discoverPoiUseCase Use case to mark a POI as discovered
  */
 class AutoDiscoverPoisUseCase(
-    private val getPoisUseCase: GetPoisWithDiscoveriesUseCase,
+    private val poiRepository: PoiRepository,
     private val discoverPoiUseCase: DiscoverPoiUseCase
 ) {
     companion object {
@@ -26,15 +29,17 @@ class AutoDiscoverPoisUseCase(
 
     /**
      * Discovers all undiscovered POIs within range of the current location.
+     * Uses local cached POI data for offline support.
      *
      * @param currentLocation User's current GPS coordinates
      * @return Result containing the discovery result with newly discovered POI IDs and unlocked achievements, or error if operation fails
      */
     suspend fun checkAndDiscoverNearbyPois(currentLocation: Location): Result<DiscoveryResult> {
         return try {
-            val poisResult = getPoisUseCase()
+            // Use local POIs for offline support
+            val poisResult = poiRepository.getLocalPois()
             if (poisResult.isFailure) {
-                return Result.failure(poisResult.exceptionOrNull() ?: Exception("Failed to fetch POIs"))
+                return Result.failure(poisResult.exceptionOrNull() ?: Exception("Failed to get local POIs"))
             }
 
             val pois = poisResult.getOrThrow()

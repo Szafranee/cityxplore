@@ -414,7 +414,7 @@ fun ShowOnMapButton(
             onClick = onClick,
             modifier = modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                containerColor = AppColors.green,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             )
         ) {

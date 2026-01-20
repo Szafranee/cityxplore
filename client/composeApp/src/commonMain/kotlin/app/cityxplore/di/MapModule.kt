@@ -17,7 +17,7 @@ import org.koin.dsl.module
  *
  * This module provides:
  * - [PoiRepository] implementation for fetching and managing POI data
- * - [FogOfWarRepository] implementation for managing fog of war state
+ * - [FogOfWarRepository] implementation for managing fog of war state (offline-first)
  * - Domain use cases for POI operations and fog of war
  * - [MapViewModel] for managing map screen state and POI discovery logic
  *
@@ -28,17 +28,25 @@ import org.koin.dsl.module
 val mapModule: Module = module {
     // Repositories
     single<PoiRepository> {
-        NetworkPoiRepository(client = get())
+        NetworkPoiRepository(
+            client = get(),
+            poiDao = get(),
+            syncQueueManager = get()
+        )
     }
 
     single<FogOfWarRepository> {
-        FogOfWarRepositoryImpl(httpClient = get())
+        FogOfWarRepositoryImpl(
+            httpClient = get(),
+            fogOfWarDao = get(),
+            syncQueueManager = get()
+        )
     }
 
     // Use Cases
     factory { GetPoisWithDiscoveriesUseCase(repository = get()) }
     factory { DiscoverPoiUseCase(repository = get()) }
-    factory { AutoDiscoverPoisUseCase(getPoisUseCase = get(), discoverPoiUseCase = get()) }
+    factory { AutoDiscoverPoisUseCase(poiRepository = get(), discoverPoiUseCase = get()) }
     factory { UpdateFogOfWarUseCase(repository = get()) }
 
     // ViewModel
@@ -48,12 +56,15 @@ val mapModule: Module = module {
             autoDiscoverUseCase = get(),
             updateFogOfWarUseCase = get(),
             fogOfWarRepository = get(),
+            poiRepository = get(),
             locationService = get(),
             profileRepository = get(),
             toggleFavoriteUseCase = get(),
             distanceTracker = get(),
             distanceSyncRepository = get(),
-            sharedPoiRepository = get()
+            sharedPoiRepository = get(),
+            cacheManager = get(),
+            appLifecycleObserver = get()
         )
     }
 }

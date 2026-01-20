@@ -89,6 +89,9 @@ class AuthViewModel(
      * Observes the authentication state from the repository.
      * When authenticated, checks if the user has a profile to determine
      * if onboarding is required. Stays in Loading state during session initialisation.
+     *
+     * If the profile check fails due to network issues, the user is signed out
+     * and returned to the login screen to avoid being stuck on onboarding without the internet.
      */
     private fun observeAuthState() {
         scope.launch {
@@ -97,11 +100,21 @@ class AuthViewModel(
                     true -> {
                         // Allow session and JWT token to be fully initialised before making API calls
                         delay(300)
-                        if (repository.hasProfile()) {
-                            _state.value = AuthState.Authenticated
-                        } else {
-                            _state.value = AuthState.Onboarding
-                        }
+                        repository.hasProfile()
+                            .onSuccess { hasProfile ->
+                                if (hasProfile) {
+                                    _state.value = AuthState.Authenticated
+                                } else {
+                                    _state.value = AuthState.Onboarding
+                                }
+                            }
+                            .onFailure {
+                                // Network error - can't verify profile status
+                                // Sign out and return to the login screen
+                                repository.signOut()
+                                _state.value =
+                                    AuthState.Error("Unable to connect. Please check your internet connection and try again.")
+                            }
                     }
 
                     false -> {
@@ -277,17 +290,25 @@ class AuthViewModel(
     fun refreshProfileCheck() {
         scope.launch {
             if (repository.isAuthenticated()) {
-                if (repository.hasProfile()) {
-                    _state.value = AuthState.Authenticated
-                } else {
-                    _state.value = AuthState.Onboarding
-                }
+                repository.hasProfile()
+                    .onSuccess { hasProfile ->
+                        if (hasProfile) {
+                            _state.value = AuthState.Authenticated
+                        } else {
+                            _state.value = AuthState.Onboarding
+                        }
+                    }
+                    .onFailure {
+                        // Network error - show error state
+                        _state.value =
+                            AuthState.Error("Unable to verify profile. Please check your internet connection.")
+                    }
             }
         }
     }
 
     /**
-     * Clears the current error state and returns to unauthenticated state.
+     * Clears the current error state and returns to the unauthenticated state.
      */
     fun clearError() {
         if (_state.value is AuthState.Error) {

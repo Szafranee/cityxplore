@@ -1,14 +1,40 @@
 package app.cityxplore.profile.domain
 
+import kotlinx.coroutines.flow.Flow
+
 /**
  * Repository interface for user profile operations.
  *
- * This repository handles user profile management, including creation,
- * retrieval, and updates of user profile data from the backend.
+ * Implements the offline-first pattern:
+ * - Reading: Flow from a local database, with network refresh
+ * - Writing: Optimistic local update and network sync
  *
  * @see app.cityxplore.profile.data.ProfileRepositoryImpl
  */
 interface ProfileRepository {
+    /**
+     * Observes the current user's profile from a local database.
+     * This is the primary way to get profile data - always returns cached data instantly.
+     *
+     * @return Flow of [UserProfile] that updates when data changes.
+     */
+    fun observeProfile(): Flow<UserProfile?>
+
+    /**
+     * Retrieves the current user's profile data.
+     * First tries local cache, falls back to network if needed.
+     *
+     * @return [Result] containing the [UserProfile] on success, or exception on failure.
+     */
+    suspend fun getProfile(): Result<UserProfile>
+
+    /**
+     * Refreshes the profile from the network and updates local cache.
+     *
+     * @return [Result] containing [Unit] on success, or exception on failure.
+     */
+    suspend fun refreshProfile(): Result<Unit>
+
     /**
      * Creates or updates a user profile with the specified username and avatar URL.
      *
@@ -17,13 +43,6 @@ interface ProfileRepository {
      * @return [Result] containing [Unit] on success, or exception on failure.
      */
     suspend fun createProfile(username: String, avatarUrl: String?): Result<Unit>
-
-    /**
-     * Retrieves the current user's profile data from the backend.
-     *
-     * @return [Result] containing the [UserProfile] on success, or exception on failure.
-     */
-    suspend fun getProfile(): Result<UserProfile>
 
     /**
      * Deletes the current user's account.
@@ -47,4 +66,9 @@ interface ProfileRepository {
      * @return [Result] containing Unit on success.
      */
     suspend fun updateEmail(newEmail: String): Result<Unit>
+
+    /**
+     * Clears local profile cache (used on logout).
+     */
+    suspend fun clearLocalCache()
 }

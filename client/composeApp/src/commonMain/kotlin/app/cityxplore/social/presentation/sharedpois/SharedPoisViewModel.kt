@@ -1,5 +1,8 @@
 package app.cityxplore.social.presentation.sharedpois
 
+import app.cityxplore.core.connectivity.ConnectivityObserver
+import app.cityxplore.core.lifecycle.AppLifecycleObserver
+import app.cityxplore.core.lifecycle.AppLifecycleState
 import app.cityxplore.platform.CityXploreBaseViewModel
 import app.cityxplore.social.domain.DeleteSharedPoiUseCase
 import app.cityxplore.social.domain.GetReceivedSharedPoisUseCase
@@ -9,18 +12,24 @@ import app.cityxplore.social.domain.MarkSharedPoiViewedUseCase
 import app.cityxplore.social.domain.SharePoiUseCase
 import app.cityxplore.social.domain.model.SharePoiRequest
 import app.cityxplore.social.domain.model.SharedPoi
+import app.cityxplore.social.domain.repository.SharedPoiRepository
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
  * ViewModel for managing Shared POIs UI state and user interactions.
+ * Supports lifecycle-aware refreshing to avoid unnecessary reloads on quick app switches.
+ *
+ * **Note:** Sharing POIs requires network connectivity and does not work offline.
  */
 class SharedPoisViewModel(
     private val getSentSharedPoisUseCase: GetSentSharedPoisUseCase,
@@ -29,11 +38,34 @@ class SharedPoisViewModel(
     private val sharePoiUseCase: SharePoiUseCase,
     private val markSharedPoiViewedUseCase: MarkSharedPoiViewedUseCase,
     private val deleteSharedPoiUseCase: DeleteSharedPoiUseCase,
-    private val sharedPoiRepository: app.cityxplore.social.domain.repository.SharedPoiRepository
+    private val sharedPoiRepository: SharedPoiRepository,
+    private val appLifecycleObserver: AppLifecycleObserver,
+    private val connectivityObserver: ConnectivityObserver
 ) : CityXploreBaseViewModel() {
 
-    private val _uiState = MutableStateFlow<SharedPoisUiState>(SharedPoisUiState.Loading)
-    val uiState: StateFlow<SharedPoisUiState> = _uiState.asStateFlow()
+    private val offlineMessage = "This feature requires an internet connection"
+
+    // Internal state for loading/error
+    private val _isLoading = MutableStateFlow(true)
+    private val _error = MutableStateFlow<String?>(null)
+
+    val uiState: StateFlow<SharedPoisUiState> = combine(
+        getReceivedSharedPoisUseCase(),
+        getSentSharedPoisUseCase(),
+        getUnviewedSharedPoisUseCase.count(),
+        _isLoading,
+        _error
+    ) { received, sent, unviewedCount, isLoading, error ->
+        when {
+            error != null -> SharedPoisUiState.Error(error)
+            isLoading -> SharedPoisUiState.Loading
+            else -> SharedPoisUiState.Content(
+                receivedPois = received,
+                sentPois = sent,
+                unviewedCount = unviewedCount
+            )
+        }
+    }.stateIn(scope, SharingStarted.WhileSubscribed(5000), SharedPoisUiState.Loading)
 
     private val _uiEvents = MutableSharedFlow<SharedPoisUiEvent>()
     val uiEvents: SharedFlow<SharedPoisUiEvent> = _uiEvents.asSharedFlow()
@@ -42,31 +74,57 @@ class SharedPoisViewModel(
     val createPoiState: StateFlow<CreateCustomPoiState> = _createPoiState.asStateFlow()
 
     init {
-        observeData()
+        observeLifecycle()
         refresh()
     }
 
-    private fun observeData() {
+    /**
+     * Observes app lifecycle to handle resume events.
+     * Prevents unnecessary data reloads on quick app switches.
+     */
+    private fun observeLifecycle() {
         scope.launch {
-            combine(
-                getReceivedSharedPoisUseCase(),
-                getSentSharedPoisUseCase(),
-                getUnviewedSharedPoisUseCase.count()
-            ) { received, sent, unviewedCount ->
-                SharedPoisUiState.Content(
-                    receivedPois = received,
-                    sentPois = sent,
-                    unviewedCount = unviewedCount
-                )
-            }.collect { state ->
-                _uiState.value = state
+            appLifecycleObserver.lifecycleState.collect { state ->
+                when (state) {
+                    AppLifecycleState.RESUMED -> handleResume()
+                    else -> { /* no action needed */
+                    }
+                }
             }
+        }
+    }
+
+    /**
+     * Handles app resume - decides whether to refresh data based on background duration.
+     */
+    private fun handleResume() {
+        if (appLifecycleObserver.wasQuickSwitch()) {
+            // Quick switch - don't reload anything
+            return
+        }
+
+        if (appLifecycleObserver.shouldRefreshOnResume()) {
+            // Long background - refresh data in the background
+            refreshInBackground()
+        }
+    }
+
+    /**
+     * Refreshes data in the background without showing loading state.
+     */
+    private fun refreshInBackground() {
+        scope.launch {
+            getReceivedSharedPoisUseCase.refresh()
+            getSentSharedPoisUseCase.refresh()
+            getUnviewedSharedPoisUseCase.refresh()
+            // Silently ignore errors during background refresh
         }
     }
 
     fun refresh() {
         scope.launch {
-            _uiState.value = SharedPoisUiState.Loading
+            _isLoading.value = true
+            _error.value = null
 
             val results = listOf(
                 getReceivedSharedPoisUseCase.refresh(),
@@ -76,11 +134,10 @@ class SharedPoisViewModel(
 
             val firstFailure = results.firstOrNull { it.isFailure }
             if (firstFailure != null) {
-                _uiState.value = SharedPoisUiState.Error(
-                    firstFailure.exceptionOrNull()?.message ?: "Failed to load shared POIs"
-                )
+                _error.value = firstFailure.exceptionOrNull()?.message ?: "Failed to load shared POIs"
             }
-            // Success case is handled by observeData()
+
+            _isLoading.value = false
         }
     }
 
@@ -148,15 +205,17 @@ class SharedPoisViewModel(
         }
     }
 
-    fun hideShareDialog() {
-        resetCreatePoiState()
-    }
-
     fun shareCustomPoi(recipientId: String, message: String?) {
         val state = _createPoiState.value
         if (!state.isValid) return
 
         scope.launch {
+            // Check connectivity first
+            if (!connectivityObserver.isNetworkAvailable()) {
+                _uiEvents.emit(SharedPoisUiEvent.ShowMessage(offlineMessage))
+                return@launch
+            }
+
             // Mark as uploading
             _createPoiState.update { it.copy(isUploading = true) }
 
@@ -220,29 +279,6 @@ class SharedPoisViewModel(
         }
     }
 
-    fun shareExistingPoi(poiId: String, recipientId: String, message: String?) {
-        scope.launch {
-            val request = SharePoiRequest(
-                recipientId = recipientId,
-                poiId = poiId,
-                message = message?.trim()?.ifEmpty { null }
-            )
-
-            sharePoiUseCase(request)
-                .onSuccess {
-                    _uiEvents.emit(SharedPoisUiEvent.ShowMessage("POI shared successfully!"))
-                    refresh()
-                }
-                .onFailure { error ->
-                    _uiEvents.emit(
-                        SharedPoisUiEvent.ShowMessage(
-                            error.message ?: "Failed to share POI"
-                        )
-                    )
-                }
-        }
-    }
-
     // Actions on Shared POIs
 
     fun markAsViewed(sharedPoi: SharedPoi) {
@@ -262,6 +298,12 @@ class SharedPoisViewModel(
 
     fun deleteSharedPoi(sharedPoi: SharedPoi) {
         scope.launch {
+            // Check connectivity first
+            if (!connectivityObserver.isNetworkAvailable()) {
+                _uiEvents.emit(SharedPoisUiEvent.ShowMessage(offlineMessage))
+                return@launch
+            }
+
             deleteSharedPoiUseCase(sharedPoi.id)
                 .onSuccess {
                     _uiEvents.emit(SharedPoisUiEvent.ShowMessage("Shared POI deleted"))
@@ -291,23 +333,8 @@ class SharedPoisViewModel(
         // Success/failure is handled by observeData() flow collection
     }
 
-    fun navigateToPoiOnMap(sharedPoi: SharedPoi) {
-        scope.launch {
-            val coords = sharedPoi.coordinates
-            if (coords != null) {
-                _uiEvents.emit(SharedPoisUiEvent.NavigateToPoiOnMap(coords.first, coords.second))
-            } else {
-                _uiEvents.emit(
-                    SharedPoisUiEvent.ShowMessage(
-                        "Cannot navigate to this POI - location unavailable"
-                    )
-                )
-            }
-        }
-    }
-
     /**
-     * Shows a shared POI on the map without navigating to it.
+     * Shows a shared POI on the map.
      * Centers the map on the POI's location.
      */
     fun showPoiOnMap(sharedPoi: SharedPoi) {

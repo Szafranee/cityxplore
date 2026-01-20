@@ -11,6 +11,8 @@ plugins {
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
     alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.room)
     id("com.github.gmazzo.buildconfig") version "6.0.7"
 }
 
@@ -114,6 +116,8 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor)
+            implementation(libs.room.runtime)
+            implementation(libs.sqlite.bundled)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -167,4 +171,13 @@ android {
 
 dependencies {
     debugImplementation(libs.ui.tooling)
+    // Room KSP compiler for all targets
+    add("kspAndroid", libs.room.compiler)
+    add("kspIosX64", libs.room.compiler)
+    add("kspIosArm64", libs.room.compiler)
+    add("kspIosSimulatorArm64", libs.room.compiler)
+}
+
+room {
+    schemaDirectory("$projectDir/schemas")
 }

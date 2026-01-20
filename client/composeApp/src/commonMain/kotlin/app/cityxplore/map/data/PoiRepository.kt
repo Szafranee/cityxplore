@@ -1,5 +1,10 @@
 package app.cityxplore.map.data
 
+import app.cityxplore.core.sync.SyncQueueManager
+import app.cityxplore.database.currentTimeMillis
+import app.cityxplore.database.dao.PoiDao
+import app.cityxplore.database.entity.PoiEntity
+import app.cityxplore.database.entity.SyncOperation
 import app.cityxplore.map.domain.PoiModel
 import app.cityxplore.map.domain.UserDiscovery
 import io.ktor.client.HttpClient
@@ -9,16 +14,43 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlin.time.Instant
 
 /**
  * Repository interface for Point of Interest (POI) operations.
  *
- * This repository handles fetching POI data from the backend and managing
- * POI discovery operations.
+ * Implements the offline-first pattern:
+ * - Reading: Flow from local Room database
+ * - Writing: Optimistic local update and network sync
+ * - Offline: Queues operations for later sync
  *
  * @see NetworkPoiRepository
  */
 interface PoiRepository {
+    /**
+     * Observes all Points of Interest from the local database.
+     * This is the primary way to get POIs - always returns cached data instantly.
+     *
+     * @return Flow of the POI list that updates when data changes.
+     */
+    fun observePois(): Flow<List<PoiModel>>
+
+    /**
+     * Observes only discovered POIs from the local database.
+     *
+     * @return Flow of a discovered POI list.
+     */
+    fun observeDiscoveredPois(): Flow<List<PoiModel>>
+
+    /**
+     * Observes only favorite POIs from the local database.
+     *
+     * @return Flow of a favorite POI list.
+     */
+    fun observeFavoritePois(): Flow<List<PoiModel>>
+
     /**
      * Fetches all Points of Interest from the backend.
      * The returned POIs include discovery status for the current user.
@@ -26,6 +58,13 @@ interface PoiRepository {
      * @return [Result] containing a list of [PoiModel] on success, or exception on failure.
      */
     suspend fun fetchPois(): Result<List<PoiModel>>
+
+    /**
+     * Refreshes POIs from the network and updates local cache.
+     *
+     * @return [Result] containing [Unit] on success, or exception on failure.
+     */
+    suspend fun refreshPois(): Result<Unit>
 
     /**
      * Fetches all POI discoveries for the current authenticated user.
@@ -36,32 +75,83 @@ interface PoiRepository {
 
     /**
      * Marks a POI as discovered by the current user.
+     * - Online: API call → local update
+     * - Offline: Local optimistic update → queue for sync
      *
      * @param id The unique identifier of the POI to discover.
-     * @return [Result] containing [UserPoiDiscoveryDto] with newly unlocked achievements, or exception on failure (e.g., 409 if already discovered).
+     * @return [Result] containing [UserPoiDiscoveryDto] with newly unlocked achievements, or exception on failure.
      */
     suspend fun discoverPoi(id: String): Result<UserPoiDiscoveryDto>
 
     /**
      * Toggles the favorite status of a POI for the current user.
+     * - Online: API call → local update
+     * - Offline: Local optimistic update → queue for sync
      *
      * @param id The unique identifier of the POI to favorite or unfavorite.
      * @return [Result] containing [Unit] on success, or exception on failure.
      */
     suspend fun toggleFavorite(id: String): Result<Unit>
+
+    /**
+     * Gets all POIs from the local database synchronously.
+     * Used for offline operations like auto-discovery.
+     *
+     * @return [Result] containing a list of [PoiModel] from local cache.
+     */
+    suspend fun getLocalPois(): Result<List<PoiModel>>
+
+    /**
+     * Clears local POI cache (used on logout).
+     */
+    suspend fun clearLocalCache()
 }
 
 /**
- * Production implementation of [PoiRepository] using a Ktor HTTP client.
+ * Offline-first implementation of [PoiRepository].
  *
- * This implementation communicates with the CityXplore backend API to fetch
- * POI data and manage discovery operations.
+ * Key behaviors:
+ * - **Reading:** Flow from local Room database
+ * - **Writing:** Optimistic local update, then network sync
+ * - **Offline:** Operations queued in SyncQueue for later
  *
  * @property client The HTTP client configured with authentication interceptors.
+ * @property poiDao Local database access for POI caching.
+ * @property syncQueueManager Manager for queuing offline operations.
  */
 class NetworkPoiRepository(
-    private val client: HttpClient
+    private val client: HttpClient,
+    private val poiDao: PoiDao,
+    private val syncQueueManager: SyncQueueManager
 ) : PoiRepository {
+
+    /**
+     * Observes all POIs from the local database.
+     */
+    override fun observePois(): Flow<List<PoiModel>> {
+        return poiDao.observeAllPois().map { entities ->
+            entities.map { it.toDomain() }
+        }
+    }
+
+    /**
+     * Observes only discovered POIs from the local database.
+     */
+    override fun observeDiscoveredPois(): Flow<List<PoiModel>> {
+        return poiDao.observeDiscoveredPois().map { entities ->
+            entities.map { it.toDomain() }
+        }
+    }
+
+    /**
+     * Observes only favorite POIs from the local database.
+     */
+    override fun observeFavoritePois(): Flow<List<PoiModel>> {
+        return poiDao.observeFavoritePois().map { entities ->
+            entities.map { it.toDomain() }
+        }
+    }
+
     /**
      * Fetches all POIs from the backend API endpoint `/api/pois`.
      * Automatically filters out POIs with invalid coordinates.
@@ -70,6 +160,35 @@ class NetworkPoiRepository(
      */
     override suspend fun fetchPois(): Result<List<PoiModel>> = runCatching {
         client.get("https://api.cityxplore.app/api/pois").body<List<PoiDto>>().mapNotNull(PoiDto::toDomain)
+    }
+
+    /**
+     * Refreshes POIs from the network and updates local cache.
+     * Fails if either POI fetch or discovery fetch fails to ensure data consistency.
+     */
+    override suspend fun refreshPois(): Result<Unit> = runCatching {
+        val dtos = client.get("https://api.cityxplore.app/api/pois").body<List<PoiDto>>()
+
+        // Propagate discovery fetch failures instead of using getOrDefault
+        val discoveriesResult = fetchUserDiscoveries()
+        if (discoveriesResult.isFailure) {
+            throw discoveriesResult.exceptionOrNull()!!
+        }
+        val discoveries = discoveriesResult.getOrThrow()
+
+        val entities = dtos.mapNotNull { dto ->
+            dto.toDomain()?.let { model ->
+                val discovery = discoveries[model.id]
+                PoiEntity.fromDomain(
+                    model = model,
+                    discovered = discovery != null,
+                    discoveryDate = discovery?.discoveredAt,
+                    isFavorite = discovery?.favorite ?: false
+                )
+            }
+        }
+
+        poiDao.upsertAll(entities)
     }
 
     /**
@@ -87,29 +206,86 @@ class NetworkPoiRepository(
     }
 
     /**
-     * Sends a discovery request to the backend API endpoint `/api/pois/{id}/discover`.
-     * The backend returns 200 on success with discovery data and newly unlocked achievements, or 409 if the POI was already discovered.
-     *
-     * @param id The unique identifier of the POI to discover.
-     * @return [Result] containing [UserPoiDiscoveryDto] with newly unlocked achievements on success, or exception on failure.
+     * Marks a POI as discovered.
+     * - Online: API call → local update
+     * - Offline: Local optimistic update → queue for sync
      */
-    override suspend fun discoverPoi(id: String): Result<UserPoiDiscoveryDto> = runCatching {
-        client.post("https://api.cityxplore.app/api/pois/$id/discover") {
-            contentType(ContentType.Application.Json)
-            setBody(emptyMap<String, String>())
-        }.body<UserPoiDiscoveryDto>()
+    override suspend fun discoverPoi(id: String): Result<UserPoiDiscoveryDto> {
+        val now = currentTimeMillis()
+
+        return if (syncQueueManager.isOnline()) {
+            // Online: call API first
+            runCatching {
+                val result = client.post("https://api.cityxplore.app/api/pois/$id/discover") {
+                    contentType(ContentType.Application.Json)
+                    setBody(emptyMap<String, String>())
+                }.body<UserPoiDiscoveryDto>()
+
+                // Update local DB on success
+                poiDao.markAsDiscovered(id, now, now)
+                result
+            }
+        } else {
+            // Offline: optimistic local update + queue
+            poiDao.markAsDiscovered(id, now, 0L) // 0L indicates not synced
+            syncQueueManager.enqueue(SyncOperation.DiscoverPoi(id))
+
+            // Return a placeholder result with a realistic timestamp
+            Result.success(
+                UserPoiDiscoveryDto(
+                    poiId = id,
+                    discoveredAt = Instant.fromEpochMilliseconds(now).toString(),
+                    favorite = false,
+                    newlyUnlockedAchievements = emptyList()
+                )
+            )
+        }
     }
 
     /**
-     * Toggles the favorite status of a POI by sending a request to the backend API endpoint `/api/pois/{id}/favorite`.
-     *
-     * @param id The unique identifier of the POI to favorite or unfavorite.
-     * @return [Result] containing [Unit] on success, or exception on failure.
+     * Toggles the favorite status of a POI.
+     * - Online: API call → rollback or queue on failure
+     * - Offline: Local optimistic update → queue for sync
      */
-    override suspend fun toggleFavorite(id: String): Result<Unit> = runCatching {
-        client.post("https://api.cityxplore.app/api/pois/$id/favorite") {
-            contentType(ContentType.Application.Json)
-            setBody(emptyMap<String, String>())
+    override suspend fun toggleFavorite(id: String): Result<Unit> {
+        val now = currentTimeMillis()
+
+        // Always update locally first (optimistic)
+        poiDao.toggleFavorite(id, now)
+
+        return if (syncQueueManager.isOnline()) {
+            runCatching {
+                client.post("https://api.cityxplore.app/api/pois/$id/favorite") {
+                    contentType(ContentType.Application.Json)
+                    setBody(emptyMap<String, String>())
+                }
+            }.fold(
+                onSuccess = { Result.success(Unit) },
+                onFailure = { error ->
+                    // API call failed - queue for later sync instead of leaving inconsistent state
+                    syncQueueManager.enqueue(SyncOperation.ToggleFavorite(id))
+                    Result.failure(error)
+                }
+            )
+        } else {
+            // Queue for later sync
+            syncQueueManager.enqueue(SyncOperation.ToggleFavorite(id))
+            Result.success(Unit)
         }
-    }.map { }
+    }
+
+    /**
+     * Gets all POIs from the local database synchronously.
+     * Used for offline operations like auto-discovery.
+     */
+    override suspend fun getLocalPois(): Result<List<PoiModel>> = runCatching {
+        poiDao.getAllPois().map { it.toDomain() }
+    }
+
+    /**
+     * Clears local POI cache (used on logout).
+     */
+    override suspend fun clearLocalCache() {
+        poiDao.clearAll()
+    }
 }

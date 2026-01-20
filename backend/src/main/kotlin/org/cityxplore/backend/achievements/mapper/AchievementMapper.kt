@@ -39,10 +39,10 @@ fun UpdateAchievementRequest.applyTo(existing: Achievement): Achievement = exist
 
 fun toUserAchievementDto(
     achievement: Achievement,
-    userAchievement: UserAchievement
+    userAchievement: UserAchievement?
 ): UserAchievementResponse =
     UserAchievementResponse(
         achievement = achievement.toDto(),
-        achievedAt = userAchievement.achievedAt,
-        progress = userAchievement.progressData
+        achievedAt = userAchievement?.achievedAt,
+        progress = userAchievement?.progressData
     )

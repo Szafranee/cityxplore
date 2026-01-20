@@ -11,6 +11,7 @@ import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.postgrest.postgrest
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.delay
@@ -182,15 +183,23 @@ class AuthRepositoryImpl(
      * Checks if the currently authenticated user has a profile in the backend system.
      * Makes a request to the `/api/users/me` endpoint to verify profile existence.
      *
-     * @return `true` if the user has a profile (200 OK response), `false` otherwise.
+     * @return [Result] containing `true` if the user has a profile (200 OK response),
+     *         `false` if not (404), or failure if the request couldn't be made (e.g., no network).
      */
-    override suspend fun hasProfile(): Boolean {
-        auth.currentUserOrNull() ?: return false
+    override suspend fun hasProfile(): Result<Boolean> {
+        auth.currentUserOrNull() ?: return Result.success(false)
         return try {
             val response = client.get("https://api.cityxplore.app/api/users/me")
-            response.status == HttpStatusCode.OK
-        } catch (_: Exception) {
-            false
+            Result.success(response.status == HttpStatusCode.OK)
+        } catch (e: ClientRequestException) {
+            // Handle 404 as "no profile" rather than failure
+            if (e.response.status == HttpStatusCode.NotFound) {
+                Result.success(false)
+            } else {
+                Result.failure(e)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
