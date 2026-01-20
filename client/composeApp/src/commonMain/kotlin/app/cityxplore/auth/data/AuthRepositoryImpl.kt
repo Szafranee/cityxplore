@@ -11,6 +11,7 @@ import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.postgrest.postgrest
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.delay
@@ -190,6 +191,13 @@ class AuthRepositoryImpl(
         return try {
             val response = client.get("https://api.cityxplore.app/api/users/me")
             Result.success(response.status == HttpStatusCode.OK)
+        } catch (e: ClientRequestException) {
+            // Handle 404 as "no profile" rather than failure
+            if (e.response.status == HttpStatusCode.NotFound) {
+                Result.success(false)
+            } else {
+                Result.failure(e)
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }

@@ -7,11 +7,15 @@ import app.cityxplore.core.sync.SyncQueueManager.Companion.MAX_RETRY_COUNT
 import app.cityxplore.database.currentTimeMillis
 import app.cityxplore.database.dao.SyncQueueDao
 import app.cityxplore.database.entity.SyncOperation
+import io.ktor.client.plugins.ClientRequestException
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Manages the queue of operations to be synced when connectivity is restored.
@@ -29,6 +33,9 @@ class SyncQueueManager(
     private val syncExecutor: SyncOperationExecutor
 ) {
     private val scope = CoroutineScope(SupervisorJob() + dispatchers.io)
+
+    /** Mutex to prevent concurrent processing of pending operations */
+    private val processingMutex = Mutex()
 
     companion object {
         const val MAX_RETRY_COUNT = 5
@@ -71,8 +78,9 @@ class SyncQueueManager(
      * Operations are processed in order of creation time.
      * Failed operations are retried up to [MAX_RETRY_COUNT] times.
      * 409 Conflict responses are treated as success (idempotency).
+     * Uses mutex to prevent concurrent processing from multiple callers.
      */
-    suspend fun processPendingOperations() {
+    suspend fun processPendingOperations() = processingMutex.withLock {
         val pending = syncQueueDao.getPendingWithRetryLimit(MAX_RETRY_COUNT)
 
         for (entity in pending) {
@@ -91,8 +99,8 @@ class SyncQueueManager(
                     syncQueueDao.deleteById(entity.id)
                 },
                 onFailure = { error ->
-                    if (isConflictError(error)) {
-                        // 409 Conflict - operation was already processed, remove from queue
+                    if (isTerminalError(error)) {
+                        // Terminal error - operation should not be retried, remove from queue
                         syncQueueDao.deleteById(entity.id)
                     } else {
                         // Other error - increment retry count
@@ -122,10 +130,30 @@ class SyncQueueManager(
         syncQueueDao.clearAll()
     }
 
-    private fun isConflictError(error: Throwable): Boolean {
-        return error.message?.contains("409") == true ||
-                error.message?.contains("Conflict") == true ||
-                error.message?.contains("already") == true
+    /**
+     * Determines if an error should be treated as terminal (operation should be dropped).
+     *
+     * Terminal errors include:
+     * - HTTP 409 Conflict (operation already processed - idempotency)
+     * - UnsupportedOperationException (operation type not supported offline)
+     */
+    private fun isTerminalError(error: Throwable): Boolean {
+        // Check for HTTP 409 Conflict using structured type
+        if (error is ClientRequestException) {
+            return error.response.status == HttpStatusCode.Conflict
+        }
+
+        // UnsupportedOperationException means the operation should never be retried
+        // (e.g., social features that require network)
+        if (error is UnsupportedOperationException) {
+            return true
+        }
+
+        // Fallback string-based check for wrapped errors
+        val message = error.message ?: return false
+        return message.contains("409") ||
+                message.contains("Conflict") ||
+                message.contains("UnsupportedOperationException")
     }
 }
 

@@ -847,5 +847,6 @@ class MapViewModel(
         super.onCleared()
         locationObserverJob?.cancel()
         fogOfWarObserverJob?.cancel()
+        poiObserverJob?.cancel()
     }
 }

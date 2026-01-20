@@ -129,10 +129,13 @@ class ProfileRepositoryImpl(
                     avatarUrl = avatarUrl
                 )
                 try {
-                    client.post(API_USERS) {
+                    val response = client.post(API_USERS) {
                         header(HttpHeaders.ContentType, ContentType.Application.Json)
                         setBody(request)
                     }
+                    // Update local cache on success
+                    val dto = response.body<ProfileDto>()
+                    profileDao.upsertProfile(UserProfileEntity.fromDomain(dto.toDomain()))
                 } catch (e: ClientRequestException) {
                     handleCreateProfileError(e, username, avatarUrl)
                 } catch (e: ServerResponseException) {
@@ -204,6 +207,7 @@ class ProfileRepositoryImpl(
      *
      * Handles username conflict errors by extracting the error message from the response
      * and throwing a [UsernameAlreadyTakenException].
+     * Updates local cache on success.
      *
      * @param username The new username for the profile.
      * @param avatarUrl The new avatar URL, or null to keep existing.
@@ -218,10 +222,13 @@ class ProfileRepositoryImpl(
             avatarUrl = avatarUrl
         )
         try {
-            client.patch(API_PROFILE_ME) {
+            val response = client.patch(API_PROFILE_ME) {
                 header(HttpHeaders.ContentType, ContentType.Application.Json)
                 setBody(updateRequest)
             }
+            // Update local cache on success
+            val dto = response.body<ProfileDto>()
+            profileDao.upsertProfile(UserProfileEntity.fromDomain(dto.toDomain()))
         } catch (e: ClientRequestException) {
             if (e.response.status == HttpStatusCode.Conflict) {
                 val errorBody = e.response.bodyAsText()
@@ -252,12 +259,20 @@ class ProfileRepositoryImpl(
      *
      * @return [Result] containing [Unit] on success, or exception on failure.
      */
+    /**
+     * Deletes the current user's account.
+     * Clears local profile cache on success.
+     *
+     * @return [Result] containing [Unit] on success, or exception on failure.
+     */
     override suspend fun deleteAccount(): Result<Unit> = runCatching {
         // DELETE /api/users/me
         val response = client.delete(API_PROFILE_ME)
         if (!response.status.isSuccess()) {
             throw Exception("Failed to delete account: ${response.status}")
         }
+        // Clear local cache after successful deletion
+        profileDao.clearAll()
     }
 
     /**

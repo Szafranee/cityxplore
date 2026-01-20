@@ -74,7 +74,13 @@ class FogOfWarRepositoryImpl(
         // Now sync any locally revealed but unsynced hexagons to the server
         val unsyncedHexagons = fogOfWarDao.getUnsyncedHexagons()
         if (unsyncedHexagons.isNotEmpty()) {
-            syncHexagonsToServer(unsyncedHexagons.toSet())
+            try {
+                syncHexagonsToServer(unsyncedHexagons.toSet())
+                // Mark as synced only after successful server sync
+                fogOfWarDao.markAsSynced(unsyncedHexagons)
+            } catch (_: Exception) {
+                // Sync failed - hexagons remain unsynced for next attempt
+            }
         }
     }
 
@@ -142,6 +148,11 @@ class FogOfWarRepositoryImpl(
         fogOfWarDao.clearAll()
 
         // Then clear on server if online
+        // NOTE: Intentionally not queuing this operation when offline.
+        // Rationale: Clearing fog of war is a destructive action that users rarely perform.
+        // If offline, the local clear takes effect immediately, and server state will
+        // naturally diverge until next sync. The user can re-trigger the clear when online.
+        // Implementing a ClearAllRevealed queue operation would add complexity for a rare use case.
         if (syncQueueManager.isOnline()) {
             val response = httpClient.request("https://api.cityxplore.app/api/fog-of-war/me") {
                 method = io.ktor.http.HttpMethod.Delete
@@ -150,6 +161,8 @@ class FogOfWarRepositoryImpl(
             if (!response.status.isSuccess()) {
                 throw Exception("Failed to clear fog of war: ${response.status}")
             }
+        } else {
+            println("clearAllRevealed: Offline - local cleared but server not updated. Will sync on next refresh.")
         }
     }
 

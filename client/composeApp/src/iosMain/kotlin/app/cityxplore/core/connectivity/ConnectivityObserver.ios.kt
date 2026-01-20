@@ -21,15 +21,19 @@ import kotlin.concurrent.Volatile
  * and emit updates via a Flow.
  */
 actual class ConnectivityObserver {
-    private val monitor = nw_path_monitor_create()
 
     @Volatile
     private var currentStatus: NetworkStatus = NetworkStatus.UNKNOWN
 
     /**
      * Observes network connectivity changes using NWPathMonitor.
+     * Creates a new monitor per collector to avoid shared state issues
+     * when multiple collectors subscribe/unsubscribe.
      */
     actual fun observe(): Flow<NetworkStatus> = callbackFlow {
+        // Create a new monitor per collector
+        val monitor = nw_path_monitor_create()
+
         nw_path_monitor_set_update_handler(monitor) { path ->
             val status = if (nw_path_get_status(path) == nw_path_status_satisfied) {
                 NetworkStatus.AVAILABLE
@@ -44,6 +48,7 @@ actual class ConnectivityObserver {
         nw_path_monitor_start(monitor)
 
         awaitClose {
+            // Cancel only this monitor, not affecting other collectors
             nw_path_monitor_cancel(monitor)
         }
     }.distinctUntilChanged()

@@ -16,6 +16,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlin.time.Instant
 
 /**
  * Repository interface for Point of Interest (POI) operations.
@@ -163,10 +164,17 @@ class NetworkPoiRepository(
 
     /**
      * Refreshes POIs from the network and updates local cache.
+     * Fails if either POI fetch or discovery fetch fails to ensure data consistency.
      */
     override suspend fun refreshPois(): Result<Unit> = runCatching {
         val dtos = client.get("https://api.cityxplore.app/api/pois").body<List<PoiDto>>()
-        val discoveries = fetchUserDiscoveries().getOrDefault(emptyMap())
+
+        // Propagate discovery fetch failures instead of using getOrDefault
+        val discoveriesResult = fetchUserDiscoveries()
+        if (discoveriesResult.isFailure) {
+            throw discoveriesResult.exceptionOrNull()!!
+        }
+        val discoveries = discoveriesResult.getOrThrow()
 
         val entities = dtos.mapNotNull { dto ->
             dto.toDomain()?.let { model ->
@@ -222,11 +230,11 @@ class NetworkPoiRepository(
             poiDao.markAsDiscovered(id, now, 0L) // 0L indicates not synced
             syncQueueManager.enqueue(SyncOperation.DiscoverPoi(id))
 
-            // Return a placeholder result
+            // Return a placeholder result with a realistic timestamp
             Result.success(
                 UserPoiDiscoveryDto(
                     poiId = id,
-                    discoveredAt = "",
+                    discoveredAt = Instant.fromEpochMilliseconds(now).toString(),
                     favorite = false,
                     newlyUnlockedAchievements = emptyList()
                 )
@@ -236,7 +244,7 @@ class NetworkPoiRepository(
 
     /**
      * Toggles the favorite status of a POI.
-     * - Online: API call → local update
+     * - Online: API call → rollback or queue on failure
      * - Offline: Local optimistic update → queue for sync
      */
     override suspend fun toggleFavorite(id: String): Result<Unit> {
@@ -251,7 +259,14 @@ class NetworkPoiRepository(
                     contentType(ContentType.Application.Json)
                     setBody(emptyMap<String, String>())
                 }
-            }.map { }
+            }.fold(
+                onSuccess = { Result.success(Unit) },
+                onFailure = { error ->
+                    // API call failed - queue for later sync instead of leaving inconsistent state
+                    syncQueueManager.enqueue(SyncOperation.ToggleFavorite(id))
+                    Result.failure(error)
+                }
+            )
         } else {
             // Queue for later sync
             syncQueueManager.enqueue(SyncOperation.ToggleFavorite(id))

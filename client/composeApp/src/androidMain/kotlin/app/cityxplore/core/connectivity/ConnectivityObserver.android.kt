@@ -31,27 +31,21 @@ actual class ConnectivityObserver(
 
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                trySend(NetworkStatus.AVAILABLE)
+                // Use aggregated status to avoid false states when multiple networks exist
+                trySend(getCurrentNetworkStatus())
             }
 
             override fun onLost(network: Network) {
-                trySend(NetworkStatus.UNAVAILABLE)
+                // Use aggregated status - other networks may still be available
+                trySend(getCurrentNetworkStatus())
             }
 
             override fun onCapabilitiesChanged(
                 network: Network,
                 networkCapabilities: NetworkCapabilities
             ) {
-                val hasInternet = networkCapabilities.hasCapability(
-                    NetworkCapabilities.NET_CAPABILITY_INTERNET
-                )
-                val isValidated = networkCapabilities.hasCapability(
-                    NetworkCapabilities.NET_CAPABILITY_VALIDATED
-                )
-                trySend(
-                    if (hasInternet && isValidated) NetworkStatus.AVAILABLE
-                    else NetworkStatus.UNAVAILABLE
-                )
+                // Use aggregated status for accurate connectivity state
+                trySend(getCurrentNetworkStatus())
             }
         }
 

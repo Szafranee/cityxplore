@@ -24,14 +24,17 @@ actual fun getDatabaseBuilder(): RoomDatabase.Builder<CityXploreDatabase> {
 
 /**
  * Gets the path to the iOS Documents directory.
+ * Creates the directory if it doesn't exist.
  */
 private fun documentDirectory(): String {
     val documentDirectory = NSFileManager.defaultManager.URLForDirectory(
         directory = NSDocumentDirectory,
         inDomain = NSUserDomainMask,
         appropriateForURL = null,
-        create = false,
+        create = true,  // Create directory if missing
         error = null,
     )
-    return requireNotNull(documentDirectory?.path)
+    return requireNotNull(documentDirectory?.path) {
+        "Failed to resolve iOS Documents directory path in documentDirectory()"
+    }
 }

@@ -2,6 +2,7 @@ package app.cityxplore.di
 
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import app.cityxplore.database.CityXploreDatabase
+import app.cityxplore.database.Migrations
 import app.cityxplore.database.dao.AchievementDao
 import app.cityxplore.database.dao.FogOfWarDao
 import app.cityxplore.database.dao.PoiDao
@@ -28,10 +29,11 @@ import org.koin.dsl.module
  */
 fun databaseModule() = module {
     // Main database instance (singleton)
+    // Uses explicit migrations to preserve data (especially SyncQueue with pending offline operations)
     single<CityXploreDatabase> {
         getDatabaseBuilder()
             .setDriver(BundledSQLiteDriver())
-            .fallbackToDestructiveMigration(dropAllTables = true)
+            .addMigrations(*Migrations.ALL_MIGRATIONS)
             .build()
     }
 

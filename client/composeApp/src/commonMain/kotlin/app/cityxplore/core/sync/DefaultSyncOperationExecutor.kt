@@ -43,6 +43,8 @@ class DefaultSyncOperationExecutor(
 
             // Social features are not supported offline - these should never be queued
             is SyncOperation.FriendInvite,
+            is SyncOperation.FriendAccept,
+            is SyncOperation.FriendDecline,
             is SyncOperation.SharePoi -> {
                 Result.failure(UnsupportedOperationException("Social features require network connectivity"))
             }

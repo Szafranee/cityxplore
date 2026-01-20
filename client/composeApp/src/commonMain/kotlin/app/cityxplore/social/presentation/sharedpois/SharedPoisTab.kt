@@ -61,7 +61,7 @@ fun SharedPoisTab(
             if (isOfflineError) {
                 OfflineContent(
                     title = "You're Offline",
-                    message = "Shared POIs requires an internet connection to load. Please check your connection and try again.",
+                    message = "Shared POIs require an internet connection to load. Please check your connection and try again.",
                     onRetry = onRefresh
                 )
             } else {

@@ -82,23 +82,11 @@ interface AchievementDao {
     suspend fun upsertUserAchievement(userAchievement: UserAchievementEntity)
 
     /**
-     * Marks an achievement as unlocked.
+     * Upserts a user achievement as unlocked with current timestamp.
+     * Uses @Upsert to handle both insert and update cases safely.
      */
-    @Query(
-        """
-        UPDATE user_achievements 
-        SET isUnlocked = 1, 
-            unlockedAtMillis = :unlockedAt, 
-            progress = 1.0,
-            lastSyncedAt = :syncedAt 
-        WHERE achievementId = :achievementId
-    """
-    )
-    suspend fun markAsUnlocked(
-        achievementId: String,
-        unlockedAt: Long,
-        syncedAt: Long
-    )
+    @Upsert
+    suspend fun upsertUnlockedAchievement(userAchievement: UserAchievementEntity)
 
     /**
      * Gets count of unlocked achievements.

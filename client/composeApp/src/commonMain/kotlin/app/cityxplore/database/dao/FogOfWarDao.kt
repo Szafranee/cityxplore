@@ -48,9 +48,15 @@ interface FogOfWarDao {
 
     /**
      * Marks hexagons as synced to the server.
+     * Guards against empty list which would generate invalid SQL.
      */
+    suspend fun markAsSynced(hexagonIds: List<String>) {
+        if (hexagonIds.isEmpty()) return
+        markAsSyncedInternal(hexagonIds)
+    }
+
     @Query("UPDATE fog_of_war SET syncedToServer = 1 WHERE hexagonId IN (:hexagonIds)")
-    suspend fun markAsSynced(hexagonIds: List<String>)
+    suspend fun markAsSyncedInternal(hexagonIds: List<String>)
 
     /**
      * Inserts hexagons that came from server sync (already synced).

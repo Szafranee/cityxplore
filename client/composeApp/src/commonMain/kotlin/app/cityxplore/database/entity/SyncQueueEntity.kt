@@ -113,6 +113,24 @@ sealed interface SyncOperation {
         )
     }
 
+    @Serializable
+    data class FriendAccept(val requestId: String) : SyncOperation {
+        override fun toEntity() = SyncQueueEntity(
+            operationType = SyncOperationType.FRIEND_ACCEPT.name,
+            payload = Json.encodeToString(this),
+            createdAt = currentTimeMillis()
+        )
+    }
+
+    @Serializable
+    data class FriendDecline(val requestId: String) : SyncOperation {
+        override fun toEntity() = SyncQueueEntity(
+            operationType = SyncOperationType.FRIEND_DECLINE.name,
+            payload = Json.encodeToString(this),
+            createdAt = currentTimeMillis()
+        )
+    }
+
     companion object {
         /**
          * Parses a SyncQueueEntity back into a typed SyncOperation.
@@ -126,7 +144,8 @@ sealed interface SyncOperation {
                     SyncOperationType.SYNC_DISTANCE -> Json.decodeFromString<SyncDistance>(entity.payload)
                     SyncOperationType.FRIEND_INVITE -> Json.decodeFromString<FriendInvite>(entity.payload)
                     SyncOperationType.SHARE_POI -> Json.decodeFromString<SharePoi>(entity.payload)
-                    else -> null
+                    SyncOperationType.FRIEND_ACCEPT -> Json.decodeFromString<FriendAccept>(entity.payload)
+                    SyncOperationType.FRIEND_DECLINE -> Json.decodeFromString<FriendDecline>(entity.payload)
                 }
             } catch (_: Exception) {
                 null
