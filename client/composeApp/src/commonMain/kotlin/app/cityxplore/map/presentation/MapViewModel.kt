@@ -12,6 +12,7 @@ import app.cityxplore.core.location.Location
 import app.cityxplore.core.location.LocationService
 import app.cityxplore.core.utils.calculateDistance
 import app.cityxplore.journal.domain.ToggleFavoriteUseCase
+import app.cityxplore.map.data.PoiRepository
 import app.cityxplore.map.domain.AutoDiscoverPoisUseCase
 import app.cityxplore.map.domain.FogOfWarRepository
 import app.cityxplore.map.domain.GetPoisWithDiscoveriesUseCase
@@ -62,6 +63,7 @@ class MapViewModel(
     private val autoDiscoverUseCase: AutoDiscoverPoisUseCase,
     private val updateFogOfWarUseCase: UpdateFogOfWarUseCase,
     private val fogOfWarRepository: FogOfWarRepository,
+    private val poiRepository: PoiRepository,
     private val locationService: LocationService,
     private val profileRepository: ProfileRepository,
     private val toggleFavoriteUseCase: ToggleFavoriteUseCase,
@@ -81,6 +83,7 @@ class MapViewModel(
 
     private var locationObserverJob: Job? = null
     private var fogOfWarObserverJob: Job? = null
+    private var poiObserverJob: Job? = null
     private var lastKnownLocation: Location? = null
     private var cachedWarsawHexagons: Set<String> = emptySet()
     private var cachedSharedPois: List<SharedPoi> = emptyList()
@@ -91,6 +94,7 @@ class MapViewModel(
     init {
         observeLifecycle()
         observeFogOfWar()
+        observePois()
         loadDataIfNeeded()
         startLocationTracking()
         observeSharedPois()
@@ -153,6 +157,31 @@ class MapViewModel(
                 val currentState = _state.value
                 if (currentState is MapUiState.Ready) {
                     _state.value = currentState.copy(revealedHexagons = revealedHexagons)
+                }
+            }
+        }
+    }
+
+    /**
+     * Observes POIs from the local database.
+     * This is the primary source of truth for POI data - updates automatically
+     * when favorites are toggled or POIs are discovered.
+     */
+    private fun observePois() {
+        poiObserverJob?.cancel()
+        poiObserverJob = scope.launch(cityXploreDispatchers.io) {
+            poiRepository.observePois().collect { pois ->
+                val currentState = _state.value
+                if (currentState is MapUiState.Ready) {
+                    val mapPois = pois.map { it.toMapPoi() }
+                    // Update selected POI if it exists in the new list
+                    val updatedSelectedPoi = currentState.selectedPoi?.let { selected ->
+                        mapPois.find { it.id == selected.id }
+                    }
+                    _state.value = currentState.copy(
+                        pois = mapPois,
+                        selectedPoi = updatedSelectedPoi ?: currentState.selectedPoi
+                    )
                 }
             }
         }
@@ -475,38 +504,10 @@ class MapViewModel(
 
     private fun toggleFavorite(poiId: String) {
         scope.launch(cityXploreDispatchers.io) {
-            val currentState = _state.value
-            if (currentState is MapUiState.Ready) {
-                // Optimistic update
-                val updatedPois = currentState.pois.map {
-                    if (it.id == poiId) it.copy(isFavorite = !it.isFavorite) else it
-                }
-                val updatedSelected = if (currentState.selectedPoi?.id == poiId) {
-                    currentState.selectedPoi.copy(isFavorite = !currentState.selectedPoi.isFavorite)
-                } else currentState.selectedPoi
-
-                _state.value = currentState.copy(
-                    pois = updatedPois,
-                    selectedPoi = updatedSelected
-                )
-
-                toggleFavoriteUseCase(poiId).onFailure {
-                    // Revert only specific changes on the fresh state
-                    val freshState = _state.value
-                    if (freshState is MapUiState.Ready) {
-                        val revertedPois = freshState.pois.map {
-                            if (it.id == poiId) it.copy(isFavorite = !it.isFavorite) else it
-                        }
-                        val revertedSelected = if (freshState.selectedPoi?.id == poiId) {
-                            freshState.selectedPoi.copy(isFavorite = !freshState.selectedPoi.isFavorite)
-                        } else freshState.selectedPoi
-
-                        _state.value = freshState.copy(
-                            pois = revertedPois,
-                            selectedPoi = revertedSelected
-                        )
-                    }
-                }
+            // toggleFavoriteUseCase updates Room DB, and observePois Flow will
+            // automatically update the UI with the new favorite state
+            toggleFavoriteUseCase(poiId).onFailure { error ->
+                println("Failed to toggle favorite for POI $poiId: ${error.message}")
             }
         }
     }
@@ -701,38 +702,23 @@ class MapViewModel(
 
             result.onSuccess { discoveryResult ->
                 if (discoveryResult.newlyDiscoveredPoiIds.isNotEmpty()) {
-                    // Refresh POIs to get an updated discovery status
-                    val poisResult = getPoisUseCase()
+                    val currentState = _state.value
+                    if (currentState is MapUiState.Ready) {
+                        // Merge newly unlocked achievements from discovery with any existing ones
+                        val mergedAchievements =
+                            (currentState.newlyUnlockedAchievements + discoveryResult.newlyUnlockedAchievements).distinctBy { it.id }
 
-                    poisResult.onSuccess { pois ->
-                        val currentState = _state.value
-                        if (currentState is MapUiState.Ready) {
-                            // Merge newly unlocked achievements from discovery with any existing ones
-                            val mergedAchievements =
-                                (currentState.newlyUnlockedAchievements + discoveryResult.newlyUnlockedAchievements).distinctBy { it.id }
-
-                            _state.value = currentState.copy(
-                                pois = pois.map(PoiModel::toMapPoi),
-                                newlyDiscoveredPoiIds = currentState.newlyDiscoveredPoiIds + discoveryResult.newlyDiscoveredPoiIds.toSet(),
-                                newlyUnlockedAchievements = mergedAchievements
-                            )
-                        }
-
-                        // Refresh profile to update XP from achievements and check for level up
-                        loadProfile(checkLevelUp = true)
+                        // Update state with newly discovered POI IDs immediately
+                        // The POI list will be updated automatically via observePois() Flow
+                        _state.value = currentState.copy(
+                            newlyDiscoveredPoiIds = currentState.newlyDiscoveredPoiIds + discoveryResult.newlyDiscoveredPoiIds.toSet(),
+                            newlyUnlockedAchievements = mergedAchievements
+                        )
                     }
 
-                    poisResult.onFailure { error ->
-                        // Log error and clear discovery state to prevent inconsistency
-                        println("Failed to refresh POIs after discovery: ${error.message}")
-                        val currentState = _state.value
-                        if (currentState is MapUiState.Ready) {
-                            // Keep the current state but clear newly discovered IDs
-                            _state.value = currentState.copy(
-                                newlyDiscoveredPoiIds = emptySet()
-                            )
-                        }
-                    }
+                    // Try to refresh profile to update XP from achievements and check for level up
+                    // This may fail offline, which is fine - achievements will sync later
+                    loadProfile(checkLevelUp = true)
                 }
             }
 

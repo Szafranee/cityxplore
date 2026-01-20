@@ -93,6 +93,14 @@ interface PoiRepository {
     suspend fun toggleFavorite(id: String): Result<Unit>
 
     /**
+     * Gets all POIs from the local database synchronously.
+     * Used for offline operations like auto-discovery.
+     *
+     * @return [Result] containing a list of [PoiModel] from local cache.
+     */
+    suspend fun getLocalPois(): Result<List<PoiModel>>
+
+    /**
      * Clears local POI cache (used on logout).
      */
     suspend fun clearLocalCache()
@@ -249,6 +257,14 @@ class NetworkPoiRepository(
             syncQueueManager.enqueue(SyncOperation.ToggleFavorite(id))
             Result.success(Unit)
         }
+    }
+
+    /**
+     * Gets all POIs from the local database synchronously.
+     * Used for offline operations like auto-discovery.
+     */
+    override suspend fun getLocalPois(): Result<List<PoiModel>> = runCatching {
+        poiDao.getAllPois().map { it.toDomain() }
     }
 
     /**

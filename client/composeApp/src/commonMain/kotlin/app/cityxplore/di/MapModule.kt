@@ -46,7 +46,7 @@ val mapModule: Module = module {
     // Use Cases
     factory { GetPoisWithDiscoveriesUseCase(repository = get()) }
     factory { DiscoverPoiUseCase(repository = get()) }
-    factory { AutoDiscoverPoisUseCase(getPoisUseCase = get(), discoverPoiUseCase = get()) }
+    factory { AutoDiscoverPoisUseCase(poiRepository = get(), discoverPoiUseCase = get()) }
     factory { UpdateFogOfWarUseCase(repository = get()) }
 
     // ViewModel
@@ -56,6 +56,7 @@ val mapModule: Module = module {
             autoDiscoverUseCase = get(),
             updateFogOfWarUseCase = get(),
             fogOfWarRepository = get(),
+            poiRepository = get(),
             locationService = get(),
             profileRepository = get(),
             toggleFavoriteUseCase = get(),
