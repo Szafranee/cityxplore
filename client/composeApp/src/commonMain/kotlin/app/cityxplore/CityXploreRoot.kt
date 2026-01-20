@@ -14,6 +14,7 @@ import app.cityxplore.di.journalModule
 import app.cityxplore.di.locationModule
 import app.cityxplore.di.mapModule
 import app.cityxplore.di.networkModule
+import app.cityxplore.di.notificationModule
 import app.cityxplore.di.platformModule
 import app.cityxplore.di.profileModule
 import app.cityxplore.di.providePlatformEngine
@@ -39,6 +40,7 @@ fun CityXploreRoot(
             authModule,
             networkModule(),
             syncModule(),
+            notificationModule(),
             mapModule,
             locationModule,
             profileModule,

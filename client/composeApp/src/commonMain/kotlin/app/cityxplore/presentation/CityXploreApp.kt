@@ -12,6 +12,8 @@ import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Map
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -21,7 +23,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -38,6 +42,9 @@ import app.cityxplore.auth.presentation.AuthViewModel
 import app.cityxplore.auth.presentation.EmailVerificationScreen
 import app.cityxplore.auth.presentation.LoginScreen
 import app.cityxplore.auth.presentation.RegisterScreen
+import app.cityxplore.core.notifications.RequestNotificationPermission
+import app.cityxplore.core.notifications.SocialNotificationManager
+import app.cityxplore.core.notifications.consumePendingNavigation
 import app.cityxplore.journal.presentation.JournalScreen
 import app.cityxplore.journal.presentation.JournalViewModel
 import app.cityxplore.map.presentation.CityXploreMapScreen
@@ -47,6 +54,8 @@ import app.cityxplore.map.presentation.MapViewModel
 import app.cityxplore.platform.BackHandler
 import app.cityxplore.profile.presentation.OnboardingScreen
 import app.cityxplore.profile.presentation.ProfileScreen
+import app.cityxplore.social.domain.repository.SharedPoiRepository
+import app.cityxplore.social.domain.repository.SocialRepository
 import app.cityxplore.social.presentation.SocialScreen
 import app.cityxplore.social.presentation.profile.OtherProfileScreen
 import app.cityxplore.theme.AppColors
@@ -54,10 +63,16 @@ import app.cityxplore.theme.CityXploreTheme
 import coil3.compose.setSingletonImageLoaderFactory
 import org.koin.compose.koinInject
 
+/** Navigation destination constants - must match Android notification extras */
+object NavigationDestinations {
+    const val FRIENDS = "friends"
+    const val SHARED_POIS = "shared_pois"
+}
+
 private sealed interface CityXploreDestination {
     data object Map : CityXploreDestination
     data class Friends(
-        val initialTab: Int = 0, // 0 = Friends, 1 = Rankings
+        val initialTab: Int = 0, // 0 = Friends, 1 = Rankings, 2 = Shared POIs
         val rankingSubTab: Int = 0 // 0 = Global, 1 = Friends (used when initialTab = 1)
     ) : CityXploreDestination
 
@@ -67,6 +82,24 @@ private sealed interface CityXploreDestination {
         val userId: String,
         val previousDestination: CityXploreDestination = Friends()
     ) : CityXploreDestination
+}
+
+/**
+ * Helper function to handle pending navigation from notification click.
+ */
+private fun handlePendingNavigation(
+    nav: String,
+    currentDestination: MutableState<CityXploreDestination>
+) {
+    when (nav) {
+        NavigationDestinations.FRIENDS -> {
+            currentDestination.value = CityXploreDestination.Friends(initialTab = 0)
+        }
+
+        NavigationDestinations.SHARED_POIS -> {
+            currentDestination.value = CityXploreDestination.Friends(initialTab = 2)
+        }
+    }
 }
 
 private enum class AuthScreen { Login, Register }
@@ -139,10 +172,55 @@ fun AuthFlow(state: AuthState, viewModel: AuthViewModel) {
 fun MainAppContent(onSignOut: () -> Unit) {
     val mapViewModel: MapViewModel = koinInject()
     val journalViewModel: JournalViewModel = koinInject()
+    val socialNotificationManager: SocialNotificationManager = koinInject()
+    val socialRepository: SocialRepository = koinInject()
+    val sharedPoiRepository: SharedPoiRepository = koinInject()
+
     val mapState by mapViewModel.state.collectAsState()
     val journalState by journalViewModel.state.collectAsState()
 
+    // Badge counts
+    val pendingFriendRequests by socialRepository.getPendingRequests().collectAsState(initial = emptyList())
+    val unviewedSharedPois by sharedPoiRepository.getUnviewedPois().collectAsState(initial = emptyList())
+    val friendsBadgeCount = pendingFriendRequests.size
+    val sharedPoisBadgeCount = unviewedSharedPois.size
+
+    // Start/stop social notifications observer based on composition lifecycle
+    DisposableEffect(Unit) {
+        socialNotificationManager.startObserving()
+        onDispose {
+            socialNotificationManager.stopObserving()
+        }
+    }
+
+    // Request notification permission on Android 13+
+    RequestNotificationPermission()
+
     val currentDestination = remember { mutableStateOf<CityXploreDestination>(CityXploreDestination.Map) }
+
+    // Handle navigation from the notification click
+    // Check on initial composition
+    LaunchedEffect(Unit) {
+        consumePendingNavigation()?.let { nav ->
+            handlePendingNavigation(nav, currentDestination)
+        }
+    }
+
+    // Also check on every window focus gain (handles onNewIntent case)
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                consumePendingNavigation()?.let { nav ->
+                    handlePendingNavigation(nav, currentDestination)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     // Pending coordinates to centre the map on after navigation
     val pendingMapCoordinates = remember { mutableStateOf<Pair<Double, Double>?>(null) }
@@ -176,6 +254,7 @@ fun MainAppContent(onSignOut: () -> Unit) {
             if (currentDestination.value != CityXploreDestination.Journal) {
                 CityXploreBottomBar(
                     destination = currentDestination.value,
+                    friendsBadgeCount = friendsBadgeCount + sharedPoisBadgeCount,
                     onDestinationSelected = { currentDestination.value = it }
                 )
             }
@@ -274,6 +353,7 @@ fun MainAppContent(onSignOut: () -> Unit) {
 @Composable
 private fun CityXploreBottomBar(
     destination: CityXploreDestination,
+    friendsBadgeCount: Int = 0,
     onDestinationSelected: (CityXploreDestination) -> Unit,
 ) {
     NavigationBar(
@@ -312,11 +392,27 @@ private fun CityXploreBottomBar(
             onClick = { onDestinationSelected(CityXploreDestination.Friends()) },
             colors = navItemColors,
             icon = {
-                Icon(
-                    imageVector = if (destination is CityXploreDestination.Friends) Icons.Filled.Group else Icons.Outlined.Group,
-                    contentDescription = "Friends",
-                    modifier = Modifier.size(30.dp)
-                )
+                BadgedBox(
+                    badge = {
+                        if (friendsBadgeCount > 0) {
+                            Badge(
+                                containerColor = Color.Red,
+                                contentColor = Color.White
+                            ) {
+                                Text(
+                                    text = if (friendsBadgeCount > 99) "99+" else friendsBadgeCount.toString(),
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    }
+                ) {
+                    Icon(
+                        imageVector = if (destination is CityXploreDestination.Friends) Icons.Filled.Group else Icons.Outlined.Group,
+                        contentDescription = "Friends",
+                        modifier = Modifier.size(30.dp)
+                    )
+                }
             },
             label = {
                 Text(

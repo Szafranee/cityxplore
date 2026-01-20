@@ -11,7 +11,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddLocationAlt
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -86,6 +86,9 @@ fun SocialScreen(
     // Unviewed count for badge
     val unviewedCount = (sharedPoisState as? SharedPoisUiState.Content)?.unviewedCount ?: 0
 
+    // Pending friend requests count for badge
+    val pendingRequestsCount = (friendsState as? FriendsUiState.Content)?.pendingRequests?.size ?: 0
+
     LaunchedEffect(Unit) {
         viewModel.uiEvents.collect { event ->
             when (event) {
@@ -130,7 +133,7 @@ fun SocialScreen(
                 2 -> FloatingActionButton(
                     onClick = { showCreatePoiDialog = true },
                     containerColor = AppColors.green
-                ) { Icon(Icons.Default.Add, contentDescription = "Create Custom POI") }
+                ) { Icon(Icons.Default.AddLocationAlt, contentDescription = "Create Custom POI") }
             }
         }
     ) { paddingValues ->
@@ -139,7 +142,29 @@ fun SocialScreen(
                 Tab(
                     selected = pagerState.currentPage == 0,
                     onClick = { scope.launch { pagerState.animateScrollToPage(0) } },
-                    text = { Text("Friends") })
+                    text = {
+                        Box {
+                            Text("Friends")
+                            if (pendingRequestsCount > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = 8.dp, y = (-4).dp)
+                                        .size(if (pendingRequestsCount > 9) 18.dp else 16.dp)
+                                        .clip(CircleShape)
+                                        .background(AppColors.red),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (pendingRequestsCount > 99) "99+" else pendingRequestsCount.toString(),
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    })
                 Tab(
                     selected = pagerState.currentPage == 1,
                     onClick = { scope.launch { pagerState.animateScrollToPage(1) } },
@@ -273,7 +298,7 @@ fun SocialScreen(
                 isSentByMe = !currentSelectedSharedPoiIsReceived,
                 onShowOnMap = if (currentSelectedSharedPoiIsReceived) {
                     {
-                        // Capture the POI reference before closing sheet
+                        // Capture the POI reference before closing the sheet
                         val poiToShow = selectedPoi
                         currentSelectedSharedPoi = null // Close sheet
                         sharedPoisViewModel.showPoiOnMap(poiToShow)
