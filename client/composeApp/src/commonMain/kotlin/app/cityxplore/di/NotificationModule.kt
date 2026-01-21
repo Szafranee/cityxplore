@@ -8,20 +8,18 @@ import org.koin.dsl.module
  *
  * Provides:
  * - NotificationService: Platform-specific notification implementation
- * - SocialNotificationManager: Manages social notification events with polling
+ * - SocialNotificationManager: Manages social notification events via Supabase Realtime
  *
  * Note: NotificationService implementation is provided by platform-specific modules
  * (AndroidNotificationModule for Android, IosNotificationModule for iOS)
  */
 fun notificationModule() = module {
-    // SocialNotificationManager - observes social data and triggers notifications
-    // Also polls for new data every 30 seconds when online
+    // SocialNotificationManager - listens for real-time social events via Supabase Realtime
+    // Receives instant notifications for friend requests, accepted friendships, and shared POIs
     single {
         SocialNotificationManager(
+            supabaseClient = get(),
             notificationService = get(),
-            sharedPoiRepository = get(),
-            socialRepository = get(),
-            connectivityObserver = get(),
             authRepository = get(),
             dispatchers = get()
         )

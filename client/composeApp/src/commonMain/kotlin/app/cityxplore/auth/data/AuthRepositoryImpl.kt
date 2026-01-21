@@ -133,11 +133,18 @@ class AuthRepositoryImpl(
      * @return [Result] containing [Unit] on success, or exception on failure.
      */
     override suspend fun signOut(): Result<Unit> = runCatching {
-        // Clear all local data BEFORE signing out to prevent data leakage
-        localDataCleaner.clearAllUserData()
+        var cleanupError: Throwable? = null
+        try {
+            // Clear all local data BEFORE signing out to prevent data leakage
+            localDataCleaner.clearAllUserData()
+        } catch (t: Throwable) {
+            cleanupError = t
+        }
 
-        // Sign out from Supabase
+        // Always attempt remote sign-out
         auth.signOut()
+
+        cleanupError?.let { throw it }
     }
 
     /**

@@ -70,6 +70,8 @@ fun SocialScreen(
     val rankingsState by viewModel.rankingsState.collectAsState()
     val friendsState by viewModel.friendsState.collectAsState()
     val sharedPoisState by sharedPoisViewModel.uiState.collectAsState()
+    val isRankingsRefreshing by viewModel.isRankingsRefreshing.collectAsState()
+    val isFriendsRefreshing by viewModel.isFriendsRefreshing.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val pagerState = rememberPagerState(initialPage = initialTab, pageCount = { 3 })
     val scope = rememberCoroutineScope()
@@ -207,6 +209,7 @@ fun SocialScreen(
                     0 -> FriendsTab(
                         state = friendsState,
                         onRefresh = viewModel::refreshFriends,
+                        isRefreshing = isFriendsRefreshing,
                         onAccept = viewModel::acceptInvite,
                         onDecline = viewModel::declineInvite,
                         onDelete = viewModel::deleteFriend,
@@ -219,6 +222,7 @@ fun SocialScreen(
                         state = rankingsState,
                         onRefresh = viewModel::refreshRankings,
                         initialSubTab = initialRankingSubTab,
+                        isRefreshing = isRankingsRefreshing,
                         onUserSelected = { userId, isGlobalRanking ->
                             onUserSelected(userId, true, isGlobalRanking)
                         }
@@ -314,6 +318,7 @@ fun RankingsTab(
     state: RankingsUiState,
     onRefresh: () -> Unit,
     initialSubTab: Int = 0,
+    isRefreshing: Boolean = false,
     onUserSelected: (String, isGlobalRanking: Boolean) -> Unit
 ) {
     when (state) {
@@ -339,7 +344,14 @@ fun RankingsTab(
         }
 
         is RankingsUiState.Content -> {
-            RankingListContent(state.global, state.friends, initialSubTab, onUserSelected)
+            RankingListContent(
+                global = state.global,
+                friends = state.friends,
+                initialSubTab = initialSubTab,
+                isRefreshing = isRefreshing,
+                onRefresh = onRefresh,
+                onUserSelected = onUserSelected
+            )
         }
     }
 }
@@ -348,6 +360,7 @@ fun RankingsTab(
 fun FriendsTab(
     state: FriendsUiState,
     onRefresh: () -> Unit,
+    isRefreshing: Boolean = false,
     onAccept: (String) -> Unit,
     onDecline: (String) -> Unit,
     onDelete: (String) -> Unit,
@@ -388,6 +401,8 @@ fun FriendsTab(
                 pendingRequests = state.pendingRequests,
                 blockedUsers = state.blockedUsers,
                 currentUserId = currentUserId,
+                isRefreshing = isRefreshing,
+                onRefresh = onRefresh,
                 onAccept = onAccept,
                 onDecline = onDecline,
                 onDelete = onDelete,

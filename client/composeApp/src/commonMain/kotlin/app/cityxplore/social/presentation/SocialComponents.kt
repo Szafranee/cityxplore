@@ -32,6 +32,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,6 +42,7 @@ import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,10 +64,13 @@ import kotlinx.coroutines.launch
 
 /**
  * Displays the content of the Rankings tab, with a sub-tab switcher for Global vs Friends rankings.
+ * Supports pull-to-refresh to manually reload data.
  *
  * @param global List of ranking entries for the global leaderboard.
  * @param friends List of ranking entries for the user's friends leaderboard.
  * @param initialSubTab Initial sub-tab to display (0 = Global, 1 = Friends)
+ * @param isRefreshing Whether a refresh is in progress.
+ * @param onRefresh Callback to trigger a data refresh.
  * @param onUserSelected Callback with userId and isGlobalRanking (true = Global, false = Friends)
  */
 @Composable
@@ -73,6 +78,8 @@ fun RankingListContent(
     global: List<RankingEntry>,
     friends: List<RankingEntry>,
     initialSubTab: Int = 0,
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     onUserSelected: (String, isGlobalRanking: Boolean) -> Unit
 ) {
     var selectedSubTab by remember { mutableStateOf(initialSubTab) }
@@ -85,24 +92,20 @@ fun RankingListContent(
 
         val usersList = if (selectedSubTab == 0) global else friends
 
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(usersList) { entry ->
-                RankingItem(entry) { userId ->
-                    onUserSelected(userId, selectedSubTab == 0)
-                }
+        PullToRefreshLazyColumn(
+            items = usersList,
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
+            emptyContent = {
+                Text(
+                    "No rankings available.",
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.bodyLarge
+                )
             }
-            if (usersList.isEmpty()) {
-                item {
-                    Text(
-                        "No rankings available.",
-                        modifier = Modifier.padding(16.dp),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                }
+        ) { entry ->
+            RankingItem(entry) { userId ->
+                onUserSelected(userId, selectedSubTab == 0)
             }
         }
     }
@@ -160,18 +163,24 @@ fun RankingItem(entry: RankingEntry, onUserSelected: (String) -> Unit) {
 
 /**
  * Displays the content of the Friends tab, including pending requests and the active friends list.
+ * Supports pull-to-refresh to manually reload data.
  *
  * @param friends List of active friendships.
  * @param pendingRequests List of pending incoming friendship requests.
+ * @param isRefreshing Whether a refresh is in progress.
+ * @param onRefresh Callback to trigger a data refresh.
  * @param onAccept Callback when a user accepts a request.
  * @param onDecline Callback when a user declines a request.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FriendsListContent(
     friends: List<Friendship>,
     pendingRequests: List<Friendship>,
     blockedUsers: List<Friendship>,
     currentUserId: String,
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     onAccept: (String) -> Unit,
     onDecline: (String) -> Unit,
     onDelete: (String) -> Unit,
@@ -179,64 +188,74 @@ fun FriendsListContent(
     onUnblock: (String) -> Unit,
     onUserSelected: (String) -> Unit
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = Modifier.fillMaxSize()
     ) {
-        if (pendingRequests.isNotEmpty()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            if (pendingRequests.isNotEmpty()) {
+                item {
+                    Text(
+                        "Pending Requests",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                items(pendingRequests) { request ->
+                    FriendRequestItem(request, onAccept, onDecline)
+                }
+                item {
+                    HorizontalDivider()
+                }
+            }
+
             item {
                 Text(
-                    "Pending Requests",
+                    "My Friends",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
-            items(pendingRequests) { request ->
-                FriendRequestItem(request, onAccept, onDecline)
-            }
-            item {
-                HorizontalDivider()
-            }
-        }
 
-        item {
-            Text("My Friends", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-        }
+            if (friends.isEmpty()) {
+                item {
+                    Text("You have no friends yet. Add some!", modifier = Modifier.padding(8.dp))
+                }
+            } else {
+                items(friends) { friend ->
+                    FriendItem(
+                        friendship = friend,
+                        currentUserId = currentUserId,
+                        onDelete = onDelete,
+                        onBlock = onBlock,
+                        onUnblock = onUnblock,
+                        onClick = { onUserSelected(friend.otherUserId()) }
+                    )
+                }
+            }
 
-        if (friends.isEmpty()) {
-            item {
-                Text("You have no friends yet. Add some!", modifier = Modifier.padding(8.dp))
-            }
-        } else {
-            items(friends) { friend ->
-                FriendItem(
-                    friendship = friend,
-                    currentUserId = currentUserId,
-                    onDelete = onDelete,
-                    onBlock = onBlock,
-                    onUnblock = onUnblock,
-                    onClick = { onUserSelected(friend.otherUserId()) }
-                )
-            }
-        }
-
-        if (blockedUsers.isNotEmpty()) {
-            item {
-                HorizontalDivider()
-            }
-            item {
-                Text(
-                    "Blocked Users",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-            items(blockedUsers) { blocked ->
-                BlockedUserItem(
-                    friendship = blocked,
-                    onUnblock = onUnblock
-                )
+            if (blockedUsers.isNotEmpty()) {
+                item {
+                    HorizontalDivider()
+                }
+                item {
+                    Text(
+                        "Blocked Users",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                items(blockedUsers) { blocked ->
+                    BlockedUserItem(
+                        friendship = blocked,
+                        onUnblock = onUnblock
+                    )
+                }
             }
         }
     }
@@ -509,3 +528,44 @@ fun AddFriendDialog(
 @Composable
 fun rememberVectorPainter(image: androidx.compose.ui.graphics.vector.ImageVector) =
     androidx.compose.ui.graphics.vector.rememberVectorPainter(image)
+
+/**
+ * A reusable pull-to-refresh LazyColumn component.
+ *
+ * @param items The list of items to display.
+ * @param isRefreshing Whether a refresh is currently in progress.
+ * @param onRefresh Callback to trigger a refresh.
+ * @param emptyContent Content to display when the list is empty.
+ * @param itemContent Composable content for each item.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun <T> PullToRefreshLazyColumn(
+    items: List<T>,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+    emptyContent: @Composable () -> Unit = {},
+    itemContent: @Composable (T) -> Unit
+) {
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = modifier.fillMaxSize()
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(items) { item ->
+                itemContent(item)
+            }
+            if (items.isEmpty()) {
+                item {
+                    emptyContent()
+                }
+            }
+        }
+    }
+}

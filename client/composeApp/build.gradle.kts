@@ -110,6 +110,7 @@ kotlin {
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.supabase.gotrue.kt)
             implementation(libs.supabase.postgrest)
+            implementation(libs.supabase.realtime)
             implementation(libs.supabase.compose.auth)
             implementation(libs.supabase.compose.auth.ui)
             implementation(libs.supabase.storage.kt)

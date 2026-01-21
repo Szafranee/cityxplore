@@ -3,6 +3,8 @@ package app.cityxplore.social.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.cityxplore.core.connectivity.ConnectivityObserver
+import app.cityxplore.core.notifications.SocialDataChangeEvent
+import app.cityxplore.core.notifications.SocialNotificationManager
 import app.cityxplore.social.domain.GetBlockedUsersUseCase
 import app.cityxplore.social.domain.GetFriendsRankingUseCase
 import app.cityxplore.social.domain.GetFriendsUseCase
@@ -11,6 +13,8 @@ import app.cityxplore.social.domain.GetPendingRequestsUseCase
 import app.cityxplore.social.domain.ManageFriendshipUseCase
 import app.cityxplore.social.domain.RespondToFriendInviteUseCase
 import app.cityxplore.social.domain.SendFriendInviteUseCase
+import app.cityxplore.social.domain.exception.CannotInviteSelfException
+import app.cityxplore.social.domain.exception.UserNotFoundException
 import app.cityxplore.social.domain.model.Friendship
 import app.cityxplore.social.domain.model.RankingEntry
 import io.ktor.client.plugins.ClientRequestException
@@ -76,7 +80,8 @@ class SocialViewModel(
     private val sendFriendInviteUseCase: SendFriendInviteUseCase,
     private val respondToFriendInviteUseCase: RespondToFriendInviteUseCase,
     private val manageFriendshipUseCase: ManageFriendshipUseCase,
-    private val connectivityObserver: ConnectivityObserver
+    private val connectivityObserver: ConnectivityObserver,
+    private val socialNotificationManager: SocialNotificationManager
 ) : ViewModel() {
 
     private val offlineMessage = "This feature requires an internet connection"
@@ -84,6 +89,9 @@ class SocialViewModel(
     // Internal mutable states to track loading/error status
     private val _isRankingsLoading = MutableStateFlow(false)
     private val _rankingsError = MutableStateFlow<String?>(null)
+
+    /** Public StateFlow for pull-to-refresh indicator on Rankings tab */
+    val isRankingsRefreshing: StateFlow<Boolean> = _isRankingsLoading
 
     // Channel for one-off events (e.g. Snackbar messages)
     private val _uiEvents = Channel<SocialUiEvent>()
@@ -117,6 +125,9 @@ class SocialViewModel(
     private val _isFriendsLoading = MutableStateFlow(false)
     private val _friendsError = MutableStateFlow<String?>(null)
 
+    /** Public StateFlow for pull-to-refresh indicator on Friends tab */
+    val isFriendsRefreshing: StateFlow<Boolean> = _isFriendsLoading
+
     /**
      * StateFlow representing the current state of the Friends tab.
      * Combines friends list, pending requests, and blocked users.
@@ -140,6 +151,33 @@ class SocialViewModel(
 
     init {
         refreshAll()
+        observeDataChanges()
+    }
+
+    /**
+     * Observes real-time data change events from Supabase Realtime.
+     * Automatically refreshes data when friends or rankings change.
+     */
+    private fun observeDataChanges() {
+        viewModelScope.launch {
+            socialNotificationManager.dataChangeEvents.collect { event ->
+                println("SocialViewModel: Received data change event: $event")
+                when (event) {
+                    is SocialDataChangeEvent.FriendsChanged -> {
+                        refreshFriends()
+                    }
+
+                    is SocialDataChangeEvent.RankingsChanged -> {
+                        refreshRankings()
+                        refreshFriends() // Also refresh friends to update wizard friend picker
+                    }
+
+                    is SocialDataChangeEvent.SharedPoisChanged -> {
+                        // SharedPoisViewModel will handle this
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -203,11 +241,15 @@ class SocialViewModel(
                 _uiEvents.send(SocialUiEvent.ShowMessage("Invitation sent to $username"))
             } else {
                 val message = when (val exception = result.exceptionOrNull()) {
+                    is CannotInviteSelfException -> "You cannot send a friend request to yourself."
+
+                    is UserNotFoundException -> "User '$username' not found."
+
                     is ClientRequestException -> {
                         when (exception.response.status) {
                             HttpStatusCode.Conflict -> "Invitation already sent or user is already a friend."
                             HttpStatusCode.NotFound -> "User '$username' not found."
-                            else -> "Network error: ${exception.response.status.description}"
+                            else -> "Failed to send invite: ${exception.response.status.description}"
                         }
                     }
 

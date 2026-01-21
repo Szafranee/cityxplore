@@ -1,262 +1,129 @@
-package app.cityxplore.core.notifications
-
+﻿package app.cityxplore.core.notifications
 import app.cityxplore.auth.domain.AuthRepository
 import app.cityxplore.core.CityXploreDispatchers
-import app.cityxplore.core.connectivity.ConnectivityObserver
-import app.cityxplore.social.domain.model.Friendship
-import app.cityxplore.social.domain.model.SharedPoi
-import app.cityxplore.social.domain.repository.SharedPoiRepository
-import app.cityxplore.social.domain.repository.SocialRepository
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.realtime.PostgresAction
+import io.github.jan.supabase.realtime.channel
+import io.github.jan.supabase.realtime.postgresChangeFlow
+import io.github.jan.supabase.realtime.realtime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
-
-/**
- * Manages social notifications by periodically polling for new data
- * and showing notifications when new items are detected.
- *
- * Detects:
- * - New shared POIs received from friends
- * - New friend requests
- * - Accepted friend requests (when a friend list grows)
- *
- * Uses direct polling instead of Flow observation to work even when
- * the user is not on the Friends screen.
- *
- * Polling interval: 30 seconds when online.
- */
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+sealed interface SocialDataChangeEvent {
+    data object FriendsChanged : SocialDataChangeEvent
+    data object SharedPoisChanged : SocialDataChangeEvent
+    data object RankingsChanged : SocialDataChangeEvent
+}
 class SocialNotificationManager(
+    private val supabaseClient: SupabaseClient,
     private val notificationService: NotificationService,
-    private val sharedPoiRepository: SharedPoiRepository,
-    private val socialRepository: SocialRepository,
-    private val connectivityObserver: ConnectivityObserver,
     private val authRepository: AuthRepository,
     dispatchers: CityXploreDispatchers
 ) {
     private val scope = CoroutineScope(SupervisorJob() + dispatchers.io)
-
-    companion object {
-        /** Polling interval for checking new notifications (30 seconds) */
-        private const val POLLING_INTERVAL_MS = 30_000L
-
-        /** Initial delay before the first poll (5 seconds) */
-        private const val INITIAL_DELAY_MS = 5_000L
-    }
-
-    // Track the previous state to detect new items (by ID)
-    private var lastReceivedPoiIds: Set<String> = emptySet()
-    private var lastPendingRequestIds: Set<String> = emptySet()
-    private var lastFriendIds: Set<String> = emptySet()
-
-    // Store data for notification content
-    private var lastReceivedPois: Map<String, SharedPoi> = emptyMap()
-    private var lastPendingRequests: Map<String, Friendship> = emptyMap()
-    private var lastFriends: Map<String, Friendship> = emptyMap()
-
-    private var pollingJob: Job? = null
-    private var isInitialized = false
-
-    /**
-     * Starts periodic polling for new social data.
-     * Should be called after the user is authenticated.
-     */
+    private var realtimeJob: Job? = null
+    private var currentUserId: String? = null
+    private val _dataChangeEvents = MutableSharedFlow<SocialDataChangeEvent>(extraBufferCapacity = 10)
+    val dataChangeEvents: SharedFlow<SocialDataChangeEvent> = _dataChangeEvents.asSharedFlow()
     fun startObserving() {
-        if (pollingJob?.isActive == true) return
-
-        pollingJob = scope.launch {
-            // Initial delay to let the app load first
-            delay(INITIAL_DELAY_MS)
-
-            // Do an initial load without notifications
-            initializeState()
-
-            while (isActive) {
-                delay(POLLING_INTERVAL_MS)
-
-                try {
-                    if (connectivityObserver.isNetworkAvailable()) {
-                        checkForNewNotifications()
-                    }
-                } catch (e: Exception) {
-                    println("SocialNotificationManager: Polling error: ${e.message}")
-                }
+        if (realtimeJob?.isActive == true) return
+        realtimeJob = scope.launch {
+            currentUserId = authRepository.getCurrentUserId()
+            if (currentUserId == null) return@launch
+            delay(1000)
+            try {
+                supabaseClient.realtime.connect()
+                setupRealtimeSubscriptions()
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
-
-    /**
-     * Stops polling for social data.
-     * Should be called on logout.
-     */
     fun stopObserving() {
-        pollingJob?.cancel()
-        pollingJob = null
-        isInitialized = false
-
-        // Reset state
-        lastReceivedPoiIds = emptySet()
-        lastPendingRequestIds = emptySet()
-        lastFriendIds = emptySet()
-        lastReceivedPois = emptyMap()
-        lastPendingRequests = emptyMap()
-        lastFriends = emptyMap()
+        realtimeJob?.cancel()
+        realtimeJob = null
+        scope.launch {
+            try { supabaseClient.realtime.removeAllChannels() } catch (_: Exception) {}
+        }
+        currentUserId = null
     }
-
-    /**
-     * Initialises state without showing notifications.
-     * Called on the first load to establish a baseline.
-     */
-    private suspend fun initializeState() {
-        try {
-            // Refresh all data
-            sharedPoiRepository.refreshReceivedPois()
-            socialRepository.refreshPendingRequests()
-            socialRepository.refreshFriends()
-
-            // Get the current state and store it
-            val receivedPois = sharedPoiRepository.getReceivedPois().first()
-            lastReceivedPois = receivedPois.associateBy { it.id }
-            lastReceivedPoiIds = lastReceivedPois.keys
-
-            val pendingRequests = socialRepository.getPendingRequests().first()
-            lastPendingRequests = pendingRequests.associateBy { it.id }
-            lastPendingRequestIds = lastPendingRequests.keys
-
-            val friends = socialRepository.getFriends().first()
-            lastFriends = friends.associateBy { it.otherUserId ?: it.id }
-            lastFriendIds = lastFriends.keys
-
-            isInitialized = true
-            println("SocialNotificationManager: Initialized with ${lastReceivedPoiIds.size} POIs, ${lastPendingRequestIds.size} requests, ${lastFriendIds.size} friends")
-        } catch (e: Exception) {
-            println("SocialNotificationManager: Init error: ${e.message}")
+    private suspend fun setupRealtimeSubscriptions() {
+        val userId = currentUserId ?: return
+        val friendshipsChannel = supabaseClient.realtime.channel("social-friendships-$userId")
+        friendshipsChannel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
+            table = "friendships"
+        }.onEach { change -> handleFriendshipInsert(change, userId) }.catch { }.launchIn(scope)
+        friendshipsChannel.postgresChangeFlow<PostgresAction.Update>(schema = "public") {
+            table = "friendships"
+        }.onEach { change -> handleFriendshipUpdate(change, userId) }.catch { }.launchIn(scope)
+        friendshipsChannel.subscribe()
+        val sharedPoisChannel = supabaseClient.realtime.channel("social-shared-pois-$userId")
+        sharedPoisChannel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
+            table = "shared_pois"
+        }.onEach { change -> handleSharedPoiInsert(change, userId) }.catch { }.launchIn(scope)
+        sharedPoisChannel.subscribe()
+    }
+    private suspend fun handleFriendshipInsert(change: PostgresAction.Insert, userId: String) {
+        val record = change.record
+        val requesterId = record["requester_id"]?.jsonPrimitive?.content
+        val addresseeId = record["addressee_id"]?.jsonPrimitive?.content
+        val status = record["status"]?.jsonPrimitive?.content
+        _dataChangeEvents.tryEmit(SocialDataChangeEvent.FriendsChanged)
+        if (addresseeId == userId && status == "pending" && requesterId != null) {
+            val requesterName = fetchUsername(requesterId) ?: "Someone"
+            notificationService.showFriendRequestNotification(fromUsername = requesterName)
         }
     }
-
-    /**
-     * Checks for new social data and shows notifications for new items.
-     */
-    private suspend fun checkForNewNotifications() {
-        if (!isInitialized) {
-            initializeState()
-            return
-        }
-
-        try {
-            // Refresh all data from the server
-            sharedPoiRepository.refreshReceivedPois()
-            socialRepository.refreshPendingRequests()
-            socialRepository.refreshFriends()
-
-            // Check for new shared POIs
-            checkNewSharedPois()
-
-            // Check for new friend requests
-            checkNewFriendRequests()
-
-            // Check for newly accepted friends
-            checkNewFriends()
-
-        } catch (e: Exception) {
-            println("SocialNotificationManager: Check error: ${e.message}")
-        }
-    }
-
-    /**
-     * Checks for new shared POIs and shows notifications.
-     */
-    private suspend fun checkNewSharedPois() {
-        val currentPois = sharedPoiRepository.getReceivedPois().first()
-        val currentPoisMap = currentPois.associateBy { it.id }
-        val currentIds = currentPoisMap.keys
-
-        val newIds = currentIds - lastReceivedPoiIds
-
-        newIds.forEach { newId ->
-            val poi = currentPoisMap[newId]
-            if (poi != null) {
-                val poiName = poi.customPoi?.name
-                    ?: poi.poiId?.let { "A place" }
-                    ?: "A location"
-
-                notificationService.showSharedPoiNotification(
-                    sharerName = poi.sharerName ?: "A friend",
-                    poiName = poiName,
-                    message = poi.message
-                )
-                println("SocialNotificationManager: Notified new shared POI from ${poi.sharerName}")
+    private suspend fun handleFriendshipUpdate(change: PostgresAction.Update, userId: String) {
+        val record = change.record
+        val requesterId = record["requester_id"]?.jsonPrimitive?.content
+        val addresseeId = record["addressee_id"]?.jsonPrimitive?.content
+        val status = record["status"]?.jsonPrimitive?.content?.lowercase()
+        _dataChangeEvents.tryEmit(SocialDataChangeEvent.FriendsChanged)
+        when {
+            status == "pending" && addresseeId == userId && requesterId != null -> {
+                val requesterName = fetchUsername(requesterId) ?: "Someone"
+                notificationService.showFriendRequestNotification(fromUsername = requesterName)
+            }
+            status == "accepted" && requesterId == userId && addresseeId != null -> {
+                _dataChangeEvents.tryEmit(SocialDataChangeEvent.RankingsChanged)
+                val accepterName = fetchUsername(addresseeId) ?: "A user"
+                notificationService.showFriendRequestAcceptedNotification(username = accepterName)
+            }
+            status == "accepted" && addresseeId == userId -> {
+                _dataChangeEvents.tryEmit(SocialDataChangeEvent.RankingsChanged)
             }
         }
-
-        // Update tracked state
-        lastReceivedPois = currentPoisMap
-        lastReceivedPoiIds = currentIds
     }
-
-    /**
-     * Checks for new friend requests and shows notifications.
-     */
-    private suspend fun checkNewFriendRequests() {
-        val currentRequests = socialRepository.getPendingRequests().first()
-        val currentRequestsMap = currentRequests.associateBy { it.id }
-        val currentIds = currentRequestsMap.keys
-
-        val newIds = currentIds - lastPendingRequestIds
-
-        newIds.forEach { newId ->
-            val request = currentRequestsMap[newId]
-            if (request != null) {
-                notificationService.showFriendRequestNotification(
-                    fromUsername = request.otherUserName ?: "Someone"
-                )
-                println("SocialNotificationManager: Notified new friend request from ${request.otherUserName}")
-            }
+    private suspend fun handleSharedPoiInsert(change: PostgresAction.Insert, userId: String) {
+        val record = change.record
+        val sharerId = record["sharer_id"]?.jsonPrimitive?.content
+        val recipientId = record["recipient_id"]?.jsonPrimitive?.content
+        val message = record["message"]?.jsonPrimitive?.content
+        _dataChangeEvents.tryEmit(SocialDataChangeEvent.SharedPoisChanged)
+        if (recipientId == userId && sharerId != null) {
+            val sharerName = fetchUsername(sharerId) ?: "A friend"
+            val poiData = record["poi_data"]
+            val poiName = try { poiData?.jsonObject?.get("name")?.jsonPrimitive?.content ?: "A location" } catch (_: Exception) { "A location" }
+            notificationService.showSharedPoiNotification(sharerName = sharerName, poiName = poiName, message = message)
         }
-
-        // Update tracked state
-        lastPendingRequests = currentRequestsMap
-        lastPendingRequestIds = currentIds
     }
-
-    /**
-     * Checks for newly accepted friends and shows notifications.
-     */
-    private suspend fun checkNewFriends() {
-        // Get current user ID to determine who accepted the request
-        val currentUserId = authRepository.getCurrentUserId() ?: return
-
-        val currentFriends = socialRepository.getFriends().first()
-        val currentFriendsMap = currentFriends.associateBy { it.otherUserId ?: it.id }
-        val currentIds = currentFriendsMap.keys
-
-        val newIds = currentIds - lastFriendIds
-
-        newIds.forEach { newId ->
-            val friend = currentFriendsMap[newId]
-            if (friend != null) {
-                // Determine if the current user was the one who accepted the request
-                // If I am the addressee (and status is ACCEPTED), I accepted it.
-                // If I am the requester (and status is ACCEPTED), THEY accepted it.
-                // We only notify if THEY accepted it (i.e., I am NOT the addressee).
-                // Note: The instruction said to use a field like "acceptedBy", but utilizing
-                // addresseeId == currentUserId is the standard way to identify the acceptor in this model.
-                val isSelfAcceptance = friend.addresseeId == currentUserId
-
-                if (!isSelfAcceptance) {
-                    notificationService.showFriendRequestAcceptedNotification(
-                        username = friend.otherUserName ?: "A user"
-                    )
-                    println("SocialNotificationManager: Notified new friend ${friend.otherUserName}")
-                }
-            }
-        }
-
-        // Update tracked state
-        lastFriends = currentFriendsMap
-        lastFriendIds = currentIds
+    private suspend fun fetchUsername(usrId: String): String? {
+        return try {
+            supabaseClient.postgrest.from("users").select { filter { eq("id", usrId) } }.decodeSingleOrNull<UserNameDto>()?.username
+        } catch (_: Exception) { null }
     }
 }
+@kotlinx.serialization.Serializable
+private data class UserNameDto(val username: String? = null)
