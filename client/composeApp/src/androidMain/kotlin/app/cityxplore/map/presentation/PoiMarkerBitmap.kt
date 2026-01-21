@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathNode
 import androidx.compose.ui.graphics.vector.VectorGroup
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.graphics.createBitmap
 import app.cityxplore.map.domain.PoiCategory
 import app.cityxplore.map.presentation.components.getCategoryIcon
+import app.cityxplore.theme.AppColors
 import androidx.compose.ui.graphics.Color as ComposeColor
 
 /**
@@ -522,8 +524,8 @@ fun createSharedPoiMarkerBitmap(
     val centerX = size / 2f
     val centerY = size / 2f
 
-    val themeColor = getCategoryBaseColor(category)
-    val greenColor = Color.rgb(52, 199, 89) // Green for shared POIs
+    val categoryColor = getCategoryBaseColor(category)
+    val greenColor = AppColors.green.toArgb() // Green for shared POIs
 
     // Draw shadow for better visibility
     val shadowPaint = Paint().apply {
@@ -541,11 +543,11 @@ fun createSharedPoiMarkerBitmap(
 
     if (isDiscovered) {
         // Full color gradient for discovered
-        gradientColor1 = themeColor
+        gradientColor1 = categoryColor
         gradientColor2 = greenColor
     } else {
         // Desaturated/dimmed gradient for undiscovered
-        gradientColor1 = desaturateColor(themeColor, 0.4f)
+        gradientColor1 = desaturateColor(categoryColor, 0.4f)
         gradientColor2 = desaturateColor(greenColor, 0.4f)
     }
 

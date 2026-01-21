@@ -80,6 +80,16 @@ class CacheManager(
     fun markAsFresh(key: CacheKey) {
         cacheTimestamps[key] = currentTimeMillis()
     }
+
+    /**
+     * Clears all cache timestamps, forcing all data to be refreshed.
+     * This should be called during sign-out to ensure fresh data is loaded
+     * for the next user.
+     */
+    fun clearAll() {
+        cacheTimestamps.clear()
+        println("CacheManager: All cache timestamps cleared")
+    }
 }
 
 /**

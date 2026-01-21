@@ -3,6 +3,8 @@ package app.cityxplore.social.presentation.sharedpois
 import app.cityxplore.core.connectivity.ConnectivityObserver
 import app.cityxplore.core.lifecycle.AppLifecycleObserver
 import app.cityxplore.core.lifecycle.AppLifecycleState
+import app.cityxplore.core.notifications.SocialDataChangeEvent
+import app.cityxplore.core.notifications.SocialNotificationManager
 import app.cityxplore.platform.CityXploreBaseViewModel
 import app.cityxplore.social.domain.DeleteSharedPoiUseCase
 import app.cityxplore.social.domain.GetReceivedSharedPoisUseCase
@@ -40,7 +42,8 @@ class SharedPoisViewModel(
     private val deleteSharedPoiUseCase: DeleteSharedPoiUseCase,
     private val sharedPoiRepository: SharedPoiRepository,
     private val appLifecycleObserver: AppLifecycleObserver,
-    private val connectivityObserver: ConnectivityObserver
+    private val connectivityObserver: ConnectivityObserver,
+    private val socialNotificationManager: SocialNotificationManager
 ) : CityXploreBaseViewModel() {
 
     private val offlineMessage = "This feature requires an internet connection"
@@ -75,6 +78,7 @@ class SharedPoisViewModel(
 
     init {
         observeLifecycle()
+        observeDataChanges()
         refresh()
     }
 
@@ -88,6 +92,26 @@ class SharedPoisViewModel(
                 when (state) {
                     AppLifecycleState.RESUMED -> handleResume()
                     else -> { /* no action needed */
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Observes real-time data change events from Supabase Realtime.
+     * Automatically refreshes shared POIs when new ones are received.
+     */
+    private fun observeDataChanges() {
+        scope.launch {
+            socialNotificationManager.dataChangeEvents.collect { event ->
+                println("SharedPoisViewModel: Received data change event: $event")
+                when (event) {
+                    is SocialDataChangeEvent.SharedPoisChanged -> {
+                        refresh()
+                    }
+
+                    else -> { /* handled by SocialViewModel */
                     }
                 }
             }

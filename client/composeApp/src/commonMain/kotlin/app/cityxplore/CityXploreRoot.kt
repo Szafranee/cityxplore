@@ -14,6 +14,7 @@ import app.cityxplore.di.journalModule
 import app.cityxplore.di.locationModule
 import app.cityxplore.di.mapModule
 import app.cityxplore.di.networkModule
+import app.cityxplore.di.notificationModule
 import app.cityxplore.di.platformModule
 import app.cityxplore.di.profileModule
 import app.cityxplore.di.providePlatformEngine
@@ -35,10 +36,11 @@ fun CityXploreRoot(
         modules(
             providePlatformEngine(),
             platformModule,
-            databaseModule(),
-            authModule,
             networkModule(),
-            syncModule(),
+            syncModule(),     // Must be before databaseModule (provides CacheManager)
+            databaseModule(), // Depends on CacheManager for LocalDataCleaner
+            authModule,       // Depends on LocalDataCleaner
+            notificationModule(),
             mapModule,
             locationModule,
             profileModule,

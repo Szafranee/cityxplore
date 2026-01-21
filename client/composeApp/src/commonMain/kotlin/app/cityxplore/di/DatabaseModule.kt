@@ -1,6 +1,7 @@
 package app.cityxplore.di
 
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import app.cityxplore.core.data.LocalDataCleaner
 import app.cityxplore.database.CityXploreDatabase
 import app.cityxplore.database.Migrations
 import app.cityxplore.database.dao.AchievementDao
@@ -43,4 +44,16 @@ fun databaseModule() = module {
     single<FogOfWarDao> { get<CityXploreDatabase>().fogOfWarDao() }
     single<AchievementDao> { get<CityXploreDatabase>().achievementDao() }
     single<SyncQueueDao> { get<CityXploreDatabase>().syncQueueDao() }
+
+    // LocalDataCleaner - used to clear all local data on sign-out
+    single<LocalDataCleaner> {
+        LocalDataCleaner(
+            profileDao = get(),
+            poiDao = get(),
+            fogOfWarDao = get(),
+            achievementDao = get(),
+            syncQueueDao = get(),
+            cacheManager = get()
+        )
+    }
 }

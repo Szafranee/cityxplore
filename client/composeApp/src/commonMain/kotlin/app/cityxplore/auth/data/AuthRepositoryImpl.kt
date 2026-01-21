@@ -2,6 +2,7 @@ package app.cityxplore.auth.data
 
 import app.cityxplore.auth.domain.AuthRepository
 import app.cityxplore.auth.domain.SocialProvider
+import app.cityxplore.core.data.LocalDataCleaner
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.OtpType
 import io.github.jan.supabase.auth.auth
@@ -28,10 +29,12 @@ import kotlin.time.TimeSource
  *
  * @property supabase The Supabase client instance for authentication operations.
  * @property client The HTTP client for making API calls to the backend.
+ * @property localDataCleaner Service to clear local cached data on sign-out.
  */
 class AuthRepositoryImpl(
     private val supabase: SupabaseClient,
-    private val client: HttpClient
+    private val client: HttpClient,
+    private val localDataCleaner: LocalDataCleaner
 ) : AuthRepository {
     private val auth = supabase.auth
 
@@ -122,12 +125,26 @@ class AuthRepositoryImpl(
     }
 
     /**
-     * Signs out the currently authenticated user, clearing the session.
+     * Signs out the currently authenticated user, clearing the session and all local data.
+     *
+     * This method first clears all cached local data to prevent data leakage
+     * when switching between accounts, then signs out from Supabase.
      *
      * @return [Result] containing [Unit] on success, or exception on failure.
      */
     override suspend fun signOut(): Result<Unit> = runCatching {
+        var cleanupError: Throwable? = null
+        try {
+            // Clear all local data BEFORE signing out to prevent data leakage
+            localDataCleaner.clearAllUserData()
+        } catch (t: Throwable) {
+            cleanupError = t
+        }
+
+        // Always attempt remote sign-out
         auth.signOut()
+
+        cleanupError?.let { throw it }
     }
 
     /**

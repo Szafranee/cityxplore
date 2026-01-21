@@ -8,9 +8,9 @@ data class ProfileDto(
     val id: String,
     val email: String,
     val username: String,
-    val avatarUrl: String?,
-    val totalDistance: Double,
-    val totalPoisDiscovered: Int,
+    val avatarUrl: String? = null,
+    val totalDistance: Double = 0.0,
+    val totalPoisDiscovered: Int = 0,
     val totalAchievementPoints: Int = 0
 ) {
     /**
