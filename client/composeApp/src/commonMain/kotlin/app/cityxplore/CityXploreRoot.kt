@@ -36,10 +36,10 @@ fun CityXploreRoot(
         modules(
             providePlatformEngine(),
             platformModule,
-            databaseModule(),
-            authModule,
             networkModule(),
-            syncModule(),
+            syncModule(),     // Must be before databaseModule (provides CacheManager)
+            databaseModule(), // Depends on CacheManager for LocalDataCleaner
+            authModule,       // Depends on LocalDataCleaner
             notificationModule(),
             mapModule,
             locationModule,

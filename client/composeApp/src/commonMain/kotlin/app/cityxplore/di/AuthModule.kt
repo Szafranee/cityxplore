@@ -26,7 +26,7 @@ import org.koin.dsl.module
  * - SUPABASE_KEY: The Supabase anonymous/public API key
  */
 val authModule = module {
-    single<AuthRepository> { AuthRepositoryImpl(get(), get()) }
+    single<AuthRepository> { AuthRepositoryImpl(get(), get(), get()) }
     factory { AuthViewModel(get()) }
     single {
         val url = BuildConfig.SUPABASE_URL

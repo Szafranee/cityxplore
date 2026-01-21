@@ -1,5 +1,6 @@
 package app.cityxplore.core.notifications
 
+import app.cityxplore.auth.domain.AuthRepository
 import app.cityxplore.core.CityXploreDispatchers
 import app.cityxplore.core.connectivity.ConnectivityObserver
 import app.cityxplore.social.domain.model.Friendship
@@ -33,6 +34,7 @@ class SocialNotificationManager(
     private val sharedPoiRepository: SharedPoiRepository,
     private val socialRepository: SocialRepository,
     private val connectivityObserver: ConnectivityObserver,
+    private val authRepository: AuthRepository,
     dispatchers: CityXploreDispatchers
 ) {
     private val scope = CoroutineScope(SupervisorJob() + dispatchers.io)
@@ -224,6 +226,9 @@ class SocialNotificationManager(
      * Checks for newly accepted friends and shows notifications.
      */
     private suspend fun checkNewFriends() {
+        // Get current user ID to determine who accepted the request
+        val currentUserId = authRepository.getCurrentUserId() ?: return
+
         val currentFriends = socialRepository.getFriends().first()
         val currentFriendsMap = currentFriends.associateBy { it.otherUserId ?: it.id }
         val currentIds = currentFriendsMap.keys
@@ -233,10 +238,20 @@ class SocialNotificationManager(
         newIds.forEach { newId ->
             val friend = currentFriendsMap[newId]
             if (friend != null) {
-                notificationService.showFriendRequestAcceptedNotification(
-                    username = friend.otherUserName ?: "A user"
-                )
-                println("SocialNotificationManager: Notified new friend ${friend.otherUserName}")
+                // Determine if the current user was the one who accepted the request
+                // If I am the addressee (and status is ACCEPTED), I accepted it.
+                // If I am the requester (and status is ACCEPTED), THEY accepted it.
+                // We only notify if THEY accepted it (i.e., I am NOT the addressee).
+                // Note: The instruction said to use a field like "acceptedBy", but utilizing
+                // addresseeId == currentUserId is the standard way to identify the acceptor in this model.
+                val isSelfAcceptance = friend.addresseeId == currentUserId
+
+                if (!isSelfAcceptance) {
+                    notificationService.showFriendRequestAcceptedNotification(
+                        username = friend.otherUserName ?: "A user"
+                    )
+                    println("SocialNotificationManager: Notified new friend ${friend.otherUserName}")
+                }
             }
         }
 

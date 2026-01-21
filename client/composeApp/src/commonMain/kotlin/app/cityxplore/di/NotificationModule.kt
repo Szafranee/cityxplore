@@ -22,6 +22,7 @@ fun notificationModule() = module {
             sharedPoiRepository = get(),
             socialRepository = get(),
             connectivityObserver = get(),
+            authRepository = get(),
             dispatchers = get()
         )
     }
