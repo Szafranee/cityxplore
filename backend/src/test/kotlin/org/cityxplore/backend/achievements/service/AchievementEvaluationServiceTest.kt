@@ -12,6 +12,7 @@ import org.cityxplore.backend.discoveries.entity.UserPoiDiscovery
 import org.cityxplore.backend.discoveries.repository.UserPoiDiscoveryRepository
 import org.cityxplore.backend.poi.entity.PointOfInterest
 import org.cityxplore.backend.poi.repository.PointOfInterestRepository
+import org.cityxplore.backend.social.friendship.repository.FriendshipRepository
 import org.cityxplore.backend.user.entity.User
 import org.cityxplore.backend.user.repository.UserRepository
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -34,6 +35,7 @@ class AchievementEvaluationServiceTest {
     private val achievementService: AchievementService = mockk()
     private val userPoiDiscoveryRepository: UserPoiDiscoveryRepository = mockk()
     private val poiRepository: PointOfInterestRepository = mockk()
+    private val friendshipRepository: FriendshipRepository = mockk()
 
     private lateinit var evaluationService: AchievementEvaluationService
 
@@ -47,7 +49,8 @@ class AchievementEvaluationServiceTest {
             userRepository,
             achievementService,
             userPoiDiscoveryRepository,
-            poiRepository
+            poiRepository,
+            friendshipRepository
         )
     }
 
@@ -89,7 +92,8 @@ class AchievementEvaluationServiceTest {
         category: String? = null,
         points: Int = 50
     ): Achievement {
-        val criteria = mutableMapOf<String, Any?>("count" to count)
+        // Updated to use "poi_count" instead of "count" as per logic change
+        val criteria = mutableMapOf<String, Any?>("poi_count" to count)
         if (category != null) {
             criteria["category"] = category
         }

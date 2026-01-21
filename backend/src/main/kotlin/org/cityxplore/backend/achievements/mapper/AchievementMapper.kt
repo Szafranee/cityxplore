@@ -16,7 +16,8 @@ fun Achievement.toDto(): AchievementResponse = AchievementResponse(
     description = description,
     category = category,
     iconUrl = iconUrl,
-    points = points
+    points = points,
+    criteria = criteria
 )
 
 fun CreateAchievementRequest.toEntity(): Achievement = Achievement(
@@ -45,4 +46,19 @@ fun toUserAchievementDto(
         achievement = achievement.toDto(),
         achievedAt = userAchievement?.achievedAt,
         progress = userAchievement?.progressData
+    )
+
+/**
+ * Maps achievement and user achievement to response DTO with custom progress data.
+ * Used when progress is calculated dynamically (e.g., for locked achievements).
+ */
+fun toUserAchievementDto(
+    achievement: Achievement,
+    userAchievement: UserAchievement?,
+    progressData: Map<String, Any?>?
+): UserAchievementResponse =
+    UserAchievementResponse(
+        achievement = achievement.toDto(),
+        achievedAt = userAchievement?.achievedAt,
+        progress = progressData
     )

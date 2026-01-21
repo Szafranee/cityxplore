@@ -4,6 +4,7 @@ import io.mockk.clearAllMocks
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.cityxplore.backend.achievements.service.AchievementEvaluationService
 import org.cityxplore.backend.social.friendship.dto.FriendshipRequest
 import org.cityxplore.backend.social.friendship.entity.Friendship
 import org.cityxplore.backend.social.friendship.entity.FriendshipStatus
@@ -27,12 +28,14 @@ import java.util.UUID
 class FriendshipServiceTest {
 
     private lateinit var friendshipRepository: FriendshipRepository
+    private lateinit var achievementEvaluationService: AchievementEvaluationService
     private lateinit var friendshipService: FriendshipService
 
     @BeforeEach
     fun setUp() {
         friendshipRepository = mockk()
-        friendshipService = FriendshipService(friendshipRepository)
+        achievementEvaluationService = mockk()
+        friendshipService = FriendshipService(friendshipRepository, achievementEvaluationService)
     }
 
     @AfterEach
@@ -232,6 +235,8 @@ class FriendshipServiceTest {
         )
         every { friendshipRepository.findById(friendshipId) } returns Optional.of(friendship)
         every { friendshipRepository.save(any()) } answers { firstArg() }
+        every { achievementEvaluationService.evaluateSocialAchievements(currentUserId) } returns emptyList()
+        every { achievementEvaluationService.evaluateSocialAchievements(requesterId) } returns emptyList()
 
         // When
         val result = friendshipService.acceptInvite(currentUserId, friendshipId)
@@ -239,6 +244,8 @@ class FriendshipServiceTest {
         // Then
         assertEquals(FriendshipStatus.ACCEPTED, result.status)
         verify(exactly = 1) { friendshipRepository.save(friendship) }
+        verify(exactly = 1) { achievementEvaluationService.evaluateSocialAchievements(currentUserId) }
+        verify(exactly = 1) { achievementEvaluationService.evaluateSocialAchievements(requesterId) }
     }
 
     @Test

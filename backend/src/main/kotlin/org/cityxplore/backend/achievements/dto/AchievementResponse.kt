@@ -14,5 +14,6 @@ data class AchievementResponse(
     val description: String,
     val category: String?,
     val iconUrl: String?,
-    val points: Int
+    val points: Int,
+    val criteria: Map<String, Any?>? = null
 )
