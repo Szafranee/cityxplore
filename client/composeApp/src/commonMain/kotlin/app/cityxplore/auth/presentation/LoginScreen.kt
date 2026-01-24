@@ -1,5 +1,6 @@
 package app.cityxplore.auth.presentation
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
@@ -37,8 +39,10 @@ import androidx.compose.ui.unit.dp
 import app.cityxplore.auth.domain.AuthConstants
 import app.cityxplore.auth.domain.SocialProvider
 import cityxplore.client.composeapp.generated.resources.Res
+import cityxplore.client.composeapp.generated.resources.cityxplore_logo_short
 import cityxplore.client.composeapp.generated.resources.discord_logo
 import cityxplore.client.composeapp.generated.resources.google_logo
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.vectorResource
 
 @Composable
@@ -75,10 +79,10 @@ fun LoginScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                "CityXplore",
-                style = MaterialTheme.typography.displayMedium,
-                color = MaterialTheme.colorScheme.primary
+            Image(
+                painter = painterResource(Res.drawable.cityxplore_logo_short),
+                contentDescription = "CityXplore Logo",
+                modifier = Modifier.width(200.dp) // Adjust width as needed
             )
             Text(
                 "Login to continue",

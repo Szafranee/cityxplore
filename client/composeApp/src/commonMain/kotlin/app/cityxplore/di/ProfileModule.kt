@@ -39,7 +39,8 @@ val profileModule = module {
             repository = get(),
             achievementRepository = get(),
             cacheManager = get(),
-            appLifecycleObserver = get()
+            appLifecycleObserver = get(),
+            supabase = get()
         )
     }
 }

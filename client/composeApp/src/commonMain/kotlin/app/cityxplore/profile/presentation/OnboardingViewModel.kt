@@ -2,9 +2,11 @@ package app.cityxplore.profile.presentation
 
 import app.cityxplore.platform.CityXploreBaseViewModel
 import app.cityxplore.profile.data.UsernameAlreadyTakenException
+import app.cityxplore.profile.domain.ProfileConstants
 import app.cityxplore.profile.domain.ProfileRepository
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -72,6 +74,16 @@ class OnboardingViewModel(
      * This is typically populated from social provider data (e.g. Google full name).
      */
     val initialUsername: StateFlow<String?> = _initialUsername.asStateFlow()
+
+    /**
+     * List of full URLs for predefined avatars.
+     * Constructed dynamically using the configured Supabase Storage URL.
+     */
+    val predefinedAvatars: List<String> by lazy {
+        ProfileConstants.AVATAR_FILENAMES.map {
+            supabase.storage.from(ProfileConstants.AVATAR_BUCKET).publicUrl(it)
+        }
+    }
 
     /** Pending avatar bytes to be uploaded after profile creation. */
     private var pendingAvatarBytes: ByteArray? = null

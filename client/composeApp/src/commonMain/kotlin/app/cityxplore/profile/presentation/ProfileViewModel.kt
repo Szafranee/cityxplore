@@ -10,8 +10,11 @@ import app.cityxplore.core.lifecycle.AppLifecycleObserver
 import app.cityxplore.core.lifecycle.AppLifecycleState
 import app.cityxplore.platform.CityXploreBaseViewModel
 import app.cityxplore.profile.data.UsernameAlreadyTakenException
+import app.cityxplore.profile.domain.ProfileConstants
 import app.cityxplore.profile.domain.ProfileRepository
 import app.cityxplore.profile.domain.UserProfile
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -72,10 +75,21 @@ class ProfileViewModel(
     private val repository: ProfileRepository,
     private val achievementRepository: AchievementRepository,
     private val cacheManager: CacheManager,
-    private val appLifecycleObserver: AppLifecycleObserver
+    private val appLifecycleObserver: AppLifecycleObserver,
+    private val supabase: SupabaseClient
 ) : CityXploreBaseViewModel() {
 
     private val _uiState = MutableStateFlow(UiStateHolder())
+
+    /**
+     * List of full URLs for predefined avatars.
+     * Constructed dynamically using the configured Supabase Storage URL.
+     */
+    val predefinedAvatars: List<String> by lazy {
+        ProfileConstants.AVATAR_FILENAMES.map {
+            supabase.storage.from(ProfileConstants.AVATAR_BUCKET).publicUrl(it)
+        }
+    }
 
     /**
      * StateFlow emitting the current profile state.
