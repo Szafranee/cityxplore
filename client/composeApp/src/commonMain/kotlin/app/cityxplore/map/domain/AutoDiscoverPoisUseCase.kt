@@ -24,7 +24,7 @@ class AutoDiscoverPoisUseCase(
     private val discoverPoiUseCase: DiscoverPoiUseCase
 ) {
     companion object {
-        const val DISCOVERY_RADIUS_METERS = 200.0
+        const val DISCOVERY_RADIUS_METERS = 75.0
     }
 
     /**

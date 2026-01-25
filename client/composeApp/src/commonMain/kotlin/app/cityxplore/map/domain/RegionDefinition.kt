@@ -26,7 +26,7 @@ data class RegionDefinition(
             id = "warsaw",
             displayName = "Warsaw",
             boundaryAssetPath = "warsaw_simple.geojson",
-            h3Resolution = 10
+            h3Resolution = 11
         )
 
         /**

@@ -3,7 +3,7 @@ package app.cityxplore.map.domain
 /**
  * Represents the Fog of War state - hexagons that have been revealed by the user.
  *
- * Uses H3 hexagonal grid system for efficient spatial indexing.
+ * Uses the H3 hexagonal grid system for efficient spatial indexing.
  * Each H3 index uniquely identifies a hexagon at a specific resolution level.
  *
  * @property revealedHexIndices Set of H3 hex indices (as strings) that have been explored.
@@ -22,8 +22,8 @@ data class FogOfWarModel(
  * @property warsawBounds Geographic bounds of the Warsaw region (lat/lng min/max) for hex generation.
  */
 data class FogOfWarConfiguration(
-    val h3Resolution: Int = 10,
-    val revealRadiusMeters: Double = 200.0,
+    val h3Resolution: Int = 11,
+    val revealRadiusMeters: Double = 75.0,
     val fogColor: String = "#B0404040", // Semi-transparent dark gray
     val warsawBounds: GeoBounds = GeoBounds.WARSAW
 )

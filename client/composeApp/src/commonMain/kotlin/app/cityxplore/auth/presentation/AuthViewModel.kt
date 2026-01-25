@@ -140,12 +140,7 @@ class AuthViewModel(
     fun signIn(login: String, pass: String) {
         scope.launch {
             _state.value = AuthState.Loading
-            val email = repository.resolveEmail(login)
-            if (email == null) {
-                _state.value = AuthState.Error("Invalid email or password.")
-                return@launch
-            }
-            repository.signIn(email, pass)
+            repository.signInWithLogin(login, pass)
                 .onSuccess {
                     // State update handled by observeAuthState
                 }
