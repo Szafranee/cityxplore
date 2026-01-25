@@ -6,6 +6,7 @@ import app.cityxplore.database.dao.FogOfWarDao
 import app.cityxplore.database.dao.PoiDao
 import app.cityxplore.database.dao.ProfileDao
 import app.cityxplore.database.dao.SyncQueueDao
+import app.cityxplore.map.data.clearHexagonCache
 
 /**
  * Service responsible for clearing all local cached data.
@@ -48,6 +49,9 @@ class LocalDataCleaner(
 
         // Clear achievements - only user achievements, keep definitions
         achievementDao.clearAllUserAchievements()
+
+        // Clear in-memory hexagon cache (Warsaw hexagons etc.)
+        clearHexagonCache()
 
         // Clear cache timestamps to force fresh data on the next login
         cacheManager.clearAll()

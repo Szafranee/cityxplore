@@ -42,7 +42,7 @@ import app.cityxplore.auth.presentation.AuthViewModel
 import app.cityxplore.auth.presentation.EmailVerificationScreen
 import app.cityxplore.auth.presentation.LoginScreen
 import app.cityxplore.auth.presentation.RegisterScreen
-import app.cityxplore.core.notifications.RequestNotificationPermission
+import app.cityxplore.core.location.RequestLocationPermission
 import app.cityxplore.core.notifications.SocialNotificationManager
 import app.cityxplore.core.notifications.consumePendingNavigation
 import app.cityxplore.journal.presentation.JournalScreen
@@ -193,8 +193,12 @@ fun MainAppContent(onSignOut: () -> Unit) {
         }
     }
 
-    // Request notification permission on Android 13+
-    RequestNotificationPermission()
+    // Request permissions (Location + Notifications) immediately
+    RequestLocationPermission { isGranted ->
+        if (isGranted) {
+            mapViewModel.onAction(MapAction.PermissionGranted)
+        }
+    }
 
     val currentDestination = remember { mutableStateOf<CityXploreDestination>(CityXploreDestination.Map) }
 

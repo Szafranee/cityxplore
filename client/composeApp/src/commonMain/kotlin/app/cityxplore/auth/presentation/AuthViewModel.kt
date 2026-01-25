@@ -98,8 +98,7 @@ class AuthViewModel(
             repository.authState.collect { isAuthenticated ->
                 when (isAuthenticated) {
                     true -> {
-                        // Allow session and JWT token to be fully initialised before making API calls
-                        delay(300)
+                        // Check if a user has a profile
                         repository.hasProfile()
                             .onSuccess { hasProfile ->
                                 if (hasProfile) {
@@ -108,12 +107,13 @@ class AuthViewModel(
                                     _state.value = AuthState.Onboarding
                                 }
                             }
-                            .onFailure {
-                                // Network error - can't verify profile status
-                                // Sign out and return to the login screen
+                            .onFailure { error ->
+                                // Session invalid or network error - sign out and return to log in
+                                println("AuthViewModel: Profile check failed: ${error.message}")
                                 repository.signOut()
-                                _state.value =
-                                    AuthState.Error("Unable to connect. Please check your internet connection and try again.")
+                                _state.value = AuthState.Error(
+                                    "Session expired or account no longer exists. Please sign in again."
+                                )
                             }
                     }
 

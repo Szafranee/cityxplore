@@ -13,8 +13,10 @@ import io.ktor.client.request.request
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.HttpMethod
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -79,7 +81,7 @@ class FogOfWarRepositoryImpl(
                 // Mark as synced only after successful server sync
                 fogOfWarDao.markAsSynced(unsyncedHexagons)
             } catch (_: Exception) {
-                // Sync failed - hexagons remain unsynced for next attempt
+                // Sync failed - hexagons remain unsynced for the next attempt
             }
         }
     }
@@ -128,11 +130,21 @@ class FogOfWarRepositoryImpl(
     }
 
     override suspend fun getWarsawHexagons(): Result<Set<String>> = runCatching {
-        val localHexes = loadWarsawHexagons(resolution = config.h3Resolution)
-        if (localHexes.isNotEmpty()) {
-            return@runCatching localHexes
+        // Try loading from local GeoJSON first (fast, always available)
+        // Retry up to 3 times if empty (the H3 library might not be ready)
+        var localHexes: Set<String>
+        repeat(3) { attempt ->
+            localHexes = loadWarsawHexagons(resolution = config.h3Resolution)
+            if (localHexes.isNotEmpty()) {
+                println("FogOfWarRepository: Loaded ${localHexes.size} hexagons from local GeoJSON (attempt ${attempt + 1})")
+                return@runCatching localHexes
+            }
+            println("FogOfWarRepository: Local GeoJSON returned empty, retry ${attempt + 1}/3")
+            delay(50) // Small delay before retry
         }
 
+        // Local failed - try backend as fallback
+        println("FogOfWarRepository: Local GeoJSON failed, trying backend...")
         val response = httpClient.get("https://api.cityxplore.app/api/fog-of-war/warsaw-hexagons")
 
         if (!response.status.isSuccess()) {
@@ -140,6 +152,7 @@ class FogOfWarRepositoryImpl(
         }
 
         val dto = response.body<WarsawHexagonsDto>()
+        println("FogOfWarRepository: Loaded ${dto.hexagons.size} hexagons from backend")
         dto.hexagons
     }
 
@@ -150,12 +163,12 @@ class FogOfWarRepositoryImpl(
         // Then clear on server if online
         // NOTE: Intentionally not queuing this operation when offline.
         // Rationale: Clearing fog of war is a destructive action that users rarely perform.
-        // If offline, the local clear takes effect immediately, and server state will
-        // naturally diverge until next sync. The user can re-trigger the clear when online.
+        // If offline, the local clear takes effect immediately, and the server state will
+        // naturally diverge until the next sync. The user can re-trigger the clear when online.
         // Implementing a ClearAllRevealed queue operation would add complexity for a rare use case.
         if (syncQueueManager.isOnline()) {
             val response = httpClient.request("https://api.cityxplore.app/api/fog-of-war/me") {
-                method = io.ktor.http.HttpMethod.Delete
+                method = HttpMethod.Delete
             }
 
             if (!response.status.isSuccess()) {

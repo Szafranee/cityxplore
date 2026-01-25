@@ -4,13 +4,13 @@ object ProfileConstants {
     const val AVATAR_BUCKET = "predefined_avatars"
 
     val AVATAR_FILENAMES = listOf(
-        "runner.png",
-        "explorer.png",
-        "headset.png",
-        "photographer.png",
-        "suiter.png",
-        "archeologist.png",
-        "casual.png",
-        "eater.png"
+        "runner.webp",
+        "explorer.webp",
+        "headset.webp",
+        "photographer.webp",
+        "suiter.webp",
+        "archeologist.webp",
+        "casual.webp",
+        "eater.webp"
     )
 }

@@ -93,7 +93,7 @@ class AuthRepositoryImpl(
                 this.email = email
                 this.password = password
             }
-            // Supabase returns user with empty identities list if email already exists
+            // Supabase returns user with an empty identities list if the email already exists
             // instead of returning an error (for security/privacy reasons)
             if (result?.identities.isNullOrEmpty()) {
                 Result.failure(EmailAlreadyRegisteredException())
@@ -202,6 +202,7 @@ class AuthRepositoryImpl(
      *
      * @return [Result] containing `true` if the user has a profile (200 OK response),
      *         `false` if not (404), or failure if the request couldn't be made (e.g., no network).
+     *         Also returns failure for 401/403 (invalid session) to trigger re-authentication.
      */
     override suspend fun hasProfile(): Result<Boolean> {
         auth.currentUserOrNull() ?: return Result.success(false)
@@ -209,16 +210,26 @@ class AuthRepositoryImpl(
             val response = client.get("https://api.cityxplore.app/api/users/me")
             Result.success(response.status == HttpStatusCode.OK)
         } catch (e: ClientRequestException) {
-            // Handle 404 as "no profile" rather than failure
-            if (e.response.status == HttpStatusCode.NotFound) {
-                Result.success(false)
-            } else {
-                Result.failure(e)
+            when (e.response.status) {
+                // 404 = user doesn't have a profile yet (needs onboarding)
+                HttpStatusCode.NotFound -> Result.success(false)
+                // 401/403 = session is invalid or user doesn't exist - force re-auth
+                HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden -> {
+                    println("AuthRepository: Session invalid (${e.response.status}), clearing session")
+                    Result.failure(InvalidSessionException("Session expired or user no longer exists"))
+                }
+
+                else -> Result.failure(e)
             }
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
+
+    /**
+     * Exception thrown when the session is invalid (expired or user deleted).
+     */
+    class InvalidSessionException(message: String) : Exception(message)
 
     /**
      * Resends the email verification link to the specified email address.

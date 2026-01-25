@@ -1,9 +1,9 @@
+// Force recompile 1
 package app.cityxplore.map.presentation
 
 import app.cityxplore.achievements.domain.Achievement
 import app.cityxplore.core.cache.CacheKey
 import app.cityxplore.core.cache.CacheManager
-import app.cityxplore.core.cache.CacheState
 import app.cityxplore.core.cityXploreDispatchers
 import app.cityxplore.core.lifecycle.AppLifecycleObserver
 import app.cityxplore.core.lifecycle.AppLifecycleState
@@ -27,7 +27,8 @@ import app.cityxplore.social.domain.repository.SharedPoiRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 
 /**
@@ -79,11 +80,12 @@ class MapViewModel(
      * StateFlow emitting the current map state.
      * UI components observe this to render the map, POIs, and handle loading/error states.
      */
-    val state: StateFlow<MapUiState> = _state.asStateFlow()
+    val state: StateFlow<MapUiState> = _state
 
     private var locationObserverJob: Job? = null
     private var fogOfWarObserverJob: Job? = null
     private var poiObserverJob: Job? = null
+    private var profileObserverJob: Job? = null
     private var lastKnownLocation: Location? = null
     private var cachedWarsawHexagons: Set<String> = emptySet()
     private var cachedSharedPois: List<SharedPoi> = emptyList()
@@ -92,12 +94,105 @@ class MapViewModel(
     private var previousLevel: Int? = null
 
     init {
-        observeLifecycle()
-        observeFogOfWar()
-        observePois()
-        loadDataIfNeeded()
-        startLocationTracking()
-        observeSharedPois()
+        // Start by loading critical data, then set up observers
+        initializeMapData()
+    }
+
+    /**
+     * Initialises map data in the correct order:
+     * 1. Load Warsaw hexagons (critical for fog of war) - local GeoJSON, fast
+     * 2. Load profile from local/network
+     * 3. Set the Ready state immediately
+     * 4. Start observers for reactive updates
+     * 5. Load remaining data in the background
+     */
+    private fun initializeMapData() {
+        scope.launch(cityXploreDispatchers.io) {
+            // 1. Force network refresh CRITICAL data first (Profile & Fog)
+            // We do this to ensure after re-login we get fresh data immediately.
+            // Using runCatching to safely attempt network update.
+            val profileRefreshJob = launch {
+                runCatching { profileRepository.refreshProfile() }
+            }
+            val fogRefreshJob = launch {
+                runCatching { fogOfWarRepository.refreshRevealedHexagons() }
+            }
+
+            // Wait for refreshes to complete (or fail)
+            joinAll(profileRefreshJob, fogRefreshJob)
+
+            // 2. Load Warsaw hexagons (retries are handled in repository)
+            val warsawResult = fogOfWarRepository.getWarsawHexagons()
+            cachedWarsawHexagons = warsawResult.getOrDefault(emptySet())
+            println("MapViewModel: Loaded ${cachedWarsawHexagons.size} Warsaw hexagons")
+
+            // 3. Load revealed hexagons from local DB (now updated from network)
+            val revealedResult = fogOfWarRepository.getRevealedHexagons()
+            val revealedHexagons = revealedResult.getOrDefault(emptySet())
+
+            // 4. Load profile - try local (now updated from network)
+            var profile = profileRepository.getProfile().getOrNull()
+
+            // Hard retry logic if profile is still missing (shouldn't happen after refresh, but safety net)
+            if (profile == null) {
+                println("MapViewModel: Profile still null, retrying fetch...")
+                var profileAttempts = 0
+                while (profile == null && profileAttempts < 3) {
+                    profileRepository.refreshProfile()
+                    profile = profileRepository.getProfile().getOrNull()
+                    if (profile == null) {
+                        profileAttempts++
+                        kotlinx.coroutines.delay(500)
+                    }
+                }
+            }
+
+            if (profile != null) {
+                println("MapViewModel: Profile loaded: ${profile.username}")
+                previousLevel = profile.level
+            } else {
+                println("MapViewModel: CRITICAL - Failed to load profile after retries")
+            }
+
+            // 5. Set Ready state ONLY when we have data
+            _state.value = MapUiState.Ready(
+                pois = emptyList(),
+                userLocation = null,
+                isFollowingUser = true,
+                selectedPoi = null,
+                newlyDiscoveredPoiIds = emptySet(),
+                revealedHexagons = revealedHexagons,
+                warsawHexagons = cachedWarsawHexagons,
+                sharedPois = emptyList(),
+                profile = profile
+            )
+            println("MapViewModel: Ready state set - hexagons: ${cachedWarsawHexagons.size}, profile: ${profile?.username}")
+
+            // 6. Start observers for reactive updates
+            observeLifecycle()
+            observeFogOfWar()
+            observePois()
+            observeProfile()
+            observeSharedPois()
+            startLocationTracking()
+
+            // 7. Load remaining non-critical data (POIs) in the background
+            loadPois()
+        }
+    }
+
+    /**
+     * Helper to update state only if it's Ready.
+     * Uses atomic update to prevent race conditions.
+     */
+    private inline fun updateStateIfReady(crossinline update: (MapUiState.Ready) -> MapUiState.Ready) {
+        _state.update { currentState ->
+            if (currentState is MapUiState.Ready) {
+                update(currentState)
+            } else {
+                currentState
+            }
+        }
     }
 
     /**
@@ -140,9 +235,31 @@ class MapViewModel(
             fogOfWarRepository.refreshRevealedHexagons()
             cacheManager.markAsFresh(CacheKey.FOG_OF_WAR)
 
+            // Ensure Warsaw hexagons are loaded (they might be empty on the first run)
+            if (cachedWarsawHexagons.isEmpty()) {
+                val warsawResult = fogOfWarRepository.getWarsawHexagons()
+                val hexagons = warsawResult.getOrNull()
+                if (hexagons != null && hexagons.isNotEmpty()) {
+                    cachedWarsawHexagons = hexagons
+                    updateStateIfReady { it.copy(warsawHexagons = hexagons) }
+                }
+            }
+
             // Refresh POIs
             loadPois()
             cacheManager.markAsFresh(CacheKey.POIS)
+
+            // Refresh profile
+            val profileResult = profileRepository.refreshProfile()
+            profileResult.onSuccess {
+                val newProfile = profileRepository.getProfile().getOrNull()
+                if (newProfile != null) {
+                    updateStateIfReady { currentState ->
+                        currentState.copy(profile = newProfile)
+                    }
+                }
+            }
+            cacheManager.markAsFresh(CacheKey.PROFILE)
         }
     }
 
@@ -154,9 +271,12 @@ class MapViewModel(
         fogOfWarObserverJob?.cancel()
         fogOfWarObserverJob = scope.launch(cityXploreDispatchers.io) {
             fogOfWarRepository.observeRevealedHexagons().collect { revealedHexagons ->
-                val currentState = _state.value
-                if (currentState is MapUiState.Ready) {
-                    _state.value = currentState.copy(revealedHexagons = revealedHexagons)
+                _state.update { currentState ->
+                    if (currentState is MapUiState.Ready) {
+                        currentState.copy(revealedHexagons = revealedHexagons)
+                    } else {
+                        currentState
+                    }
                 }
             }
         }
@@ -171,76 +291,53 @@ class MapViewModel(
         poiObserverJob?.cancel()
         poiObserverJob = scope.launch(cityXploreDispatchers.io) {
             poiRepository.observePois().collect { pois ->
-                val currentState = _state.value
-                if (currentState is MapUiState.Ready) {
-                    val mapPois = pois.map { it.toMapPoi() }
-                    // Update selected POI if it exists in the new list
-                    val updatedSelectedPoi = currentState.selectedPoi?.let { selected ->
-                        mapPois.find { it.id == selected.id }
+                _state.update { currentState ->
+                    if (currentState is MapUiState.Ready) {
+                        val mapPois = pois.map { it.toMapPoi() }
+                        // Update the selected POI if it exists in the new list
+                        val updatedSelectedPoi = currentState.selectedPoi?.let { selected ->
+                            mapPois.find { it.id == selected.id }
+                        }
+                        currentState.copy(
+                            pois = mapPois,
+                            selectedPoi = updatedSelectedPoi ?: currentState.selectedPoi
+                        )
+                    } else {
+                        currentState
                     }
-                    _state.value = currentState.copy(
-                        pois = mapPois,
-                        selectedPoi = updatedSelectedPoi ?: currentState.selectedPoi
-                    )
                 }
             }
         }
     }
 
     /**
-     * Loads data based on cache freshness.
-     * - FRESH: Use cached data, don't load
-     * - STALE: Use cached data, refresh in background
-     * - EXPIRED/EMPTY: Full load
+     * Observes the user profile from the local database.
+     * This ensures profile data (including XP) updates in real-time.
      */
-    private fun loadDataIfNeeded() {
-        val fogOfWarCacheState = cacheManager.getCacheState(CacheKey.FOG_OF_WAR)
-        val poisCacheState = cacheManager.getCacheState(CacheKey.POIS)
+    private fun observeProfile() {
+        profileObserverJob?.cancel()
+        profileObserverJob = scope.launch(cityXploreDispatchers.io) {
+            profileRepository.observeProfile().collect { profile ->
+                _state.update { currentState ->
+                    if (currentState is MapUiState.Ready && profile != null) {
+                        val oldLevel = previousLevel
+                        val newLevel = profile.level
 
-        when {
-            fogOfWarCacheState == CacheState.FRESH && poisCacheState == CacheState.FRESH -> {
-                // Everything is fresh - just load from local
-                loadDataFromLocal()
+                        // Detect level up: the new level is higher than the old level
+                        val leveledUp = oldLevel != null && newLevel > oldLevel
+
+                        // Update the previous level for future comparisons
+                        previousLevel = newLevel
+
+                        currentState.copy(
+                            profile = profile,
+                            newLevel = if (leveledUp) newLevel else currentState.newLevel
+                        )
+                    } else {
+                        currentState
+                    }
+                }
             }
-
-            fogOfWarCacheState == CacheState.EMPTY || poisCacheState == CacheState.EMPTY -> {
-                // First load - full load with loading state
-                loadData()
-            }
-
-            else -> {
-                // Stale or expired - load from local, refresh in background
-                loadDataFromLocal()
-                refreshDataInBackground()
-            }
-        }
-    }
-
-    /**
-     * Loads data from local sources only (fast, no network).
-     */
-    private fun loadDataFromLocal() {
-        scope.launch(cityXploreDispatchers.io) {
-            val revealedResult = fogOfWarRepository.getRevealedHexagons()
-            val warsawResult = fogOfWarRepository.getWarsawHexagons()
-
-            cachedWarsawHexagons = warsawResult.getOrElse { cachedWarsawHexagons }
-
-            // Set initial state - revealed hexagons will be updated by Flow
-            _state.value = MapUiState.Ready(
-                pois = emptyList(), // Will be loaded
-                userLocation = lastKnownLocation,
-                isFollowingUser = true,
-                selectedPoi = null,
-                newlyDiscoveredPoiIds = emptySet(),
-                revealedHexagons = revealedResult.getOrDefault(emptySet()),
-                warsawHexagons = cachedWarsawHexagons,
-                sharedPois = cachedSharedPois
-            )
-
-            // Load POIs (will update state)
-            loadPois()
-            loadProfile()
         }
     }
 
@@ -267,70 +364,35 @@ class MapViewModel(
     }
 
     /**
-     * Loads/refreshes the user profile and checks for level up.
-     *
-     * @param checkLevelUp If true, compares with the previous level to detect level up.
+     * Refreshes the user profile and checks for level up.
+     * This triggers a network refresh - observeProfile will update the state with new data.
+     * Level-up detection is done here since we want to show the level-up dialogue only after specific actions.
      */
-    private fun loadProfile(checkLevelUp: Boolean = false) {
-        scope.launch {
-            val result = profileRepository.getProfile()
-            if (result.isSuccess) {
-                val newProfile = result.getOrThrow()
-                _state.value.let { currentState ->
-                    if (currentState is MapUiState.Ready) {
-                        val oldLevel = previousLevel
-                        val newLevel = newProfile.level
+    private fun refreshProfileAndCheckLevelUp() {
+        scope.launch(cityXploreDispatchers.io) {
+            val oldLevel = previousLevel
 
-                        // Update the previous level for future comparisons
-                        previousLevel = newLevel
+            // Refresh profile from network - this updates local DB
+            profileRepository.refreshProfile()
 
-                        // Detect level up: the new level is higher than the old level (only if we had a previous level)
-                        val leveledUp = checkLevelUp && oldLevel != null && newLevel > oldLevel
+            // After refresh, check for level up if we had a previous level
+            if (oldLevel != null) {
+                val result = profileRepository.getProfile()
+                if (result.isSuccess) {
+                    val newProfile = result.getOrThrow()
+                    val newLevel = newProfile.level
 
-                        _state.value = currentState.copy(
-                            profile = newProfile,
-                            newLevel = if (leveledUp) newLevel else currentState.newLevel
-                        )
+                    if (newLevel > oldLevel) {
+                        val currentState = _state.value
+                        if (currentState is MapUiState.Ready) {
+                            _state.value = currentState.copy(newLevel = newLevel)
+                        }
                     }
                 }
             }
         }
     }
 
-    /**
-     * Loads POI data and initialised map state.
-     * Fetches POIs and revealed hexagons, then updates the state to [MapUiState.Ready]
-     * or [MapUiState.Error] based on the result.
-     */
-    private fun loadData() {
-        scope.launch(cityXploreDispatchers.io) {
-            // Initial load
-            val poisResult = getPoisUseCase()
-            val revealedResult = fogOfWarRepository.getRevealedHexagons()
-            val warsawResult = fogOfWarRepository.getWarsawHexagons()
-
-            cachedWarsawHexagons = warsawResult.getOrElse { cachedWarsawHexagons }
-
-            poisResult.onSuccess { pois ->
-                _state.value = MapUiState.Ready(
-                    pois = pois.map { it.toMapPoi() },
-                    userLocation = null,
-                    isFollowingUser = true,
-                    selectedPoi = null,
-                    newlyDiscoveredPoiIds = emptySet(),
-                    revealedHexagons = revealedResult.getOrDefault(emptySet()),
-                    warsawHexagons = warsawResult.getOrDefault(emptySet()),
-                    sharedPois = cachedSharedPois
-                )
-                // Trigger a profile load again if loadData finishes later
-                loadProfile()
-            }
-
-            poisResult.onFailure { error ->
-                _state.value = MapUiState.Error(error.message ?: "Unable to load POIs")
-            }
-        }
-    }
 
     /**
      * Handles user actions dispatched from the UI.
@@ -647,12 +709,10 @@ class MapViewModel(
                         )
                     }
                     // Refresh profile to get updated total distance and check for level up
-                    loadProfile(checkLevelUp = true)
+                    refreshProfileAndCheckLevelUp()
                 }
                 .onFailure { error ->
                     println("Failed to sync distance: ${error.message}")
-                    // Distance is already consumed from buffer - for MVP we accept the loss
-                    // In v2: save to local queue for offline sync
                 }
         }
     }
@@ -716,9 +776,9 @@ class MapViewModel(
                         )
                     }
 
-                    // Try to refresh profile to update XP from achievements and check for level up
+                    // Try to refresh the profile to update XP from achievements and check for level up
                     // This may fail offline, which is fine - achievements will sync later
-                    loadProfile(checkLevelUp = true)
+                    refreshProfileAndCheckLevelUp()
                 }
             }
 
