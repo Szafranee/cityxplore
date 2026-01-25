@@ -53,7 +53,8 @@ fun databaseModule() = module {
             fogOfWarDao = get(),
             achievementDao = get(),
             syncQueueDao = get(),
-            cacheManager = get()
+            cacheManager = get(),
+            updateFogOfWarUseCase = get()
         )
     }
 }

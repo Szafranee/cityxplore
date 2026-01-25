@@ -47,7 +47,7 @@ val mapModule: Module = module {
     factory { GetPoisWithDiscoveriesUseCase(repository = get()) }
     factory { DiscoverPoiUseCase(repository = get()) }
     factory { AutoDiscoverPoisUseCase(poiRepository = get(), discoverPoiUseCase = get()) }
-    factory { UpdateFogOfWarUseCase(repository = get()) }
+    single { UpdateFogOfWarUseCase(repository = get()) }
 
     // ViewModel
     factory {

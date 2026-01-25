@@ -1,5 +1,6 @@
 package app.cityxplore.auth.data
 
+import app.cityxplore.BuildConfig
 import app.cityxplore.auth.domain.AuthRepository
 import app.cityxplore.auth.domain.SocialProvider
 import app.cityxplore.core.data.LocalDataCleaner
@@ -14,8 +15,10 @@ import io.github.jan.supabase.auth.user.UserSession
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.ClientRequestException
+import io.ktor.client.plugins.expectSuccess
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
@@ -37,11 +40,11 @@ import kotlinx.serialization.Serializable
  * for performing additional network requests, such as verifying user profiles
  * or handling username-based logins via edge functions.
  *
- * It also ensures local data integrity during authentication flows by utilizing
+ * It also ensures local data integrity during authentication flows by using
  * the LocalDataCleaner to clear user-specific cached data during sign-out.
  */
 class AuthRepositoryImpl(
-    private val supabase: SupabaseClient,
+    supabase: SupabaseClient,
     private val client: HttpClient,
     private val localDataCleaner: LocalDataCleaner
 ) : AuthRepository {
@@ -73,7 +76,7 @@ class AuthRepositoryImpl(
      * Emits the following values:
      * - `true` if the user is authenticated.
      * - `false` if the user is not authenticated.
-     * - `null` if the session is still in the initializing state.
+     * - `null` if the session is still in the initialising state.
      *
      * The state is derived from the `sessionStatus` of the authentication system.
      */
@@ -146,8 +149,8 @@ class AuthRepositoryImpl(
     override suspend fun signIn(email: String, password: String): Result<Unit> {
         return try {
             auth.signInWith(Email) {
-                this.email = email
-                this.password = password
+                this.email = email.trim()
+                this.password = password.trim()
             }
             Result.success(Unit)
         } catch (e: Exception) {
@@ -193,24 +196,32 @@ class AuthRepositoryImpl(
      * @return A [Result] indicating success (with [Unit]) if the sign-in is successful, or failure with an [Exception].
      */
     override suspend fun signInWithLogin(login: String, password: String): Result<Unit> {
+        val trimmedLogin = login.trim()
+        val trimmedPassword = password.trim()
+
         return try {
-            if (login.contains("@")) {
-                return signIn(login, password)
+            if (trimmedLogin.contains("@")) {
+                return signIn(trimmedLogin, trimmedPassword)
             }
 
             // Using Edge Function for Username login via Raw HTTP
-            val requestBody = LoginWithUsernameRequest(login, password)
-            val functionUrl = "${supabase.supabaseUrl}/functions/v1/login-with-username"
+            val requestBody = LoginWithUsernameRequest(trimmedLogin, trimmedPassword)
+            val functionUrl = "${BuildConfig.SUPABASE_URL}/functions/v1/login-with-username"
+            val apiKey = BuildConfig.SUPABASE_KEY
 
             val response = client.post(functionUrl) {
-                bearerAuth(supabase.supabaseKey) // Use Anon Key
+                expectSuccess = false
+                header("apikey", apiKey)
+                bearerAuth(apiKey)
                 contentType(ContentType.Application.Json)
                 setBody(requestBody)
             }
 
             if (response.status != HttpStatusCode.OK) {
                 val errorBody = runCatching { response.body<ErrorResponse>() }.getOrNull()
-                return Result.failure(Exception(errorBody?.error ?: "Authentication failed"))
+                val errorMsg = errorBody?.error ?: "Authentication failed with status ${response.status}"
+
+                return Result.failure(Exception(errorMsg))
             }
 
             val sessionDto = response.body<EdgeFunctionSessionDto>()

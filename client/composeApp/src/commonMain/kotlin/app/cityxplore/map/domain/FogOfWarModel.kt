@@ -22,7 +22,7 @@ data class FogOfWarModel(
  * @property warsawBounds Geographic bounds of the Warsaw region (lat/lng min/max) for hex generation.
  */
 data class FogOfWarConfiguration(
-    val h3Resolution: Int = 11,
+    val h3Resolution: Int = 10,
     val revealRadiusMeters: Double = 75.0,
     val fogColor: String = "#B0404040", // Semi-transparent dark gray
     val warsawBounds: GeoBounds = GeoBounds.WARSAW
