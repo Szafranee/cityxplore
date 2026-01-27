@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import app.cityxplore.MainActivity
+import app.cityxplore.R
 
 /**
  * Android implementation of [NotificationService].
@@ -142,11 +143,11 @@ class AndroidNotificationService(
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_SOCIAL)
-            .setSmallIcon(android.R.drawable.ic_dialog_info) // TODO: Replace with app icon
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setPriority(NotificationCompat.PRIORITY_HIGH) // HIGH for heads-up banner
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .setVibrate(longArrayOf(0, 250, 250, 250))
