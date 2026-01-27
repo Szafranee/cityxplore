@@ -30,7 +30,7 @@ import org.koin.dsl.module
  */
 val authModule = module {
     single<AuthRepository> { AuthRepositoryImpl(get(), get(), get()) }
-    factory { AuthViewModel(get()) }
+    factory { AuthViewModel(get(), get(), get(), get()) }
     single {
         val url = BuildConfig.SUPABASE_URL
         val key = BuildConfig.SUPABASE_KEY

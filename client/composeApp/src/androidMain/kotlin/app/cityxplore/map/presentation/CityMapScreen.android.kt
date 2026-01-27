@@ -153,15 +153,13 @@ private fun ReadyMap(
     }
 
     // Update POI markers when the map view or POI list changes
-    LaunchedEffect(mapViewRef.value, mapState.pois, mapState.sharedPois) {
+    LaunchedEffect(annotationManager, mapState.pois, mapState.sharedPois) {
         val manager = annotationManager ?: return@LaunchedEffect
 
-        // Clear existing markers
         manager.deleteAll()
         annotationIdToPoiId.clear()
         sharedAnnotationIdToPoiId.clear()
 
-        // Create new markers for each POI
         mapState.pois.forEach { poi ->
             val point = Point.fromLngLat(poi.longitude, poi.latitude)
             val icon = createPoiMarkerBitmap(
@@ -178,13 +176,20 @@ private fun ReadyMap(
             annotationIdToPoiId[annotation.id] = poi.id
         }
 
-        // Create markers for shared POIs (custom POIs from friends)
+        // Create markers for shared POIs
         mapState.sharedPois.forEach { sharedPoi ->
-            val coords = sharedPoi.coordinates ?: return@forEach
+            val coords = sharedPoi.coordinates ?: sharedPoi.poiId?.let { id ->
+                mapState.pois.find { it.id == id }?.let {
+                    Pair(it.latitude, it.longitude)
+                }
+            } ?: return@forEach
+
             val point = Point.fromLngLat(coords.second, coords.first)
 
-            // Parse category from customPoi, default to OTHER
-            val categoryString = sharedPoi.customPoi?.category ?: "other"
+            val categoryString = sharedPoi.customPoi?.category ?: sharedPoi.poiId?.let { id ->
+                mapState.pois.find { it.id == id }?.category?.name
+            } ?: "other"
+
             val category = try {
                 PoiCategory.valueOf(categoryString.uppercase())
             } catch (_: IllegalArgumentException) {

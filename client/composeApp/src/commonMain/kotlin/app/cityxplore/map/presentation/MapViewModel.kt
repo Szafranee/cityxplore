@@ -1,4 +1,3 @@
-// Force recompile 1
 package app.cityxplore.map.presentation
 
 import app.cityxplore.achievements.domain.Achievement
@@ -27,6 +26,7 @@ import app.cityxplore.social.domain.repository.SharedPoiRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
@@ -108,34 +108,25 @@ class MapViewModel(
      */
     private fun initializeMapData() {
         scope.launch(cityXploreDispatchers.io) {
-            // 1. Force network refresh CRITICAL data first (Profile & Fog)
-            // We do this to ensure after re-login we get fresh data immediately.
-            // Using runCatching to safely attempt network update.
             val profileRefreshJob = launch {
-                runCatching { profileRepository.refreshProfile() }
+                profileRepository.refreshProfile()
             }
             val fogRefreshJob = launch {
-                runCatching { fogOfWarRepository.refreshRevealedHexagons() }
+                fogOfWarRepository.refreshRevealedHexagons()
             }
 
-            // Wait for refreshes to complete (or fail)
             joinAll(profileRefreshJob, fogRefreshJob)
 
-            // 2. Load Warsaw hexagons (retries are handled in repository)
             val warsawResult = fogOfWarRepository.getWarsawHexagons()
             cachedWarsawHexagons = warsawResult.getOrDefault(emptySet())
-            println("MapViewModel: Loaded ${cachedWarsawHexagons.size} Warsaw hexagons")
 
             // 3. Load revealed hexagons from local DB (now updated from network)
             val revealedResult = fogOfWarRepository.getRevealedHexagons()
             val revealedHexagons = revealedResult.getOrDefault(emptySet())
 
-            // 4. Load profile - try local (now updated from network)
             var profile = profileRepository.getProfile().getOrNull()
 
-            // Hard retry logic if profile is still missing (shouldn't happen after refresh, but safety net)
             if (profile == null) {
-                println("MapViewModel: Profile still null, retrying fetch...")
                 var profileAttempts = 0
                 while (profile == null && profileAttempts < 3) {
                     profileRepository.refreshProfile()
@@ -148,13 +139,27 @@ class MapViewModel(
             }
 
             if (profile != null) {
-                println("MapViewModel: Profile loaded: ${profile.username}")
                 previousLevel = profile.level
-            } else {
-                println("MapViewModel: CRITICAL - Failed to load profile after retries")
             }
 
-            // 5. Set Ready state ONLY when we have data
+            var initialSharedPois: List<SharedPoi> = emptyList()
+            var sharedPoisLoaded = false
+
+            repeat(3) { attempt ->
+                if (sharedPoisLoaded) return@repeat
+
+                sharedPoiRepository.refreshReceivedPois()
+                    .onSuccess {
+                        sharedPoisLoaded = true
+                        initialSharedPois = sharedPoiRepository.getReceivedPois().first()
+                    }
+                    .onFailure {
+                        if (attempt < 2) kotlinx.coroutines.delay(500)
+                    }
+            }
+
+            cachedSharedPois = initialSharedPois
+
             _state.value = MapUiState.Ready(
                 pois = emptyList(),
                 userLocation = null,
@@ -163,12 +168,10 @@ class MapViewModel(
                 newlyDiscoveredPoiIds = emptySet(),
                 revealedHexagons = revealedHexagons,
                 warsawHexagons = cachedWarsawHexagons,
-                sharedPois = emptyList(),
+                sharedPois = initialSharedPois,
                 profile = profile
             )
-            println("MapViewModel: Ready state set - hexagons: ${cachedWarsawHexagons.size}, profile: ${profile?.username}")
 
-            // 6. Start observers for reactive updates
             observeLifecycle()
             observeFogOfWar()
             observePois()
@@ -176,7 +179,6 @@ class MapViewModel(
             observeSharedPois()
             startLocationTracking()
 
-            // 7. Load remaining non-critical data (POIs) in the background
             loadPois()
         }
     }
@@ -248,6 +250,14 @@ class MapViewModel(
             // Refresh POIs
             loadPois()
             cacheManager.markAsFresh(CacheKey.POIS)
+
+            // Refresh Shared POIs
+            sharedPoiRepository.refreshReceivedPois()
+                .onSuccess {
+                    val freshSharedPois = sharedPoiRepository.getReceivedPois().first()
+                    cachedSharedPois = freshSharedPois
+                    updateStateIfReady { it.copy(sharedPois = freshSharedPois) }
+                }
 
             // Refresh profile
             val profileResult = profileRepository.refreshProfile()
@@ -347,19 +357,15 @@ class MapViewModel(
     private fun observeSharedPois() {
         scope.launch {
             sharedPoiRepository.getReceivedPois().collect { sharedPois ->
-                // Filter to only show shared POIs with coordinates (custom POIs)
-                val poisWithCoords = sharedPois.filter { it.coordinates != null }
-                cachedSharedPois = poisWithCoords
-
-                val currentState = _state.value
-                if (currentState is MapUiState.Ready) {
-                    _state.value = currentState.copy(sharedPois = poisWithCoords)
+                cachedSharedPois = sharedPois
+                _state.update { currentState ->
+                    if (currentState is MapUiState.Ready) {
+                        currentState.copy(sharedPois = sharedPois)
+                    } else {
+                        currentState
+                    }
                 }
             }
-        }
-        // Initial refresh of shared POIs
-        scope.launch {
-            sharedPoiRepository.refreshReceivedPois()
         }
     }
 
@@ -596,6 +602,8 @@ class MapViewModel(
             var currentAchievements: List<Achievement> = emptyList()
             var currentNewlyDiscoveredIds: Set<String> = emptySet()
             var currentNewLevel: Int? = null
+            var currentSharedPois: List<SharedPoi> = cachedSharedPois
+            var currentNewlyDiscoveredSharedPoiIds: Set<String> = emptySet()
             val currentProfile = if (currentState is MapUiState.Ready) currentState.profile else null
 
             if (currentState is MapUiState.Ready) {
@@ -606,6 +614,8 @@ class MapViewModel(
                 currentAchievements = currentState.newlyUnlockedAchievements
                 currentNewlyDiscoveredIds = currentState.newlyDiscoveredPoiIds
                 currentNewLevel = currentState.newLevel
+                currentSharedPois = currentState.sharedPois
+                currentNewlyDiscoveredSharedPoiIds = currentState.newlyDiscoveredSharedPoiIds
             }
 
             val result = getPoisUseCase()
@@ -621,7 +631,9 @@ class MapViewModel(
                     warsawHexagons = currentWarsawHexagons,
                     profile = currentProfile,
                     newlyUnlockedAchievements = currentAchievements,
-                    newLevel = currentNewLevel
+                    newLevel = currentNewLevel,
+                    sharedPois = currentSharedPois,
+                    newlyDiscoveredSharedPoiIds = currentNewlyDiscoveredSharedPoiIds
                 )
             }
 
@@ -809,7 +821,11 @@ class MapViewModel(
         val poisToDiscover = currentState.sharedPois.filter { sharedPoi ->
             if (sharedPoi.isDiscovered) return@filter false
 
-            val coords = sharedPoi.coordinates ?: return@filter false
+            // Try to resolve coordinates (Custom POI or Regular POI)
+            val coords = sharedPoi.coordinates ?: sharedPoi.poiId?.let { poiId ->
+                currentState.pois.find { it.id == poiId }?.let { Pair(it.latitude, it.longitude) }
+            } ?: return@filter false
+
             val distance = calculateDistance(
                 userLocation.latitude, userLocation.longitude,
                 coords.first, coords.second

@@ -12,7 +12,8 @@ sealed interface SharedPoisUiState {
     data class Content(
         val receivedPois: List<SharedPoi>,
         val sentPois: List<SharedPoi>,
-        val unviewedCount: Int
+        val unviewedCount: Int,
+        val deletingIds: Set<String> = emptySet()
     ) : SharedPoisUiState
 
     data class Error(val message: String) : SharedPoisUiState

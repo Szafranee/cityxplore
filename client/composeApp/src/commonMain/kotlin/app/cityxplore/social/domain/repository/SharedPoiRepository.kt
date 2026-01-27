@@ -96,4 +96,10 @@ interface SharedPoiRepository {
      * @return [Result] containing the public URL of the uploaded image on success.
      */
     suspend fun uploadPoiImage(imageBytes: ByteArray): Result<String>
+
+    /**
+     * Clears all locally cached data.
+     * Should be called when the user signs out.
+     */
+    fun clearCache()
 }

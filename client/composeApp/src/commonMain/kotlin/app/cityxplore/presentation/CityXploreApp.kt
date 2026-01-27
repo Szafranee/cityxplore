@@ -71,7 +71,7 @@ object NavigationDestinations {
 
 private sealed interface CityXploreDestination {
     data object Map : CityXploreDestination
-    data class Friends(
+    data class Social(
         val initialTab: Int = 0, // 0 = Friends, 1 = Rankings, 2 = Shared POIs
         val rankingSubTab: Int = 0 // 0 = Global, 1 = Friends (used when initialTab = 1)
     ) : CityXploreDestination
@@ -80,7 +80,7 @@ private sealed interface CityXploreDestination {
     data object Journal : CityXploreDestination
     data class OtherProfile(
         val userId: String,
-        val previousDestination: CityXploreDestination = Friends()
+        val previousDestination: CityXploreDestination = Social()
     ) : CityXploreDestination
 }
 
@@ -93,11 +93,11 @@ private fun handlePendingNavigation(
 ) {
     when (nav) {
         NavigationDestinations.FRIENDS -> {
-            currentDestination.value = CityXploreDestination.Friends(initialTab = 0)
+            currentDestination.value = CityXploreDestination.Social(initialTab = 0)
         }
 
         NavigationDestinations.SHARED_POIS -> {
-            currentDestination.value = CityXploreDestination.Friends(initialTab = 2)
+            currentDestination.value = CityXploreDestination.Social(initialTab = 2)
         }
     }
 }
@@ -182,8 +182,7 @@ fun MainAppContent(onSignOut: () -> Unit) {
     // Badge counts
     val pendingFriendRequests by socialRepository.getPendingRequests().collectAsState(initial = emptyList())
     val unviewedSharedPois by sharedPoiRepository.getUnviewedPois().collectAsState(initial = emptyList())
-    val friendsBadgeCount = pendingFriendRequests.size
-    val sharedPoisBadgeCount = unviewedSharedPois.size
+    val friendsBadgeCount = pendingFriendRequests.size + unviewedSharedPois.size
 
     // Start/stop social notifications observer based on composition lifecycle
     DisposableEffect(Unit) {
@@ -191,6 +190,13 @@ fun MainAppContent(onSignOut: () -> Unit) {
         onDispose {
             socialNotificationManager.stopObserving()
         }
+    }
+
+    // Refresh shared POIs on login (for badge count and map display)
+    // MapViewModel also refreshes, but this ensures badge count Flow is updated
+    LaunchedEffect(Unit) {
+        sharedPoiRepository.refreshReceivedPois()
+        sharedPoiRepository.refreshUnviewedPois()
     }
 
     // Request permissions (Location + Notifications) immediately
@@ -238,7 +244,7 @@ fun MainAppContent(onSignOut: () -> Unit) {
         }
     }
 
-    if (currentDestination.value == CityXploreDestination.Profile || currentDestination.value is CityXploreDestination.Friends) {
+    if (currentDestination.value == CityXploreDestination.Profile || currentDestination.value is CityXploreDestination.Social) {
         BackHandler {
             currentDestination.value = CityXploreDestination.Map
         }
@@ -258,7 +264,7 @@ fun MainAppContent(onSignOut: () -> Unit) {
             if (currentDestination.value != CityXploreDestination.Journal) {
                 CityXploreBottomBar(
                     destination = currentDestination.value,
-                    friendsBadgeCount = friendsBadgeCount + sharedPoisBadgeCount,
+                    friendsBadgeCount = friendsBadgeCount,
                     onDestinationSelected = { currentDestination.value = it }
                 )
             }
@@ -280,18 +286,18 @@ fun MainAppContent(onSignOut: () -> Unit) {
             when (currentDestination.value) {
                 CityXploreDestination.Map -> Unit
 
-                is CityXploreDestination.Friends -> {
-                    val friendsDest = currentDestination.value as CityXploreDestination.Friends
+                is CityXploreDestination.Social -> {
+                    val socialDest = currentDestination.value as CityXploreDestination.Social
                     // Get user location from map state
                     val userLocation = (mapState as? MapUiState.Ready)?.userLocation
                     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
                         SocialScreen(
-                            initialTab = friendsDest.initialTab,
-                            initialRankingSubTab = friendsDest.rankingSubTab,
+                            initialTab = socialDest.initialTab,
+                            initialRankingSubTab = socialDest.rankingSubTab,
                             onUserSelected = { userId, fromRankings, isGlobalRanking ->
                                 currentDestination.value = CityXploreDestination.OtherProfile(
                                     userId = userId,
-                                    previousDestination = CityXploreDestination.Friends(
+                                    previousDestination = CityXploreDestination.Social(
                                         initialTab = if (fromRankings) 1 else 0,
                                         rankingSubTab = if (fromRankings && !isGlobalRanking) 1 else 0
                                     )
@@ -392,8 +398,8 @@ private fun CityXploreBottomBar(
             }
         )
         NavigationBarItem(
-            selected = destination is CityXploreDestination.Friends,
-            onClick = { onDestinationSelected(CityXploreDestination.Friends()) },
+            selected = destination is CityXploreDestination.Social,
+            onClick = { onDestinationSelected(CityXploreDestination.Social()) },
             colors = navItemColors,
             icon = {
                 BadgedBox(
@@ -412,15 +418,15 @@ private fun CityXploreBottomBar(
                     }
                 ) {
                     Icon(
-                        imageVector = if (destination is CityXploreDestination.Friends) Icons.Filled.Group else Icons.Outlined.Group,
-                        contentDescription = "Friends",
+                        imageVector = if (destination is CityXploreDestination.Social) Icons.Filled.Group else Icons.Outlined.Group,
+                        contentDescription = "Social",
                         modifier = Modifier.size(30.dp)
                     )
                 }
             },
             label = {
                 Text(
-                    text = "Friends",
+                    text = "Social",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.W600,
                 )

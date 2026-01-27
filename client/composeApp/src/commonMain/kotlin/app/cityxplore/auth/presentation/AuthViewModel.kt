@@ -4,7 +4,10 @@ import app.cityxplore.auth.data.EmailAlreadyRegisteredException
 import app.cityxplore.auth.domain.AuthConstants
 import app.cityxplore.auth.domain.AuthRepository
 import app.cityxplore.auth.domain.SocialProvider
+import app.cityxplore.core.cache.CacheManager
 import app.cityxplore.platform.CityXploreBaseViewModel
+import app.cityxplore.social.domain.repository.SharedPoiRepository
+import app.cityxplore.social.domain.repository.SocialRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,7 +49,10 @@ sealed interface AuthState {
  * @property repository The authentication repository for backend operations.
  */
 class AuthViewModel(
-    private val repository: AuthRepository
+    private val repository: AuthRepository,
+    private val sharedPoiRepository: SharedPoiRepository,
+    private val socialRepository: SocialRepository,
+    private val cacheManager: CacheManager
 ) : CityXploreBaseViewModel() {
     private val _state = MutableStateFlow<AuthState>(AuthState.Loading)
 
@@ -264,6 +270,7 @@ class AuthViewModel(
             ) -> "Network error. Check your connection."
 
             msg.contains("timeout", ignoreCase = true) -> "Request timed out. Please try again."
+            msg.contains("email_not_confirmed", ignoreCase = true) -> "Email not confirmed. Please check your inbox."
             else -> "Authentication failed: $msg"
         }
     }
@@ -274,6 +281,10 @@ class AuthViewModel(
     fun signOut() {
         scope.launch {
             repository.signOut()
+            // Clear all cached data from social repositories
+            sharedPoiRepository.clearCache()
+            socialRepository.clearCache()
+            cacheManager.clearAll()
             _state.value = AuthState.Unauthenticated
         }
     }

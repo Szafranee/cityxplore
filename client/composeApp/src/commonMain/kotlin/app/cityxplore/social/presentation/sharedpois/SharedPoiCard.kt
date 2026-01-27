@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +50,7 @@ import kotlin.math.roundToInt
 @Composable
 fun SharedPoiCard(
     sharedPoi: SharedPoi,
+    isDeleting: Boolean = false,
     isReceived: Boolean,
     onNavigate: () -> Unit,
     onMarkViewed: () -> Unit,
@@ -255,15 +257,28 @@ fun SharedPoiCard(
                 }
 
                 if (!isReceived) {
-                    IconButton(
-                        onClick = onDelete,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Delete",
-                            tint = AppColors.red
-                        )
+                    if (isDeleting) {
+                        Box(
+                            modifier = Modifier.size(36.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = AppColors.red
+                            )
+                        }
+                    } else {
+                        IconButton(
+                            onClick = onDelete,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete",
+                                tint = AppColors.red
+                            )
+                        }
                     }
                 }
             }
