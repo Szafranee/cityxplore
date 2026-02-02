@@ -6,17 +6,19 @@ ksp = "2.3.0"
 sqlite = "2.6.2"
 hibernateCoreVersion = "6.6.29.Final"
 hibernateSpatialVersion = "6.6.29.Final"
-hypersistenceUtilsHibernateX3 = "3.14.1"
+hypersistenceUtilsHibernateX3 = "3.15.1"
 kotlin = "2.3.0"
 agp = "8.12.3"
 compose = "1.10.0"
 android-compileSdk = "36"
 android-minSdk = "24"
 android-targetSdk = "36"
-androidx-activity = "1.12.2"
+androidx-activity = "1.12.3"
 kotlinxCoroutines = "1.10.2"
+kotlinxCoroutinesTest = "1.10.2"
 kotlinxDatetime = "0.7.1"
 kotlinxSerializationJson = "1.10.0"
+turbine = "1.2.1"
 ktorClientCio = "3.4.0"
 ktorClientCore = "3.4.0"
 ktorClientDarwin = "3.4.0"
@@ -29,7 +31,7 @@ lifecycleViewmodel = "2.10.0"
 material3 = "1.9.0"
 materialIconsExtended = "1.7.8"
 materialIconsExtendedVersion = "1.7.3"
-mockk = "1.14.7"
+mockk = "1.14.9"
 navigationCompose = "2.9.1"
 runtime = "1.10.0"
 springmockk = "5.0.1"
@@ -44,8 +46,8 @@ h3 = "4.4.0"
 springBoot = "3.5.9"
 springSecurityTest = "7.0.2"
 lombok = "1.18.42"
-flyway-database-postgresql = "11.20.2"
-flyway-core = "11.20.2"
+flyway-database-postgresql = "12.0.0"
+flyway-core = "12.0.0"
 kotlin-reflect = "2.3.0"
 junit-platform-launcher = "6.0.2"
 junit-platform-engine = "6.0.2"
@@ -83,8 +85,10 @@ jackson-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-
 kotlin-test = { group = "org.jetbrains.kotlin", name = "kotlin-test", version.ref = "kotlin" }
 kotlin-test-junit5 = { module = "org.jetbrains.kotlin:kotlin-test-junit5" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesTest" }
 kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "kotlinxCoroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
+turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktorClientCore" }
 ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktorClientDarwin" }
 ktor-client-auth = { module = "io.ktor:ktor-client-auth", version.ref = "ktorClientAuth" }

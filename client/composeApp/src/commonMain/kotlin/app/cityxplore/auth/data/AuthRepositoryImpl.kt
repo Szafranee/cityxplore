@@ -122,8 +122,8 @@ class AuthRepositoryImpl(
     override suspend fun signUp(email: String, password: String): Result<Unit> {
         return try {
             val result = auth.signUpWith(Email) {
-                this.email = email
-                this.password = password
+                this.email = email.trim()
+                this.password = password.trim()
             }
             if (result?.identities.isNullOrEmpty()) {
                 Result.failure(EmailAlreadyRegisteredException())
