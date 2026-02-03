@@ -77,6 +77,7 @@ fun SharedPoisTab(
             SharedPoisContent(
                 receivedPois = state.receivedPois,
                 sentPois = state.sentPois,
+                deletingIds = state.deletingIds,
                 onNavigate = onNavigate,
                 onMarkViewed = onMarkViewed,
                 onDelete = onDelete
@@ -121,6 +122,7 @@ fun SharedPoisTab(
 private fun SharedPoisContent(
     receivedPois: List<SharedPoi>,
     sentPois: List<SharedPoi>,
+    deletingIds: Set<String>,
     onNavigate: (SharedPoi, Boolean) -> Unit,
     onMarkViewed: (SharedPoi) -> Unit,
     onDelete: (SharedPoi) -> Unit
@@ -144,6 +146,7 @@ private fun SharedPoisContent(
         when (selectedTabIndex) {
             0 -> SharedPoiListContent(
                 pois = receivedPois,
+                deletingIds = deletingIds,
                 isReceived = true,
                 onNavigate = { onNavigate(it, true) },
                 onMarkViewed = onMarkViewed,
@@ -152,6 +155,7 @@ private fun SharedPoisContent(
 
             1 -> SharedPoiListContent(
                 pois = sentPois,
+                deletingIds = deletingIds,
                 isReceived = false,
                 onNavigate = { onNavigate(it, false) },
                 onMarkViewed = onMarkViewed,

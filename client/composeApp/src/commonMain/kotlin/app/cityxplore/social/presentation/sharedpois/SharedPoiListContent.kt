@@ -28,6 +28,7 @@ import app.cityxplore.social.domain.model.SharedPoi
 @Composable
 fun SharedPoiListContent(
     pois: List<SharedPoi>,
+    deletingIds: Set<String> = emptySet(),
     isReceived: Boolean,
     onNavigate: (SharedPoi) -> Unit,
     onMarkViewed: (SharedPoi) -> Unit,
@@ -48,6 +49,7 @@ fun SharedPoiListContent(
             ) { sharedPoi ->
                 SharedPoiCard(
                     sharedPoi = sharedPoi,
+                    isDeleting = deletingIds.contains(sharedPoi.id),
                     isReceived = isReceived,
                     onNavigate = { onNavigate(sharedPoi) },
                     onMarkViewed = { onMarkViewed(sharedPoi) },

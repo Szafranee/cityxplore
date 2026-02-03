@@ -1,11 +1,8 @@
 package app.cityxplore.map.presentation
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -103,24 +100,8 @@ private fun ReadyMap(
         return
     }
 
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val isGranted = permissions.values.all { it }
-        if (isGranted) {
-            onAction(MapAction.PermissionGranted)
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        permissionLauncher.launch(
-            arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            )
-        )
-    }
+    // Location permission is now requested in MainAppContent
+    // No need to request it here again
 
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
     val lastLocation = remember { mutableStateOf<Point?>(null) }
@@ -172,15 +153,13 @@ private fun ReadyMap(
     }
 
     // Update POI markers when the map view or POI list changes
-    LaunchedEffect(mapViewRef.value, mapState.pois, mapState.sharedPois) {
+    LaunchedEffect(annotationManager, mapState.pois, mapState.sharedPois) {
         val manager = annotationManager ?: return@LaunchedEffect
 
-        // Clear existing markers
         manager.deleteAll()
         annotationIdToPoiId.clear()
         sharedAnnotationIdToPoiId.clear()
 
-        // Create new markers for each POI
         mapState.pois.forEach { poi ->
             val point = Point.fromLngLat(poi.longitude, poi.latitude)
             val icon = createPoiMarkerBitmap(
@@ -197,13 +176,20 @@ private fun ReadyMap(
             annotationIdToPoiId[annotation.id] = poi.id
         }
 
-        // Create markers for shared POIs (custom POIs from friends)
+        // Create markers for shared POIs
         mapState.sharedPois.forEach { sharedPoi ->
-            val coords = sharedPoi.coordinates ?: return@forEach
+            val coords = sharedPoi.coordinates ?: sharedPoi.poiId?.let { id ->
+                mapState.pois.find { it.id == id }?.let {
+                    Pair(it.latitude, it.longitude)
+                }
+            } ?: return@forEach
+
             val point = Point.fromLngLat(coords.second, coords.first)
 
-            // Parse category from customPoi, default to OTHER
-            val categoryString = sharedPoi.customPoi?.category ?: "other"
+            val categoryString = sharedPoi.customPoi?.category ?: sharedPoi.poiId?.let { id ->
+                mapState.pois.find { it.id == id }?.category?.name
+            } ?: "other"
+
             val category = try {
                 PoiCategory.valueOf(categoryString.uppercase())
             } catch (_: IllegalArgumentException) {
@@ -235,6 +221,11 @@ private fun ReadyMap(
                     MapView(context).apply {
                         mapViewRef.value = this
                         mapboxMap.loadStyle("mapbox://styles/szafran00/cmdusan3600d001pj4eri2fl1") { style ->
+                            // Guard against multiple initialisations
+                            if (fogInitialized.value) {
+                                return@loadStyle
+                            }
+
                             val renderer = FogOfWarRenderer(this, h3Service)
                             val success = renderer.initialize(style)
                             if (success) {
@@ -269,9 +260,9 @@ private fun ReadyMap(
             modifier = Modifier.fillMaxSize()
         )
 
-        LaunchedEffect(mapState.revealedHexagons, mapState.warsawHexagons, fogRenderer.value) {
+        LaunchedEffect(mapState.revealedHexagons, mapState.warsawHexagons, fogRenderer.value, fogInitialized.value) {
             val renderer = fogRenderer.value
-            if (renderer != null && mapState.warsawHexagons.isNotEmpty()) {
+            if (renderer != null && fogInitialized.value && mapState.warsawHexagons.isNotEmpty()) {
                 renderer.updateFog(mapState.warsawHexagons, mapState.revealedHexagons)
             }
         }

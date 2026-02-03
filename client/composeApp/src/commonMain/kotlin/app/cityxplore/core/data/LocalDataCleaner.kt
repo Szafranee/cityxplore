@@ -6,6 +6,8 @@ import app.cityxplore.database.dao.FogOfWarDao
 import app.cityxplore.database.dao.PoiDao
 import app.cityxplore.database.dao.ProfileDao
 import app.cityxplore.database.dao.SyncQueueDao
+import app.cityxplore.map.data.clearHexagonCache
+import app.cityxplore.map.domain.UpdateFogOfWarUseCase
 
 /**
  * Service responsible for clearing all local cached data.
@@ -25,7 +27,8 @@ class LocalDataCleaner(
     private val fogOfWarDao: FogOfWarDao,
     private val achievementDao: AchievementDao,
     private val syncQueueDao: SyncQueueDao,
-    private val cacheManager: CacheManager
+    private val cacheManager: CacheManager,
+    private val updateFogOfWarUseCase: UpdateFogOfWarUseCase
 ) {
     /**
      * Clears all local cached data from all tables and resets cache timestamps.
@@ -48,6 +51,12 @@ class LocalDataCleaner(
 
         // Clear achievements - only user achievements, keep definitions
         achievementDao.clearAllUserAchievements()
+
+        // Clear in-memory hexagon cache (Warsaw hexagons etc.)
+        clearHexagonCache()
+
+        // Clear UseCase internal cache
+        updateFogOfWarUseCase.clearCache()
 
         // Clear cache timestamps to force fresh data on the next login
         cacheManager.clearAll()

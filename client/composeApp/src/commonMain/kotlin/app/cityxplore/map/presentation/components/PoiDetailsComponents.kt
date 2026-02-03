@@ -230,7 +230,7 @@ fun PoiDistanceCard(
  */
 @Composable
 fun PoiDiscoverPrompt(
-    discoveryRadiusMeters: Int = 200,
+    discoveryRadiusMeters: Int = 100,
     modifier: Modifier = Modifier
 ) {
     Card(

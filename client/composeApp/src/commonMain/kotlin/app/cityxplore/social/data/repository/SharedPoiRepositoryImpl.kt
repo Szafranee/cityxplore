@@ -60,7 +60,7 @@ class SharedPoiRepositoryImpl(
 
     override suspend fun refreshReceivedPois(): Result<Unit> = runCatching {
         val response = client.get("$BASE_URL/received").body<List<SharedPoiResponseDto>>()
-        _receivedPois.update { response.map { it.toDomain() } }
+        _receivedPois.value = response.map { it.toDomain() }
     }
 
     override suspend fun refreshUnviewedPois(): Result<Unit> = runCatching {
@@ -180,5 +180,11 @@ class SharedPoiRepositoryImpl(
             return ContentType.Image.WEBP
         }
         return null
+    }
+
+    override fun clearCache() {
+        _sentPois.value = emptyList()
+        _receivedPois.value = emptyList()
+        _unviewedPois.value = emptyList()
     }
 }

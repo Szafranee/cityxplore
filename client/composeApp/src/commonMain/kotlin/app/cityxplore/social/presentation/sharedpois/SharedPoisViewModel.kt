@@ -51,21 +51,31 @@ class SharedPoisViewModel(
     // Internal state for loading/error
     private val _isLoading = MutableStateFlow(true)
     private val _error = MutableStateFlow<String?>(null)
+    private val _deletingIds = MutableStateFlow<Set<String>>(emptySet())
 
     val uiState: StateFlow<SharedPoisUiState> = combine(
         getReceivedSharedPoisUseCase(),
         getSentSharedPoisUseCase(),
         getUnviewedSharedPoisUseCase.count(),
         _isLoading,
-        _error
-    ) { received, sent, unviewedCount, isLoading, error ->
+        _error,
+        _deletingIds
+    ) { args ->
+        val received = args[0] as List<SharedPoi>
+        val sent = args[1] as List<SharedPoi>
+        val unviewedCount = args[2] as Int
+        val isLoading = args[3] as Boolean
+        val error = args[4] as String?
+        val deletingIds = args[5] as Set<String>
+
         when {
             error != null -> SharedPoisUiState.Error(error)
             isLoading -> SharedPoisUiState.Loading
             else -> SharedPoisUiState.Content(
                 receivedPois = received,
                 sentPois = sent,
-                unviewedCount = unviewedCount
+                unviewedCount = unviewedCount,
+                deletingIds = deletingIds
             )
         }
     }.stateIn(scope, SharingStarted.WhileSubscribed(5000), SharedPoisUiState.Loading)
@@ -321,6 +331,9 @@ class SharedPoisViewModel(
     }
 
     fun deleteSharedPoi(sharedPoi: SharedPoi) {
+        // Prevent double deletion
+        if (_deletingIds.value.contains(sharedPoi.id)) return
+
         scope.launch {
             // Check connectivity first
             if (!connectivityObserver.isNetworkAvailable()) {
@@ -328,13 +341,18 @@ class SharedPoisViewModel(
                 return@launch
             }
 
+            _deletingIds.update { it + sharedPoi.id }
+
             deleteSharedPoiUseCase(sharedPoi.id)
                 .onSuccess {
                     _uiEvents.emit(SharedPoisUiEvent.ShowMessage("Shared POI deleted"))
                     // Refresh data without showing the Loading state
                     refreshSilently()
+                    // Start removing from deletingIds, though it should disappear from list
+                    _deletingIds.update { it - sharedPoi.id }
                 }
                 .onFailure { error ->
+                    _deletingIds.update { it - sharedPoi.id }
                     _uiEvents.emit(
                         SharedPoisUiEvent.ShowMessage(
                             error.message ?: "Failed to delete"

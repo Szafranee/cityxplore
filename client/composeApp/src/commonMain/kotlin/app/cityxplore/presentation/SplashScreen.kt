@@ -1,20 +1,22 @@
 package app.cityxplore.presentation
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.cityxplore.theme.AppColors
+import cityxplore.client.composeapp.generated.resources.Res
+import cityxplore.client.composeapp.generated.resources.cityxplore_logo_short
+import org.jetbrains.compose.resources.painterResource
 
 /**
  * Displays the initial splash screen shown while the application is starting
@@ -30,11 +32,11 @@ fun SplashScreen() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text(
-                text = "CityXplore",
-                style = MaterialTheme.typography.displayLarge,
-                color = AppColors.green,
-                fontWeight = FontWeight.Bold
+
+            Image(
+                painter = painterResource(Res.drawable.cityxplore_logo_short),
+                contentDescription = "CityXplore Logo",
+                modifier = Modifier.width(200.dp) // Adjust width as needed
             )
 
             Spacer(modifier = Modifier.height(32.dp))

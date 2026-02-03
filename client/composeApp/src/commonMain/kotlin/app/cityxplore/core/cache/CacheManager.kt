@@ -53,11 +53,12 @@ enum class CacheState {
  * ```
  */
 class CacheManager(
-    private val config: CacheConfig = CacheConfig()
+    private val config: CacheConfig = CacheConfig(),
+    private val timeProvider: () -> Long = { Clock.System.now().toEpochMilliseconds() }
 ) {
     private val cacheTimestamps = mutableMapOf<CacheKey, Long>()
 
-    private fun currentTimeMillis(): Long = Clock.System.now().toEpochMilliseconds()
+    private fun currentTimeMillis(): Long = timeProvider()
 
     /**
      * Gets the current cache state for a given key.
@@ -102,24 +103,9 @@ enum class CacheKey {
     /** Points of Interest */
     POIS,
 
-    /** User's POI discoveries */
-    DISCOVERIES,
-
     /** Fog of war hexagons */
     FOG_OF_WAR,
 
     /** Achievement definitions */
     ACHIEVEMENTS,
-
-    /** User's achievement progress */
-    USER_ACHIEVEMENTS,
-
-    /** Friends list */
-    FRIENDS,
-
-    /** Rankings (global and friends) */
-    RANKINGS,
-
-    /** Shared POIs */
-    SHARED_POIS
 }

@@ -42,7 +42,7 @@ class DistanceTracker {
 
     /**
      * The current buffered distance in meters.
-     * Observe this to show real-time distance tracking in UI.
+     * Observe this to show real-time distance tracking in the UI.
      */
     val bufferedDistance: StateFlow<Double> = _bufferedDistance.asStateFlow()
 

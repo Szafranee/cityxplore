@@ -4,6 +4,7 @@ import org.cityxplore.backend.achievements.repository.AchievementRepository
 import org.cityxplore.backend.achievements.repository.UserAchievementRepository
 import org.cityxplore.backend.discoveries.repository.UserPoiDiscoveryRepository
 import org.cityxplore.backend.poi.repository.PointOfInterestRepository
+import org.cityxplore.backend.social.friendship.repository.FriendshipRepository
 import org.cityxplore.backend.user.entity.User
 import org.cityxplore.backend.user.repository.UserRepository
 import org.slf4j.LoggerFactory
@@ -15,14 +16,17 @@ import java.util.UUID
  * Service responsible for evaluating and granting achievements based on user progress.
  *
  * Achievements are evaluated in an event-driven manner:
- * - After POI discovery: evaluates discovery-based achievements (count, category, time_range)
+ * - After POI discovery: evaluates discovery-based achievements (poi_count, category, time_range, is_major)
  * - After distance sync: evaluates distance-based achievements (distance_km)
+ * - After friend accept: evaluates social achievements (friend_count)
  *
  * Each achievement has criteria defined in JSON format, e.g.:
- * - {"count": 10} - discover X POIs
- * - {"category": "Park", "count": 5} - discover X POIs of category Y
+ * - {"poi_count": 10} - discover X POIs
+ * - {"category": "Park", "poi_count": 5} - discover X POIs of category Y
+ * - {"poi_count": 5, "is_major": true} - discover X major POIs
  * - {"distance_km": 42} - travel X kilometers
  * - {"time_range": "22:00-04:00"} - discover POI during specific hours
+ * - {"friend_count": 5} - connect with X friends
  */
 @Service
 class AchievementEvaluationService(
@@ -31,7 +35,8 @@ class AchievementEvaluationService(
     private val userRepository: UserRepository,
     private val achievementService: AchievementService,
     private val userPoiDiscoveryRepository: UserPoiDiscoveryRepository,
-    private val poiRepository: PointOfInterestRepository
+    private val poiRepository: PointOfInterestRepository,
+    private val friendshipRepository: FriendshipRepository
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -54,7 +59,18 @@ class AchievementEvaluationService(
      */
     @Transactional
     fun evaluateDiscoveryAchievements(userId: UUID): List<UUID> {
-        return evaluateAchievementsByType(userId, "count", "category", "time_range")
+        return evaluateAchievementsByType(userId, "poi_count", "category", "time_range", "is_major")
+    }
+
+    /**
+     * Evaluates social achievements (e.g., friend_count) after a friendship is accepted.
+     *
+     * @param userId The user to evaluate achievements for.
+     * @return List of newly granted achievement IDs.
+     */
+    @Transactional
+    fun evaluateSocialAchievements(userId: UUID): List<UUID> {
+        return evaluateAchievementsByType(userId, "friend_count")
     }
 
     /**
@@ -108,9 +124,11 @@ class AchievementEvaluationService(
      *
      * Supported criteria:
      * - distance_km: Total distance travelled in kilometers
-     * - count: Amount POIs discovered (optionally filtered by category)
-     * - category: POI category filter (used with count)
+     * - count / poi_count: Amount POIs discovered (optionally filtered by category or is_major)
+     * - category: POI category filter (used with count/poi_count)
+     * - is_major: Filter for major POIs (used with poi_count)
      * - time_range: Time of day when POI was discovered (e.g., "22:00-04:00")
+     * - friend_count: Number of accepted friends
      */
     private fun checkCriteria(userId: UUID, user: User, criteria: Map<String, Any?>): Boolean {
         // Distance criteria: {"distance_km": 42}
@@ -121,13 +139,24 @@ class AchievementEvaluationService(
             }
         }
 
-        // Count criteria: {"count": 10} or {"count": 5, "category": "Park"}
-        criteria["count"]?.let { requiredCount ->
+        // Friend count criteria: {"friend_count": 5}
+        criteria["friend_count"]?.let { requiredCount ->
+            val actualCount = friendshipRepository.countAcceptedByUserId(userId).toInt()
+            if (actualCount < (requiredCount as Number).toInt()) {
+                return false
+            }
+        }
+
+        // POI count criteria: {"poi_count": 10} or {"poi_count": 5, "category": "Park"} or {"poi_count": 5, "is_major": true}
+        criteria["poi_count"]?.let { requiredCount ->
             val category = criteria["category"] as? String
-            val actualCount = if (category != null) {
-                countDiscoveriesByCategory(userId, category)
-            } else {
-                userPoiDiscoveryRepository.countByUserId(userId).toInt()
+            val isMajorOnly = criteria["is_major"] as? Boolean ?: false
+
+            val actualCount = when {
+                category != null && isMajorOnly -> countDiscoveriesByCategoryAndMajor(userId, category, true)
+                category != null -> countDiscoveriesByCategory(userId, category)
+                isMajorOnly -> countMajorDiscoveries(userId)
+                else -> userPoiDiscoveryRepository.countByUserId(userId).toInt()
             }
             if (actualCount < (requiredCount as Number).toInt()) {
                 return false
@@ -156,6 +185,34 @@ class AchievementEvaluationService(
         val pois = poiRepository.findAllById(poiIds)
         return pois.count { poi ->
             poi.category.equals(category, ignoreCase = true)
+        }
+    }
+
+    /**
+     * Counts how many major POIs (landmarks) the user has discovered.
+     */
+    private fun countMajorDiscoveries(userId: UUID): Int {
+        val discoveries = userPoiDiscoveryRepository.findAllByUserId(userId)
+        val poiIds = discoveries.map { it.poiId }
+
+        if (poiIds.isEmpty()) return 0
+
+        val pois = poiRepository.findAllById(poiIds)
+        return pois.count { poi -> poi.isMajor }
+    }
+
+    /**
+     * Counts how many POIs of a specific category with major flag the user has discovered.
+     */
+    private fun countDiscoveriesByCategoryAndMajor(userId: UUID, category: String, isMajor: Boolean): Int {
+        val discoveries = userPoiDiscoveryRepository.findAllByUserId(userId)
+        val poiIds = discoveries.map { it.poiId }
+
+        if (poiIds.isEmpty()) return 0
+
+        val pois = poiRepository.findAllById(poiIds)
+        return pois.count { poi ->
+            poi.category.equals(category, ignoreCase = true) && poi.isMajor == isMajor
         }
     }
 

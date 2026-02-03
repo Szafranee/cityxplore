@@ -12,11 +12,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -32,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import app.cityxplore.auth.domain.AuthConstants
 import app.cityxplore.auth.domain.SocialProvider
@@ -50,17 +54,22 @@ fun RegisterScreen(
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var isPasswordVisible by remember { mutableStateOf(false) }
     var emailError by remember { mutableStateOf(false) }
     var passwordError by remember { mutableStateOf(false) }
+    var confirmPasswordError by remember { mutableStateOf(false) }
 
     fun validateAndRegister() {
         val isEmailValid = email.isNotBlank() && email.contains("@")
         val isPasswordValid = password.length >= AuthConstants.MIN_PASSWORD_LENGTH
+        val isConfirmValid = password == confirmPassword
 
         emailError = !isEmailValid
         passwordError = !isPasswordValid
+        confirmPasswordError = !isConfirmValid
 
-        if (isEmailValid && isPasswordValid) {
+        if (isEmailValid && isPasswordValid && isConfirmValid) {
             onRegister(email, password)
         }
     }
@@ -137,21 +146,57 @@ fun RegisterScreen(
                 onValueChange = {
                     password = it
                     if (passwordError) passwordError = false
+                    confirmPasswordError = confirmPassword.isNotEmpty() && password != confirmPassword
+                    onClearError()
                 },
                 label = { Text("Password") },
-                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                visualTransformation = PasswordVisualTransformation(),
-                isError = passwordError,
-                supportingText = { if (passwordError) Text("Password must be at least ${AuthConstants.MIN_PASSWORD_LENGTH} characters") },
-                modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                    focusedLabelColor = MaterialTheme.colorScheme.primary,
-                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                isError = passwordError,
+                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Password") },
+                trailingIcon = {
+                    IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                        Icon(
+                            imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = if (isPasswordVisible) "Hide password" else "Show password"
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
             )
+            if (passwordError) {
+                Text(
+                    "Password must be at least ${AuthConstants.MIN_PASSWORD_LENGTH} characters",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 4.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = confirmPassword,
+                onValueChange = {
+                    confirmPassword = it
+                    confirmPasswordError = password != confirmPassword
+                    onClearError()
+                },
+                label = { Text("Confirm Password") },
+                singleLine = true,
+                visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                isError = confirmPasswordError,
+                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Confirm Password") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (confirmPasswordError) {
+                Text(
+                    "Passwords do not match",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 4.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 

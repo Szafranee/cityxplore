@@ -9,3 +9,7 @@ internal actual suspend fun loadRegionHexagons(region: RegionDefinition): Set<St
         // Not implemented yet on iOS. Keep empty so common code can fall back to backend.
         emptySet()
     }
+
+internal actual fun clearHexagonCache() {
+    // No-op on iOS - no local cache implemented
+}

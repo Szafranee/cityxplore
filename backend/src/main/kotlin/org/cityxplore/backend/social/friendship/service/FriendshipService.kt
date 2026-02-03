@@ -1,5 +1,6 @@
 package org.cityxplore.backend.social.friendship.service
 
+import org.cityxplore.backend.achievements.service.AchievementEvaluationService
 import org.cityxplore.backend.social.friendship.dto.FriendshipRequest
 import org.cityxplore.backend.social.friendship.dto.FriendshipResponse
 import org.cityxplore.backend.social.friendship.entity.Friendship
@@ -20,7 +21,8 @@ import java.util.UUID
  */
 @Service
 class FriendshipService(
-    private val friendshipRepository: FriendshipRepository
+    private val friendshipRepository: FriendshipRepository,
+    private val achievementEvaluationService: AchievementEvaluationService
 ) {
 
     /**
@@ -111,6 +113,10 @@ class FriendshipService(
         friendship.status = FriendshipStatus.ACCEPTED
         friendship.updatedAt = LocalDateTime.now()
         val saved = friendshipRepository.save(friendship)
+
+        // Evaluate social achievements for both users
+        achievementEvaluationService.evaluateSocialAchievements(currentUserId)
+        achievementEvaluationService.evaluateSocialAchievements(friendship.requesterId)
 
         return FriendshipMapper.toResponse(saved)
     }

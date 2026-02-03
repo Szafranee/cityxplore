@@ -275,6 +275,14 @@ class SocialRepositoryImpl(
         totalAchievementPoints = totalAchievementPoints,
         rank = rank
     )
+
+    override fun clearCache() {
+        _globalRanking.value = emptyList()
+        _friendsRanking.value = emptyList()
+        _friends.value = emptyList()
+        _pendingRequests.value = emptyList()
+        _blockedUsers.value = emptyList()
+    }
 }
 
 // Minimal UserResponseDto for getFriendProfile

@@ -4,7 +4,10 @@ import app.cityxplore.auth.data.EmailAlreadyRegisteredException
 import app.cityxplore.auth.domain.AuthConstants
 import app.cityxplore.auth.domain.AuthRepository
 import app.cityxplore.auth.domain.SocialProvider
+import app.cityxplore.core.cache.CacheManager
 import app.cityxplore.platform.CityXploreBaseViewModel
+import app.cityxplore.social.domain.repository.SharedPoiRepository
+import app.cityxplore.social.domain.repository.SocialRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,7 +49,10 @@ sealed interface AuthState {
  * @property repository The authentication repository for backend operations.
  */
 class AuthViewModel(
-    private val repository: AuthRepository
+    private val repository: AuthRepository,
+    private val sharedPoiRepository: SharedPoiRepository,
+    private val socialRepository: SocialRepository,
+    private val cacheManager: CacheManager
 ) : CityXploreBaseViewModel() {
     private val _state = MutableStateFlow<AuthState>(AuthState.Loading)
 
@@ -98,8 +104,7 @@ class AuthViewModel(
             repository.authState.collect { isAuthenticated ->
                 when (isAuthenticated) {
                     true -> {
-                        // Allow session and JWT token to be fully initialised before making API calls
-                        delay(300)
+                        // Check if a user has a profile
                         repository.hasProfile()
                             .onSuccess { hasProfile ->
                                 if (hasProfile) {
@@ -108,12 +113,13 @@ class AuthViewModel(
                                     _state.value = AuthState.Onboarding
                                 }
                             }
-                            .onFailure {
-                                // Network error - can't verify profile status
-                                // Sign out and return to the login screen
+                            .onFailure { error ->
+                                // Session invalid or network error - sign out and return to log in
+                                println("AuthViewModel: Profile check failed: ${error.message}")
                                 repository.signOut()
-                                _state.value =
-                                    AuthState.Error("Unable to connect. Please check your internet connection and try again.")
+                                _state.value = AuthState.Error(
+                                    "Session expired or account no longer exists. Please sign in again."
+                                )
                             }
                     }
 
@@ -140,12 +146,7 @@ class AuthViewModel(
     fun signIn(login: String, pass: String) {
         scope.launch {
             _state.value = AuthState.Loading
-            val email = repository.resolveEmail(login)
-            if (email == null) {
-                _state.value = AuthState.Error("Invalid email or password.")
-                return@launch
-            }
-            repository.signIn(email, pass)
+            repository.signInWithLogin(login, pass)
                 .onSuccess {
                     // State update handled by observeAuthState
                 }
@@ -269,6 +270,7 @@ class AuthViewModel(
             ) -> "Network error. Check your connection."
 
             msg.contains("timeout", ignoreCase = true) -> "Request timed out. Please try again."
+            msg.contains("email_not_confirmed", ignoreCase = true) -> "Email not confirmed. Please check your inbox."
             else -> "Authentication failed: $msg"
         }
     }
@@ -279,6 +281,10 @@ class AuthViewModel(
     fun signOut() {
         scope.launch {
             repository.signOut()
+            // Clear all cached data from social repositories
+            sharedPoiRepository.clearCache()
+            socialRepository.clearCache()
+            cacheManager.clearAll()
             _state.value = AuthState.Unauthenticated
         }
     }

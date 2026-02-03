@@ -16,6 +16,12 @@ import app.cityxplore.map.domain.RegionDefinition
 internal expect suspend fun loadRegionHexagons(region: RegionDefinition): Set<String>
 
 /**
+ * Platform-specific function to clear the hexagon cache.
+ * Called on logout to ensure fresh computation on the next login.
+ */
+internal expect fun clearHexagonCache()
+
+/**
  * Legacy wrapper for Warsaw-specific hexagons.
  * Delegates to [loadRegionHexagons] with the Warsaw region definition.
  *

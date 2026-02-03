@@ -27,11 +27,13 @@ class AchievementServiceTest {
     private val achievementRepository: AchievementRepository = mockk()
     private val userAchievementRepository: UserAchievementRepository = mockk()
     private val userRepository: UserRepository = mockk()
+    private val achievementProgressService: AchievementProgressService = mockk()
 
     private val achievementService = AchievementService(
         achievementRepository,
         userAchievementRepository,
-        userRepository
+        userRepository,
+        achievementProgressService
     )
 
     private val testUserId = UUID.randomUUID()
@@ -247,6 +249,14 @@ class AchievementServiceTest {
 
         every { achievementRepository.findAllByIsActiveTrue() } returns allAchievements
         every { userAchievementRepository.findAllByUserId(testUserId) } returns userAchievements
+        // Mock progress calculation for the unlocked achievement (not called since it's unlocked)
+        // Mock progress calculation for the not-yet-unlocked achievement
+        every {
+            achievementProgressService.calculateProgress(
+                testUserId,
+                secondAchievement
+            )
+        } returns mapOf("count" to 0)
 
         // When
         val result = achievementService.getUserAchievements(testUserId)
@@ -254,21 +264,23 @@ class AchievementServiceTest {
         // Then - should return ALL achievements
         assertEquals(2, result.size)
 
-        // First achievement - user has progress
+        // First achievement - user has progress (unlocked)
         val first = result.find { it.achievement.id == testAchievementId }
         assertNotNull(first)
         assertEquals("First Discovery", first!!.achievement.name)
         assertNotNull(first.achievedAt)
+        assertEquals(mapOf("completed" to true), first.progress) // Completed achievements have this
 
-        // Second achievement - user has no progress
+        // Second achievement - user has no progress (not unlocked, progress calculated)
         val second = result.find { it.achievement.id == secondAchievementId }
         assertNotNull(second)
         assertEquals("Second Achievement", second!!.achievement.name)
         assertNull(second.achievedAt) // Not unlocked
-        assertNull(second.progress)   // No progress
+        assertEquals(mapOf("count" to 0), second.progress) // Dynamic progress
 
         verify { achievementRepository.findAllByIsActiveTrue() }
         verify { userAchievementRepository.findAllByUserId(testUserId) }
+        verify { achievementProgressService.calculateProgress(testUserId, secondAchievement) }
     }
 
     @Test
@@ -278,18 +290,20 @@ class AchievementServiceTest {
         val allAchievements = listOf(testAchievement)
         every { achievementRepository.findAllByIsActiveTrue() } returns allAchievements
         every { userAchievementRepository.findAllByUserId(testUserId) } returns emptyList()
+        every { achievementProgressService.calculateProgress(testUserId, testAchievement) } returns mapOf("count" to 0)
 
         // When
         val result = achievementService.getUserAchievements(testUserId)
 
-        // Then - should still return all achievements with null progress
+        // Then - should return all achievements with calculated progress
         assertEquals(1, result.size)
         assertEquals("First Discovery", result[0].achievement.name)
         assertNull(result[0].achievedAt)
-        assertNull(result[0].progress)
+        assertEquals(mapOf("count" to 0), result[0].progress) // Dynamic progress calculated
 
         verify { achievementRepository.findAllByIsActiveTrue() }
         verify { userAchievementRepository.findAllByUserId(testUserId) }
+        verify { achievementProgressService.calculateProgress(testUserId, testAchievement) }
     }
 
     @Test

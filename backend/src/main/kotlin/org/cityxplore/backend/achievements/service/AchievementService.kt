@@ -20,7 +20,8 @@ import java.util.UUID
 class AchievementService(
     private val achievementRepository: AchievementRepository,
     private val userAchievementRepository: UserAchievementRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val achievementProgressService: AchievementProgressService
 ) {
 
     data class AchievementGrantResult(
@@ -87,11 +88,12 @@ class AchievementService(
     /**
      * Fetches ALL achievements with the user's progress.
      *
-     * Returns all active achievements. For achievements the user has earned or has progress on,
-     * includes the achievement timestamp and progress data. For achievements the user hasn't
-     * started, returns them with achievedAt = null and progress = null.
+     * Returns all active achievements. For achievements the user has earned,
+     * includes the achievement timestamp. For achievements the user hasn't
+     * started or is in progress, calculates current progress dynamically.
      *
-     * This allows the client to display all achievements (locked/unlocked) in the profile.
+     * This allows the client to display all achievements (locked/unlocked) in the profile
+     * with accurate progress information (e.g. "42/50 POIs discovered").
      */
     @Transactional(readOnly = true)
     fun getUserAchievements(userId: UUID): List<UserAchievementResponse> {
@@ -102,10 +104,20 @@ class AchievementService(
         val userAchievements = userAchievementRepository.findAllByUserId(userId)
         val userAchievementsMap = userAchievements.associateBy { it.achievementId }
 
-        // Map all achievements with the user's progress (or null if no progress)
+        // Map all achievements with the user's progress
         return allAchievements.map { achievement ->
             val userAchievement = userAchievementsMap[achievement.id]
-            toUserAchievementDto(achievement, userAchievement)
+
+            // For unlocked achievements, use stored data; for locked, calculate current progress
+            val progressData = if (userAchievement?.achievedAt != null) {
+                // Achievement already unlocked - return completed status
+                mapOf("completed" to true)
+            } else {
+                // Calculate current progress dynamically
+                achievementProgressService.calculateProgress(userId, achievement)
+            }
+
+            toUserAchievementDto(achievement, userAchievement, progressData)
         }
     }
 

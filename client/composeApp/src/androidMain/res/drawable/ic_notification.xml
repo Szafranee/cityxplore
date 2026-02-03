@@ -1,0 +1,40 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+        android:width="24dp"
+        android:height="24dp"
+        android:viewportWidth="2757"
+        android:viewportHeight="2757">
+    <!-- Converted from cityxplore_symbol.xml to Monochrome -->
+    <group
+            android:pivotX="1378.5"
+            android:pivotY="1378.5"
+            android:scaleX="1.0"
+            android:scaleY="1.0">
+
+        <!-- Outer ring and circle (Main Green) -> White -->
+        <path
+                android:pathData="M1373.7,204.8c112.4,0 221.4,22 323.9,65.3 49.3,20.8 96.8,46.7 141.3,76.7 44.1,29.8 85.6,64 123.3,101.7 37.7,37.7 71.9,79.2 101.7,123.3 30,44.5 55.9,92 76.7,141.3 43.4,102.5 65.3,211.5 65.3,323.9s-22,221.4 -65.3,323.9c-20.8,49.3 -46.7,96.8 -76.7,141.3 -29.8,44.1 -64,85.6 -101.7,123.3 -37.7,37.7 -79.2,71.9 -123.3,101.7 -44.5,30 -92,55.9 -141.3,76.7 -102.5,43.4 -211.5,65.3 -323.9,65.3s-221.4,-22 -323.9,-65.3c-49.3,-20.8 -96.8,-46.7 -141.3,-76.7 -44.1,-29.8 -85.6,-64 -123.3,-101.7 -37.7,-37.7 -71.9,-79.2 -101.7,-123.3 -30,-44.5 -55.9,-92 -76.7,-141.3 -43.4,-102.5 -65.3,-211.5 -65.3,-323.9s22,-221.4 65.3,-323.9c20.8,-49.3 46.7,-96.8 76.7,-141.3 29.8,-44.1 64,-85.6 101.7,-123.3 37.7,-37.7 79.2,-71.9 123.3,-101.7 44.5,-30 92,-55.9 141.3,-76.7 102.5,-43.4 211.5,-65.3 323.9,-65.3M1373.7,74.8c-531.4,0 -962.2,430.8 -962.2,962.2s430.8,962.2 962.2,962.2 962.2,-430.8 962.2,-962.2S1905.1,74.8 1373.7,74.8h0Z"
+                android:fillColor="#FFFFFF"/>
+
+        <!-- Inner Dark Circle -> Transparent (Cut out) -->
+        <path
+                android:pathData="M1376,1040m-786.4,0a786.4,786.4 0,1 1,1572.9 0a786.4,786.4 0,1 1,-1572.9 0"
+                android:fillColor="#00000000"
+                android:strokeWidth="50"
+                android:strokeColor="#FFFFFF"/> <!-- Added Stroke to define the edge if needed, otherwise just leave hole? Let's check original. Original is Dark Green Circle.  -->
+
+        <!-- X shape (Compass arrows) -->
+        <!-- Originally light green parts of the X -->
+        <path
+                android:pathData="M939,1972l440,709l0,-524l-440,-185z"
+                android:fillColor="#FFFFFF"/>
+        <path
+                android:pathData="M1379,2157l0,524l440,-709l-440,185z"
+                android:fillColor="#FFFFFF"/>
+        <path
+                android:pathData="M932.2,748.4l152.9,-152.9l730,730l-152.9,152.9z"
+                android:fillColor="#FFFFFF"/>
+        <path
+                android:pathData="M934.6,1328.5l730,-730l152.9,152.9l-730,730z"
+                android:fillColor="#FFFFFF"/>
+    </group>
+</vector>
