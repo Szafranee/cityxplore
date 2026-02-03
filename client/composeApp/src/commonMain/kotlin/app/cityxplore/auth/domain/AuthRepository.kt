@@ -70,22 +70,26 @@ interface AuthRepository {
     suspend fun isAuthenticated(): Boolean
 
     /**
-     * Resolves a login identifier (username or email) to an email address.
-     * If the input contains '@', it is returned as-is. Otherwise, the username
-     * is looked up in the database to retrieve the associated email.
+     * Signs in using a login identifier (username or email) and password.
      *
-     * @param login The username or email to resolve.
-     * @return The resolved email address, or `null` if not found.
+     * This method uses an Edge Function to safely resolve the username to an email
+     * server-side and perform the sign-in in a single request, avoiding
+     * exposure of user emails to the client.
+     *
+     * @param login The username or email.
+     * @param password The user's password.
+     * @return [Result] containing [Unit] on success, or exception on failure.
      */
-    suspend fun resolveEmail(login: String): String?
+    suspend fun signInWithLogin(login: String, password: String): Result<Unit>
 
 
     /**
      * Checks if the currently authenticated user has a profile in the backend.
      *
-     * @return `true` if the user has a profile, `false` otherwise.
+     * @return [Result] containing `true` if the user has a profile, `false` if not,
+     *         or failure if the check couldn't be performed (e.g., no network).
      */
-    suspend fun hasProfile(): Boolean
+    suspend fun hasProfile(): Result<Boolean>
 
     /**
      * Resends the email verification link to the specified email address.

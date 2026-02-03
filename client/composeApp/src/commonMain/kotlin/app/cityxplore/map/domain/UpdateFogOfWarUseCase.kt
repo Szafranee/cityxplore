@@ -3,7 +3,7 @@ package app.cityxplore.map.domain
 import app.cityxplore.core.location.Location
 
 /**
- * Use case for updating the Fog of War based on user's current location.
+ * Use case for updating the Fog of War based on the user's current location.
  *
  * This calculates which hexagons should be revealed within the configured
  * radius around the user and persists them via the repository.
@@ -46,8 +46,17 @@ class UpdateFogOfWarUseCase(
         // Get (or cache) all hexagons in the playable region
         val regionHexagons = regionHexagonsCache ?: run {
             val hexes = repository.getWarsawHexagons().getOrThrow()
+            if (hexes.isEmpty()) {
+                return@runCatching 0 // Can't reveal if we don't know the region
+            }
             regionHexagonsCache = hexes
             hexes
+        }
+
+        // Double-check cache isn't empty (safety)
+        if (regionHexagons.isEmpty()) {
+            println("UpdateFogOfWarUseCase: Region hexagons cache is empty, skipping")
+            return@runCatching 0
         }
 
         // Calculate hexagons to reveal around user location
@@ -68,6 +77,13 @@ class UpdateFogOfWarUseCase(
         }
 
         newHexagons.size
+    }
+
+    /**
+     * Clears the internal cache. Called when the user logs out.
+     */
+    fun clearCache() {
+        regionHexagonsCache = null
     }
 }
 

@@ -39,7 +39,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import app.cityxplore.core.rememberAvatarPicker
-import app.cityxplore.profile.domain.ProfileConstants
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
@@ -190,7 +189,7 @@ fun OnboardingScreen(
                 }
             }
 
-            items(items = ProfileConstants.PREDEFINED_AVATARS) { avatar ->
+            items(items = viewModel.predefinedAvatars) { avatar ->
                 val isSelected = selectedAvatar == avatar
                 // Wrap in Column to match Gallery button height/alignment
                 Column(

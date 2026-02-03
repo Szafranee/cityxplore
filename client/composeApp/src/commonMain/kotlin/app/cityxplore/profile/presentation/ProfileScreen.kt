@@ -70,7 +70,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.cityxplore.achievements.domain.Achievement
 import app.cityxplore.core.rememberAvatarPicker
-import app.cityxplore.profile.domain.ProfileConstants
 import app.cityxplore.profile.domain.UserProfile
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
@@ -176,6 +175,7 @@ fun ProfileScreen(
 
                         AvatarEditDialog(
                             currentAvatarUrl = currentState.profile.avatarUrl,
+                            predefinedAvatars = viewModel.predefinedAvatars,
                             isLoading = currentState.isUpdating,
                             error = currentState.updateError,
                             onDismiss = {
@@ -599,6 +599,7 @@ private fun ErrorContent(
 @Composable
 private fun AvatarEditDialog(
     currentAvatarUrl: String?,
+    predefinedAvatars: List<String>,
     isLoading: Boolean,
     error: String?,
     onDismiss: () -> Unit,
@@ -654,7 +655,7 @@ private fun AvatarEditDialog(
                         }
 
                         // Predefined Avatars
-                        items(items = ProfileConstants.PREDEFINED_AVATARS) { avatar ->
+                        items(items = predefinedAvatars) { avatar ->
                             val isSelected = avatarUrl == avatar
                             Box(
                                 modifier = Modifier

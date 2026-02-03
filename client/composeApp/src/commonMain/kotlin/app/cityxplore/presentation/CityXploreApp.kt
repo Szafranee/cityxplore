@@ -12,6 +12,8 @@ import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Map
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -21,6 +23,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -37,13 +42,20 @@ import app.cityxplore.auth.presentation.AuthViewModel
 import app.cityxplore.auth.presentation.EmailVerificationScreen
 import app.cityxplore.auth.presentation.LoginScreen
 import app.cityxplore.auth.presentation.RegisterScreen
+import app.cityxplore.core.location.RequestLocationPermission
+import app.cityxplore.core.notifications.SocialNotificationManager
+import app.cityxplore.core.notifications.consumePendingNavigation
 import app.cityxplore.journal.presentation.JournalScreen
 import app.cityxplore.journal.presentation.JournalViewModel
 import app.cityxplore.map.presentation.CityXploreMapScreen
+import app.cityxplore.map.presentation.MapAction
+import app.cityxplore.map.presentation.MapUiState
 import app.cityxplore.map.presentation.MapViewModel
 import app.cityxplore.platform.BackHandler
 import app.cityxplore.profile.presentation.OnboardingScreen
 import app.cityxplore.profile.presentation.ProfileScreen
+import app.cityxplore.social.domain.repository.SharedPoiRepository
+import app.cityxplore.social.domain.repository.SocialRepository
 import app.cityxplore.social.presentation.SocialScreen
 import app.cityxplore.social.presentation.profile.OtherProfileScreen
 import app.cityxplore.theme.AppColors
@@ -51,10 +63,16 @@ import app.cityxplore.theme.CityXploreTheme
 import coil3.compose.setSingletonImageLoaderFactory
 import org.koin.compose.koinInject
 
+/** Navigation destination constants - must match Android notification extras */
+object NavigationDestinations {
+    const val FRIENDS = "friends"
+    const val SHARED_POIS = "shared_pois"
+}
+
 private sealed interface CityXploreDestination {
     data object Map : CityXploreDestination
-    data class Friends(
-        val initialTab: Int = 0, // 0 = Friends, 1 = Rankings
+    data class Social(
+        val initialTab: Int = 0, // 0 = Friends, 1 = Rankings, 2 = Shared POIs
         val rankingSubTab: Int = 0 // 0 = Global, 1 = Friends (used when initialTab = 1)
     ) : CityXploreDestination
 
@@ -62,8 +80,26 @@ private sealed interface CityXploreDestination {
     data object Journal : CityXploreDestination
     data class OtherProfile(
         val userId: String,
-        val previousDestination: CityXploreDestination = Friends()
+        val previousDestination: CityXploreDestination = Social()
     ) : CityXploreDestination
+}
+
+/**
+ * Helper function to handle pending navigation from notification click.
+ */
+private fun handlePendingNavigation(
+    nav: String,
+    currentDestination: MutableState<CityXploreDestination>
+) {
+    when (nav) {
+        NavigationDestinations.FRIENDS -> {
+            currentDestination.value = CityXploreDestination.Social(initialTab = 0)
+        }
+
+        NavigationDestinations.SHARED_POIS -> {
+            currentDestination.value = CityXploreDestination.Social(initialTab = 2)
+        }
+    }
 }
 
 private enum class AuthScreen { Login, Register }
@@ -136,12 +172,79 @@ fun AuthFlow(state: AuthState, viewModel: AuthViewModel) {
 fun MainAppContent(onSignOut: () -> Unit) {
     val mapViewModel: MapViewModel = koinInject()
     val journalViewModel: JournalViewModel = koinInject()
+    val socialNotificationManager: SocialNotificationManager = koinInject()
+    val socialRepository: SocialRepository = koinInject()
+    val sharedPoiRepository: SharedPoiRepository = koinInject()
+
     val mapState by mapViewModel.state.collectAsState()
     val journalState by journalViewModel.state.collectAsState()
 
+    // Badge counts
+    val pendingFriendRequests by socialRepository.getPendingRequests().collectAsState(initial = emptyList())
+    val unviewedSharedPois by sharedPoiRepository.getUnviewedPois().collectAsState(initial = emptyList())
+    val friendsBadgeCount = pendingFriendRequests.size + unviewedSharedPois.size
+
+    // Start/stop social notifications observer based on composition lifecycle
+    DisposableEffect(Unit) {
+        socialNotificationManager.startObserving()
+        onDispose {
+            socialNotificationManager.stopObserving()
+        }
+    }
+
+    // Refresh shared POIs on login (for badge count and map display)
+    // MapViewModel also refreshes, but this ensures badge count Flow is updated
+    LaunchedEffect(Unit) {
+        sharedPoiRepository.refreshReceivedPois()
+        sharedPoiRepository.refreshUnviewedPois()
+    }
+
+    // Request permissions (Location + Notifications) immediately
+    RequestLocationPermission { isGranted ->
+        if (isGranted) {
+            mapViewModel.onAction(MapAction.PermissionGranted)
+        }
+    }
+
     val currentDestination = remember { mutableStateOf<CityXploreDestination>(CityXploreDestination.Map) }
 
-    if (currentDestination.value == CityXploreDestination.Profile || currentDestination.value is CityXploreDestination.Friends) {
+    // Handle navigation from the notification click
+    // Check on initial composition
+    LaunchedEffect(Unit) {
+        consumePendingNavigation()?.let { nav ->
+            handlePendingNavigation(nav, currentDestination)
+        }
+    }
+
+    // Also check on every window focus gain (handles onNewIntent case)
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                consumePendingNavigation()?.let { nav ->
+                    handlePendingNavigation(nav, currentDestination)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // Pending coordinates to centre the map on after navigation
+    val pendingMapCoordinates = remember { mutableStateOf<Pair<Double, Double>?>(null) }
+
+    // When navigating to the map with pending coordinates, centre on them
+    LaunchedEffect(currentDestination.value, pendingMapCoordinates.value) {
+        if (currentDestination.value == CityXploreDestination.Map && pendingMapCoordinates.value != null) {
+            val coords = pendingMapCoordinates.value!!
+            mapViewModel.onAction(MapAction.CenterOnLocation(coords.first, coords.second))
+            pendingMapCoordinates.value = null
+        }
+    }
+
+    if (currentDestination.value == CityXploreDestination.Profile || currentDestination.value is CityXploreDestination.Social) {
         BackHandler {
             currentDestination.value = CityXploreDestination.Map
         }
@@ -161,6 +264,7 @@ fun MainAppContent(onSignOut: () -> Unit) {
             if (currentDestination.value != CityXploreDestination.Journal) {
                 CityXploreBottomBar(
                     destination = currentDestination.value,
+                    friendsBadgeCount = friendsBadgeCount,
                     onDestinationSelected = { currentDestination.value = it }
                 )
             }
@@ -182,21 +286,29 @@ fun MainAppContent(onSignOut: () -> Unit) {
             when (currentDestination.value) {
                 CityXploreDestination.Map -> Unit
 
-                is CityXploreDestination.Friends -> {
-                    val friendsDest = currentDestination.value as CityXploreDestination.Friends
+                is CityXploreDestination.Social -> {
+                    val socialDest = currentDestination.value as CityXploreDestination.Social
+                    // Get user location from map state
+                    val userLocation = (mapState as? MapUiState.Ready)?.userLocation
                     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
                         SocialScreen(
-                            initialTab = friendsDest.initialTab,
-                            initialRankingSubTab = friendsDest.rankingSubTab,
+                            initialTab = socialDest.initialTab,
+                            initialRankingSubTab = socialDest.rankingSubTab,
                             onUserSelected = { userId, fromRankings, isGlobalRanking ->
                                 currentDestination.value = CityXploreDestination.OtherProfile(
                                     userId = userId,
-                                    previousDestination = CityXploreDestination.Friends(
+                                    previousDestination = CityXploreDestination.Social(
                                         initialTab = if (fromRankings) 1 else 0,
                                         rankingSubTab = if (fromRankings && !isGlobalRanking) 1 else 0
                                     )
                                 )
-                            }
+                            },
+                            onNavigateToMap = { lat, lon ->
+                                pendingMapCoordinates.value = Pair(lat, lon)
+                                currentDestination.value = CityXploreDestination.Map
+                            },
+                            currentUserLatitude = userLocation?.latitude,
+                            currentUserLongitude = userLocation?.longitude
                         )
                     }
                 }
@@ -224,6 +336,11 @@ fun MainAppContent(onSignOut: () -> Unit) {
                             onFilterChange = journalViewModel::setFilter,
                             onSortChange = journalViewModel::setSort,
                             onToggleFavorite = journalViewModel::toggleFavorite,
+                            onShowOnMap = { poi ->
+                                // Navigate to the map and centre on this POI
+                                pendingMapCoordinates.value = Pair(poi.latitude, poi.longitude)
+                                currentDestination.value = CityXploreDestination.Map
+                            },
                             onBack = { currentDestination.value = CityXploreDestination.Profile }
                         )
                     }
@@ -246,6 +363,7 @@ fun MainAppContent(onSignOut: () -> Unit) {
 @Composable
 private fun CityXploreBottomBar(
     destination: CityXploreDestination,
+    friendsBadgeCount: Int = 0,
     onDestinationSelected: (CityXploreDestination) -> Unit,
 ) {
     NavigationBar(
@@ -280,19 +398,35 @@ private fun CityXploreBottomBar(
             }
         )
         NavigationBarItem(
-            selected = destination is CityXploreDestination.Friends,
-            onClick = { onDestinationSelected(CityXploreDestination.Friends()) },
+            selected = destination is CityXploreDestination.Social,
+            onClick = { onDestinationSelected(CityXploreDestination.Social()) },
             colors = navItemColors,
             icon = {
-                Icon(
-                    imageVector = if (destination is CityXploreDestination.Friends) Icons.Filled.Group else Icons.Outlined.Group,
-                    contentDescription = "Friends",
-                    modifier = Modifier.size(30.dp)
-                )
+                BadgedBox(
+                    badge = {
+                        if (friendsBadgeCount > 0) {
+                            Badge(
+                                containerColor = Color.Red,
+                                contentColor = Color.White
+                            ) {
+                                Text(
+                                    text = if (friendsBadgeCount > 99) "99+" else friendsBadgeCount.toString(),
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    }
+                ) {
+                    Icon(
+                        imageVector = if (destination is CityXploreDestination.Social) Icons.Filled.Group else Icons.Outlined.Group,
+                        contentDescription = "Social",
+                        modifier = Modifier.size(30.dp)
+                    )
+                }
             },
             label = {
                 Text(
-                    text = "Friends",
+                    text = "Social",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.W600,
                 )

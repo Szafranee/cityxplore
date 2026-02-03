@@ -2,6 +2,9 @@ package app.cityxplore.social.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.cityxplore.core.connectivity.ConnectivityObserver
+import app.cityxplore.core.notifications.SocialDataChangeEvent
+import app.cityxplore.core.notifications.SocialNotificationManager
 import app.cityxplore.social.domain.GetBlockedUsersUseCase
 import app.cityxplore.social.domain.GetFriendsRankingUseCase
 import app.cityxplore.social.domain.GetFriendsUseCase
@@ -10,6 +13,8 @@ import app.cityxplore.social.domain.GetPendingRequestsUseCase
 import app.cityxplore.social.domain.ManageFriendshipUseCase
 import app.cityxplore.social.domain.RespondToFriendInviteUseCase
 import app.cityxplore.social.domain.SendFriendInviteUseCase
+import app.cityxplore.social.domain.exception.CannotInviteSelfException
+import app.cityxplore.social.domain.exception.UserNotFoundException
 import app.cityxplore.social.domain.model.Friendship
 import app.cityxplore.social.domain.model.RankingEntry
 import io.ktor.client.plugins.ClientRequestException
@@ -62,6 +67,9 @@ sealed interface FriendsUiState {
  *
  * It coordinates data fetching from multiple UseCases to provide a cohesive state for the UI,
  * handling separate loading states for Rankings and Friends tabs to improve UX.
+ *
+ * **Note:** Social features require network connectivity and do not work offline.
+ * The ViewModel checks connectivity before performing social actions.
  */
 class SocialViewModel(
     private val getGlobalRankingUseCase: GetGlobalRankingUseCase,
@@ -71,12 +79,19 @@ class SocialViewModel(
     private val getBlockedUsersUseCase: GetBlockedUsersUseCase,
     private val sendFriendInviteUseCase: SendFriendInviteUseCase,
     private val respondToFriendInviteUseCase: RespondToFriendInviteUseCase,
-    private val manageFriendshipUseCase: ManageFriendshipUseCase
+    private val manageFriendshipUseCase: ManageFriendshipUseCase,
+    private val connectivityObserver: ConnectivityObserver,
+    private val socialNotificationManager: SocialNotificationManager
 ) : ViewModel() {
+
+    private val offlineMessage = "This feature requires an internet connection"
 
     // Internal mutable states to track loading/error status
     private val _isRankingsLoading = MutableStateFlow(false)
     private val _rankingsError = MutableStateFlow<String?>(null)
+
+    /** Public StateFlow for pull-to-refresh indicator on Rankings tab */
+    val isRankingsRefreshing: StateFlow<Boolean> = _isRankingsLoading
 
     // Channel for one-off events (e.g. Snackbar messages)
     private val _uiEvents = Channel<SocialUiEvent>()
@@ -95,7 +110,7 @@ class SocialViewModel(
         _isRankingsLoading,
         _rankingsError
     ) { global, friendsRank, isLoading, error ->
-        // We only show Loading state if we have no cached data to display.
+        // We only show the Loading state if we have no cached data to display.
         // This ensures a better UX during pull-to-refresh (content remains visible).
         if (isLoading && global.isEmpty() && friendsRank.isEmpty()) {
             RankingsUiState.Loading
@@ -109,6 +124,9 @@ class SocialViewModel(
 
     private val _isFriendsLoading = MutableStateFlow(false)
     private val _friendsError = MutableStateFlow<String?>(null)
+
+    /** Public StateFlow for pull-to-refresh indicator on Friends tab */
+    val isFriendsRefreshing: StateFlow<Boolean> = _isFriendsLoading
 
     /**
      * StateFlow representing the current state of the Friends tab.
@@ -133,6 +151,33 @@ class SocialViewModel(
 
     init {
         refreshAll()
+        observeDataChanges()
+    }
+
+    /**
+     * Observes real-time data change events from Supabase Realtime.
+     * Automatically refreshes data when friends or rankings change.
+     */
+    private fun observeDataChanges() {
+        viewModelScope.launch {
+            socialNotificationManager.dataChangeEvents.collect { event ->
+                println("SocialViewModel: Received data change event: $event")
+                when (event) {
+                    is SocialDataChangeEvent.FriendsChanged -> {
+                        refreshFriends()
+                    }
+
+                    is SocialDataChangeEvent.RankingsChanged -> {
+                        refreshRankings()
+                        refreshFriends() // Also refresh friends to update wizard friend picker
+                    }
+
+                    is SocialDataChangeEvent.SharedPoisChanged -> {
+                        // SharedPoisViewModel will handle this
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -154,7 +199,6 @@ class SocialViewModel(
             if (globalResult.isFailure || friendsResult.isFailure) {
                 // We simplify error handling for the MVP: any failure triggers a generic error state
                 _rankingsError.value = "Failed to load rankings"
-                _uiEvents.send(SocialUiEvent.ShowMessage("Could not update rankings"))
             }
             _isRankingsLoading.value = false
         }
@@ -171,7 +215,6 @@ class SocialViewModel(
 
             if (friendsResult.isFailure || pendingResult.isFailure || blockedResult.isFailure) {
                 _friendsError.value = "Failed to load friends"
-                _uiEvents.send(SocialUiEvent.ShowMessage("Could not update friends list"))
             }
             _isFriendsLoading.value = false
         }
@@ -179,11 +222,17 @@ class SocialViewModel(
 
     /**
      * Sends a friend invitation to the user with the specified username.
+     * Requires network connectivity.
      *
      * @param username The exact username of the user to invite.
      */
     fun sendInvite(username: String) {
         viewModelScope.launch {
+            if (!connectivityObserver.isNetworkAvailable()) {
+                _uiEvents.send(SocialUiEvent.ShowMessage(offlineMessage))
+                return@launch
+            }
+
             val result = sendFriendInviteUseCase(username)
             if (result.isSuccess) {
                 // Refreshing friends list ensures any state changes (like pending outgoing)
@@ -192,11 +241,15 @@ class SocialViewModel(
                 _uiEvents.send(SocialUiEvent.ShowMessage("Invitation sent to $username"))
             } else {
                 val message = when (val exception = result.exceptionOrNull()) {
+                    is CannotInviteSelfException -> "You cannot send a friend request to yourself."
+
+                    is UserNotFoundException -> "User '$username' not found."
+
                     is ClientRequestException -> {
                         when (exception.response.status) {
                             HttpStatusCode.Conflict -> "Invitation already sent or user is already a friend."
                             HttpStatusCode.NotFound -> "User '$username' not found."
-                            else -> "Network error: ${exception.response.status.description}"
+                            else -> "Failed to send invite: ${exception.response.status.description}"
                         }
                     }
 
@@ -209,6 +262,11 @@ class SocialViewModel(
 
     fun acceptInvite(friendshipId: String) {
         viewModelScope.launch {
+            if (!connectivityObserver.isNetworkAvailable()) {
+                _uiEvents.send(SocialUiEvent.ShowMessage(offlineMessage))
+                return@launch
+            }
+
             respondToFriendInviteUseCase.accept(friendshipId)
                 .onSuccess {
                     refreshFriends()
@@ -224,6 +282,11 @@ class SocialViewModel(
 
     fun declineInvite(friendshipId: String) {
         viewModelScope.launch {
+            if (!connectivityObserver.isNetworkAvailable()) {
+                _uiEvents.send(SocialUiEvent.ShowMessage(offlineMessage))
+                return@launch
+            }
+
             respondToFriendInviteUseCase.decline(friendshipId)
                 .onSuccess {
                     refreshFriends()
@@ -237,6 +300,11 @@ class SocialViewModel(
 
     fun deleteFriend(friendshipId: String) {
         viewModelScope.launch {
+            if (!connectivityObserver.isNetworkAvailable()) {
+                _uiEvents.send(SocialUiEvent.ShowMessage(offlineMessage))
+                return@launch
+            }
+
             manageFriendshipUseCase.deleteFriend(friendshipId)
                 .onSuccess {
                     refreshFriends()
@@ -251,6 +319,11 @@ class SocialViewModel(
 
     fun blockFriend(friendshipId: String) {
         viewModelScope.launch {
+            if (!connectivityObserver.isNetworkAvailable()) {
+                _uiEvents.send(SocialUiEvent.ShowMessage(offlineMessage))
+                return@launch
+            }
+
             manageFriendshipUseCase.blockFriend(friendshipId)
                 .onSuccess {
                     refreshFriends()
@@ -264,6 +337,11 @@ class SocialViewModel(
 
     fun unblockFriend(friendshipId: String) {
         viewModelScope.launch {
+            if (!connectivityObserver.isNetworkAvailable()) {
+                _uiEvents.send(SocialUiEvent.ShowMessage(offlineMessage))
+                return@launch
+            }
+
             manageFriendshipUseCase.unblockFriend(friendshipId)
                 .onSuccess {
                     refreshFriends()

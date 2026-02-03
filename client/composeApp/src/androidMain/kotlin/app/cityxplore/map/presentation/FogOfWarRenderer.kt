@@ -20,14 +20,13 @@ import com.mapbox.maps.extension.style.sources.generated.geoJsonSource
 import com.mapbox.maps.extension.style.sources.getSourceAs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.Collections.synchronizedSet
 
 /**
  * Manager for rendering Fog of War on Mapbox map.
  *
  * Two-layer approach.
  *
- * Critical rule: a hex must be visible in AT MOST ONE layer with non-zero opacity at any moment.
+ * Critical rule: a hex must be visible in the AT MOST ONE layer with non-zero opacity at any moment.
  * Otherwise, opacity sums up and the user sees "double fog".
  *
  * Additionally: avoid restarting fade animation from BASE on every update, because that creates a visible
@@ -43,9 +42,12 @@ class FogOfWarRenderer(
     private var fadeAnimator: ValueAnimator? = null
     private var currentFadingOpacity: Double = 0.0
 
-    // Cached source state to avoid expensive full recompute on every animation end.
-    private var currentFogHexes: Set<String> = emptySet() // hexes currently covered by static fog
-    private var currentFadingHexes: MutableSet<String> = synchronizedSet(mutableSetOf()) // hexes currently fading out
+    // Cached features map to avoid expensive regeneration
+    // Maps H3 index -> Feature
+    private var currentFogFeatures: Map<String, Feature> = emptyMap()
+
+    // Hexes currently fading out (keep track of IDs to manage lifecycle, features looked up or created)
+    private var currentFadingFeatures: MutableList<Feature> = mutableListOf()
 
     private companion object {
         const val FOG_SOURCE_ID = "fog-of-war-source"
@@ -112,105 +114,112 @@ class FogOfWarRenderer(
     }
 
     suspend fun updateFog(allWarsawHexes: Set<String>, revealedHexes: Set<String>) {
-        if (!isInitialized) return // Graceful degradation if fog didn't initialize
+
+        if (!isInitialized) {
+            return
+        }
 
         withContext(Dispatchers.Main) {
-
-
             val style = mapView.mapboxMap.style ?: return@withContext
 
             if (isFirstUpdate) {
+                // Initial generation - expensive but done only once
+                val fogHexes = allWarsawHexes - revealedHexes
+
+                // Compute features on Default dispatcher
+                val featureMap = withContext(Dispatchers.Default) {
+                    fogHexes.asSequence()
+                        .mapNotNull { hexId ->
+                            createHexFeature(hexId)?.let { feature -> hexId to feature }
+                        }
+                        .toMap()
+                }
+
+                // Update state only after a successful computation
+                currentFogFeatures = featureMap
                 lastRevealedHexes = revealedHexes
                 isFirstUpdate = false
 
-                currentFogHexes = allWarsawHexes - revealedHexes
-                currentFadingHexes.clear()
+                currentFadingFeatures.clear()
                 currentFadingOpacity = 0.0
 
-                val fogFeatures = withContext(Dispatchers.Default) {
-                    currentFogHexes.mapNotNull { createHexFeature(it) }
-                }
+                style.getSourceAs<GeoJsonSource>(FOG_SOURCE_ID)
+                    ?.featureCollection(FeatureCollection.fromFeatures(currentFogFeatures.values.toList()))
 
-                withContext(Dispatchers.Main) {
-                    style.getSourceAs<GeoJsonSource>(FOG_SOURCE_ID)
-                        ?.featureCollection(FeatureCollection.fromFeatures(fogFeatures))
+                style.getSourceAs<GeoJsonSource>(FADING_SOURCE_ID)
+                    ?.featureCollection(FeatureCollection.fromFeatures(emptyList()))
+                style.getLayerAs<FillLayer>(FADING_LAYER_ID)
+                    ?.fillOpacity(0.0)
 
-                    style.getSourceAs<GeoJsonSource>(FADING_SOURCE_ID)
-                        ?.featureCollection(FeatureCollection.fromFeatures(emptyList()))
-                    style.getLayerAs<FillLayer>(FADING_LAYER_ID)
-                        ?.fillOpacity(0.0)
-                }
                 return@withContext
             }
 
+            // Differential update
             val newlyRevealed = revealedHexes - lastRevealedHexes
             if (newlyRevealed.isEmpty()) {
+                // No changes, just update lastRevealed to be in sync
                 lastRevealedHexes = revealedHexes
                 return@withContext
             }
+
             lastRevealedHexes = revealedHexes
 
-            // Remove from static fog immediately (so it won't overlap)
-            // and add to fading set (support multiple discoveries during the same fade).
-            currentFogHexes = currentFogHexes - newlyRevealed
-            currentFadingHexes.addAll(newlyRevealed)
-
-            val fogFeatures = withContext(Dispatchers.Default) {
-                currentFogHexes.mapNotNull { createHexFeature(it) }
-            }
-            val fadingFeatures = withContext(Dispatchers.Default) {
-                currentFadingHexes.mapNotNull { createHexFeature(it) }
+            // Identify features to move from Fog to Fading
+            val featuresToFade = newlyRevealed.mapNotNull { hexId ->
+                currentFogFeatures[hexId] ?: createHexFeature(hexId)
             }
 
-            withContext(Dispatchers.Main) {
-                val fogSource = style.getSourceAs<GeoJsonSource>(FOG_SOURCE_ID)
-                val fadingSource = style.getSourceAs<GeoJsonSource>(FADING_SOURCE_ID)
-                val fadingLayer = style.getLayerAs<FillLayer>(FADING_LAYER_ID)
+            // Remove from static fog (Map operation is O(N_removed) << O(N_total))
+            currentFogFeatures = currentFogFeatures - newlyRevealed
 
-                // Update sources first.
-                fogSource?.featureCollection(FeatureCollection.fromFeatures(fogFeatures))
-                fadingSource?.featureCollection(FeatureCollection.fromFeatures(fadingFeatures))
+            // Add to the fading list
+            currentFadingFeatures.addAll(featuresToFade)
 
-                // If fade is already running, do nothing besides keeping the current opacity.
-                if (fadeAnimator?.isRunning == true) {
-                    fadingLayer?.fillOpacity(clampOpacity(currentFadingOpacity))
-                    return@withContext
+            val fogSource = style.getSourceAs<GeoJsonSource>(FOG_SOURCE_ID)
+            val fadingSource = style.getSourceAs<GeoJsonSource>(FADING_SOURCE_ID)
+            val fadingLayer = style.getLayerAs<FillLayer>(FADING_LAYER_ID)
+
+            // Update sources with cached features
+            fogSource?.featureCollection(FeatureCollection.fromFeatures(currentFogFeatures.values.toList()))
+            fadingSource?.featureCollection(FeatureCollection.fromFeatures(currentFadingFeatures))
+
+            // If fade is already running, do nothing besides keeping the current opacity.
+            if (fadeAnimator?.isRunning == true) {
+                fadingLayer?.fillOpacity(clampOpacity(currentFadingOpacity))
+                return@withContext
+            }
+
+            // Start a new fade
+            val startOpacity = when {
+                currentFadingOpacity in 0.0001..BASE_FOG_OPACITY -> currentFadingOpacity
+                currentFadingOpacity <= 0.0001 -> BASE_FOG_OPACITY
+                else -> BASE_FOG_OPACITY
+            }
+
+            fadeAnimator = ValueAnimator.ofFloat(startOpacity.toFloat(), 0.0f).apply {
+                duration = ((FADE_DURATION_MS * (startOpacity / BASE_FOG_OPACITY))).toLong().coerceAtLeast(1L)
+                interpolator = LinearInterpolator()
+
+                addUpdateListener { animator ->
+                    currentFadingOpacity = clampOpacity((animator.animatedValue as Float).toDouble())
+                    fadingLayer?.fillOpacity(currentFadingOpacity)
                 }
 
-                // Start a new fade WITHOUT an artificial jump.
-                // If we were already mid-fade and it got cancelled, continue from the last known opacity.
-                val startOpacity = when {
-                    currentFadingOpacity in 0.0001..BASE_FOG_OPACITY -> currentFadingOpacity
-                    currentFadingOpacity <= 0.0001 -> BASE_FOG_OPACITY
-                    else -> BASE_FOG_OPACITY
-                }
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        currentFadingFeatures.clear()
+                        currentFadingOpacity = 0.0
 
-                fadeAnimator = ValueAnimator.ofFloat(startOpacity.toFloat(), 0.0f).apply {
-                    duration = ((FADE_DURATION_MS * (startOpacity / BASE_FOG_OPACITY))).toLong().coerceAtLeast(1L)
-                    interpolator = LinearInterpolator()
-
-                    addUpdateListener { animator ->
-                        currentFadingOpacity = clampOpacity((animator.animatedValue as Float).toDouble())
-                        fadingLayer?.fillOpacity(currentFadingOpacity)
+                        fadingSource?.featureCollection(FeatureCollection.fromFeatures(emptyList()))
+                        fadingLayer?.fillOpacity(0.0)
                     }
 
-                    addListener(object : android.animation.AnimatorListenerAdapter() {
-                        override fun onAnimationEnd(animation: android.animation.Animator) {
-                            currentFadingHexes.clear()
-                            currentFadingOpacity = 0.0
+                    override fun onAnimationCancel(animation: android.animation.Animator) {
+                        // Maintain state on cancel
+                    }
+                })
 
-                            fadingSource?.featureCollection(FeatureCollection.fromFeatures(emptyList()))
-                            fadingLayer?.fillOpacity(0.0)
-                        }
-
-                        override fun onAnimationCancel(animation: android.animation.Animator) {
-                            // Do NOT force opacity to 0 here; that causes a visible blink.
-                            // Keep currentFadingOpacity as-is and let the next update continue from it.
-                        }
-                    })
-
-                    start()
-                }
+                start()
             }
         }
     }

@@ -1,11 +1,8 @@
 package app.cityxplore.map.presentation
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -26,6 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import app.cityxplore.domain.service.H3Service
+import app.cityxplore.map.domain.PoiCategory
 import app.cityxplore.theme.AppColors
 import com.mapbox.android.gestures.MoveGestureDetector
 import com.mapbox.geojson.Point
@@ -102,24 +100,8 @@ private fun ReadyMap(
         return
     }
 
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val isGranted = permissions.values.all { it }
-        if (isGranted) {
-            onAction(MapAction.PermissionGranted)
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        permissionLauncher.launch(
-            arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            )
-        )
-    }
+    // Location permission is now requested in MainAppContent
+    // No need to request it here again
 
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
     val lastLocation = remember { mutableStateOf<Point?>(null) }
@@ -144,30 +126,40 @@ private fun ReadyMap(
     // Map annotations to POI IDs for click handling
     val annotationIdToPoiId = remember { mutableMapOf<String, String>() }
 
+    // Track shared POI annotation IDs
+    val sharedAnnotationIdToPoiId = remember { mutableMapOf<String, String>() }
+
     // Remember the annotation manager for the current map view
     val annotationManager = remember(mapViewRef.value) {
         val manager = mapViewRef.value?.annotations?.createPointAnnotationManager()
         manager?.addClickListener { annotation ->
+            // Check regular POIs first
             val poiId = annotationIdToPoiId[annotation.id]
             if (poiId != null) {
                 onAction(MapAction.SelectPoi(poiId))
-                true
-            } else {
-                false
+                return@addClickListener true
             }
+
+            // Check shared POIs
+            val sharedPoiId = sharedAnnotationIdToPoiId[annotation.id]
+            if (sharedPoiId != null) {
+                onAction(MapAction.SelectSharedPoi(sharedPoiId))
+                return@addClickListener true
+            }
+
+            false
         }
         manager
     }
 
     // Update POI markers when the map view or POI list changes
-    LaunchedEffect(mapViewRef.value, mapState.pois) {
+    LaunchedEffect(annotationManager, mapState.pois, mapState.sharedPois) {
         val manager = annotationManager ?: return@LaunchedEffect
 
-        // Clear existing markers
         manager.deleteAll()
         annotationIdToPoiId.clear()
+        sharedAnnotationIdToPoiId.clear()
 
-        // Create new markers for each POI
         mapState.pois.forEach { poi ->
             val point = Point.fromLngLat(poi.longitude, poi.latitude)
             val icon = createPoiMarkerBitmap(
@@ -183,6 +175,39 @@ private fun ReadyMap(
             val annotation = manager.create(pointAnnotationOptions)
             annotationIdToPoiId[annotation.id] = poi.id
         }
+
+        // Create markers for shared POIs
+        mapState.sharedPois.forEach { sharedPoi ->
+            val coords = sharedPoi.coordinates ?: sharedPoi.poiId?.let { id ->
+                mapState.pois.find { it.id == id }?.let {
+                    Pair(it.latitude, it.longitude)
+                }
+            } ?: return@forEach
+
+            val point = Point.fromLngLat(coords.second, coords.first)
+
+            val categoryString = sharedPoi.customPoi?.category ?: sharedPoi.poiId?.let { id ->
+                mapState.pois.find { it.id == id }?.category?.name
+            } ?: "other"
+
+            val category = try {
+                PoiCategory.valueOf(categoryString.uppercase())
+            } catch (_: IllegalArgumentException) {
+                PoiCategory.OTHER
+            }
+
+            val icon = createSharedPoiMarkerBitmap(
+                category = category,
+                isDiscovered = sharedPoi.isDiscovered
+            )
+
+            val pointAnnotationOptions = PointAnnotationOptions()
+                .withPoint(point)
+                .withIconImage(icon)
+
+            val annotation = manager.create(pointAnnotationOptions)
+            sharedAnnotationIdToPoiId[annotation.id] = sharedPoi.id
+        }
     }
 
     // Note: Discovery notifications are now handled by PoiDiscoveryPopup in common code
@@ -196,6 +221,11 @@ private fun ReadyMap(
                     MapView(context).apply {
                         mapViewRef.value = this
                         mapboxMap.loadStyle("mapbox://styles/szafran00/cmdusan3600d001pj4eri2fl1") { style ->
+                            // Guard against multiple initialisations
+                            if (fogInitialized.value) {
+                                return@loadStyle
+                            }
+
                             val renderer = FogOfWarRenderer(this, h3Service)
                             val success = renderer.initialize(style)
                             if (success) {
@@ -230,14 +260,14 @@ private fun ReadyMap(
             modifier = Modifier.fillMaxSize()
         )
 
-        LaunchedEffect(mapState.revealedHexagons, mapState.warsawHexagons, fogRenderer.value) {
+        LaunchedEffect(mapState.revealedHexagons, mapState.warsawHexagons, fogRenderer.value, fogInitialized.value) {
             val renderer = fogRenderer.value
-            if (renderer != null && mapState.warsawHexagons.isNotEmpty()) {
+            if (renderer != null && fogInitialized.value && mapState.warsawHexagons.isNotEmpty()) {
                 renderer.updateFog(mapState.warsawHexagons, mapState.revealedHexagons)
             }
         }
 
-        // Show error notification if fog initialization failed
+        // Show error notification if fog initialisation failed
         LaunchedEffect(fogInitError.value) {
             if (fogInitError.value) {
                 Toast.makeText(
@@ -260,7 +290,7 @@ private fun ReadyMap(
                 if (shouldCenterOnFirstLocation.value) {
                     shouldCenterOnFirstLocation.value = false
                     locationInitialized.value = true
-                    // First center with zoom
+                    // First centre with zoom
                     mapView?.mapboxMap?.setCamera(
                         CameraOptions.Builder()
                             .center(point)
@@ -268,7 +298,7 @@ private fun ReadyMap(
                             .build()
                     )
                 } else if (mapState.isFollowingUser) {
-                    // Smooth follow using setCamera (puck provides interpolation)
+                    // Smooth follow using setCamera (the puck provides interpolation)
                     mapView?.mapboxMap?.setCamera(
                         CameraOptions.Builder()
                             .center(point)
@@ -306,6 +336,15 @@ private fun ReadyMap(
                     it.gestures.removeOnMoveListener(onMoveListener)
                 }
             }
+        }
+
+        // Handle external requests to centre on a location (from Journal, Shared POIs, etc.)
+        LaunchedEffect(mapState.targetCameraLocation) {
+            val target = mapState.targetCameraLocation ?: return@LaunchedEffect
+            val point = Point.fromLngLat(target.longitude, target.latitude)
+            animateToLocation(point, zoom = 16.0)
+            // Clear the target after handling so the effect can fire again for the same location
+            onAction(MapAction.ClearTargetCameraLocation)
         }
 
         // Re-center button

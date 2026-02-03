@@ -18,16 +18,19 @@ import org.koin.dsl.module
  * This module provides:
  * - [AuthRepository] implementation using Supabase Auth SDK
  * - [AuthViewModel] for managing authentication state
- * - [SupabaseClient] configured with Auth and Postgrest plugins
+ * - [SupabaseClient] configured with Auth, Postgrest, and Storage plugins
  * - Supabase Auth instance for direct access if needed
+ *
+ * Note: Realtime is NOT installed here to prevent Base64 decoding crashes on fresh installs.
+ * SocialNotificationManager creates its own Realtime connection when needed.
  *
  * Configuration is loaded from BuildConfig, which reads from local.properties:
  * - SUPABASE_URL: The Supabase project URL
  * - SUPABASE_KEY: The Supabase anonymous/public API key
  */
 val authModule = module {
-    single<AuthRepository> { AuthRepositoryImpl(get(), get()) }
-    factory { AuthViewModel(get()) }
+    single<AuthRepository> { AuthRepositoryImpl(get(), get(), get()) }
+    factory { AuthViewModel(get(), get(), get(), get()) }
     single {
         val url = BuildConfig.SUPABASE_URL
         val key = BuildConfig.SUPABASE_KEY

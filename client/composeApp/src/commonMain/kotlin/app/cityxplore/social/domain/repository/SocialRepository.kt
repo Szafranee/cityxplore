@@ -34,4 +34,7 @@ interface SocialRepository {
 
     // Check if the user is blocked
     suspend fun checkIfBlocked(otherUserId: String): Result<Boolean>
+
+    // Cache management
+    fun clearCache()
 }

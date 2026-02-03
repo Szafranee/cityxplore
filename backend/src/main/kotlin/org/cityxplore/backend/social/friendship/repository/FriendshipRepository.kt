@@ -79,4 +79,19 @@ interface FriendshipRepository : JpaRepository<Friendship, UUID> {
         """
     )
     fun areFriends(userA: UUID, userB: UUID): Boolean
+
+    /**
+     * Counts the number of accepted friendships for a specific user.
+     *
+     * @param userId the UUID of the user for whom to count accepted friendships.
+     * @return the count of accepted friendships for the user.
+     */
+    @Query(
+        """
+            SELECT COUNT(f) FROM Friendship f 
+            WHERE (f.requesterId = :userId OR f.addresseeId = :userId) 
+            AND f.status = 'ACCEPTED'
+            """
+    )
+    fun countAcceptedByUserId(userId: UUID): Long
 }

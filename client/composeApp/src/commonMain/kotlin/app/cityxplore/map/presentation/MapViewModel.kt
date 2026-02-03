@@ -1,11 +1,17 @@
 package app.cityxplore.map.presentation
 
 import app.cityxplore.achievements.domain.Achievement
+import app.cityxplore.core.cache.CacheKey
+import app.cityxplore.core.cache.CacheManager
 import app.cityxplore.core.cityXploreDispatchers
+import app.cityxplore.core.lifecycle.AppLifecycleObserver
+import app.cityxplore.core.lifecycle.AppLifecycleState
 import app.cityxplore.core.location.DistanceTracker
 import app.cityxplore.core.location.Location
 import app.cityxplore.core.location.LocationService
+import app.cityxplore.core.utils.calculateDistance
 import app.cityxplore.journal.domain.ToggleFavoriteUseCase
+import app.cityxplore.map.data.PoiRepository
 import app.cityxplore.map.domain.AutoDiscoverPoisUseCase
 import app.cityxplore.map.domain.FogOfWarRepository
 import app.cityxplore.map.domain.GetPoisWithDiscoveriesUseCase
@@ -15,10 +21,14 @@ import app.cityxplore.map.domain.toMapPoi
 import app.cityxplore.platform.CityXploreBaseViewModel
 import app.cityxplore.profile.domain.DistanceSyncRepository
 import app.cityxplore.profile.domain.ProfileRepository
+import app.cityxplore.social.domain.model.SharedPoi
+import app.cityxplore.social.domain.repository.SharedPoiRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 
 /**
@@ -30,9 +40,10 @@ import kotlinx.coroutines.launch
  * - Managing map camera follow mode
  * - Handling POI selection for detail display
  * - Tracking newly discovered POIs for UI notifications
- * - Managing Fog of War (revealed hexagons)
+ * - Managing Fog of War (revealed hexagons) with offline-first approach
  * - Tracking distance travelled and syncing to backend
  * - Displaying achievement unlock notifications
+ * - Lifecycle-aware caching to prevent unnecessary reloads
  *
  * POIs are automatically discovered when the user is within the discovery radius
  * (defined in [AutoDiscoverPoisUseCase]). The discovery is handled by the use case,
@@ -41,21 +52,27 @@ import kotlinx.coroutines.launch
  * @property getPoisUseCase Use case for fetching POIs with discovery status.
  * @property autoDiscoverUseCase Use case for automatic POI discovery based on location.
  * @property updateFogOfWarUseCase Use case for updating fog of war based on user location.
- * @property fogOfWarRepository Repository for fetching revealed hexagons.
+ * @property fogOfWarRepository Repository for fetching revealed hexagons (offline-first).
  * @property locationService The service providing user location updates.
  * @property distanceTracker Tracker for accumulating distance between GPS points.
  * @property distanceSyncRepository Repository for syncing distance to the backend.
+ * @property cacheManager Manager for tracking data freshness.
+ * @property appLifecycleObserver Observer for app lifecycle events.
  */
 class MapViewModel(
     private val getPoisUseCase: GetPoisWithDiscoveriesUseCase,
     private val autoDiscoverUseCase: AutoDiscoverPoisUseCase,
     private val updateFogOfWarUseCase: UpdateFogOfWarUseCase,
     private val fogOfWarRepository: FogOfWarRepository,
+    private val poiRepository: PoiRepository,
     private val locationService: LocationService,
     private val profileRepository: ProfileRepository,
     private val toggleFavoriteUseCase: ToggleFavoriteUseCase,
     private val distanceTracker: DistanceTracker,
-    private val distanceSyncRepository: DistanceSyncRepository
+    private val distanceSyncRepository: DistanceSyncRepository,
+    private val sharedPoiRepository: SharedPoiRepository,
+    private val cacheManager: CacheManager,
+    private val appLifecycleObserver: AppLifecycleObserver
 ) : CityXploreBaseViewModel() {
     private val _state = MutableStateFlow<MapUiState>(MapUiState.Loading)
 
@@ -63,46 +80,133 @@ class MapViewModel(
      * StateFlow emitting the current map state.
      * UI components observe this to render the map, POIs, and handle loading/error states.
      */
-    val state: StateFlow<MapUiState> = _state.asStateFlow()
+    val state: StateFlow<MapUiState> = _state
 
     private var locationObserverJob: Job? = null
+    private var fogOfWarObserverJob: Job? = null
+    private var poiObserverJob: Job? = null
+    private var profileObserverJob: Job? = null
     private var lastKnownLocation: Location? = null
     private var cachedWarsawHexagons: Set<String> = emptySet()
-    private var cachedRevealedHexagons: Set<String> = emptySet()
+    private var cachedSharedPois: List<SharedPoi> = emptyList()
 
     // Track previous level for level-up detection
     private var previousLevel: Int? = null
 
     init {
-        loadData()
-        startLocationTracking()
+        // Start by loading critical data, then set up observers
+        initializeMapData()
     }
 
     /**
-     * Loads/refreshes the user profile and checks for level up.
-     *
-     * @param checkLevelUp If true, compares with previous level to detect level up.
+     * Initialises map data in the correct order:
+     * 1. Load Warsaw hexagons (critical for fog of war) - local GeoJSON, fast
+     * 2. Load profile from local/network
+     * 3. Set the Ready state immediately
+     * 4. Start observers for reactive updates
+     * 5. Load remaining data in the background
      */
-    private fun loadProfile(checkLevelUp: Boolean = false) {
+    private fun initializeMapData() {
+        scope.launch(cityXploreDispatchers.io) {
+            val profileRefreshJob = launch {
+                profileRepository.refreshProfile()
+            }
+            val fogRefreshJob = launch {
+                fogOfWarRepository.refreshRevealedHexagons()
+            }
+
+            joinAll(profileRefreshJob, fogRefreshJob)
+
+            val warsawResult = fogOfWarRepository.getWarsawHexagons()
+            cachedWarsawHexagons = warsawResult.getOrDefault(emptySet())
+
+            // 3. Load revealed hexagons from local DB (now updated from network)
+            val revealedResult = fogOfWarRepository.getRevealedHexagons()
+            val revealedHexagons = revealedResult.getOrDefault(emptySet())
+
+            var profile = profileRepository.getProfile().getOrNull()
+
+            if (profile == null) {
+                var profileAttempts = 0
+                while (profile == null && profileAttempts < 3) {
+                    profileRepository.refreshProfile()
+                    profile = profileRepository.getProfile().getOrNull()
+                    if (profile == null) {
+                        profileAttempts++
+                        kotlinx.coroutines.delay(500)
+                    }
+                }
+            }
+
+            if (profile != null) {
+                previousLevel = profile.level
+            }
+
+            var initialSharedPois: List<SharedPoi> = emptyList()
+            var sharedPoisLoaded = false
+
+            repeat(3) { attempt ->
+                if (sharedPoisLoaded) return@repeat
+
+                sharedPoiRepository.refreshReceivedPois()
+                    .onSuccess {
+                        sharedPoisLoaded = true
+                        initialSharedPois = sharedPoiRepository.getReceivedPois().first()
+                    }
+                    .onFailure {
+                        if (attempt < 2) kotlinx.coroutines.delay(500)
+                    }
+            }
+
+            cachedSharedPois = initialSharedPois
+
+            _state.value = MapUiState.Ready(
+                pois = emptyList(),
+                userLocation = null,
+                isFollowingUser = true,
+                selectedPoi = null,
+                newlyDiscoveredPoiIds = emptySet(),
+                revealedHexagons = revealedHexagons,
+                warsawHexagons = cachedWarsawHexagons,
+                sharedPois = initialSharedPois,
+                profile = profile
+            )
+
+            observeLifecycle()
+            observeFogOfWar()
+            observePois()
+            observeProfile()
+            observeSharedPois()
+            startLocationTracking()
+
+            loadPois()
+        }
+    }
+
+    /**
+     * Helper to update state only if it's Ready.
+     * Uses atomic update to prevent race conditions.
+     */
+    private inline fun updateStateIfReady(crossinline update: (MapUiState.Ready) -> MapUiState.Ready) {
+        _state.update { currentState ->
+            if (currentState is MapUiState.Ready) {
+                update(currentState)
+            } else {
+                currentState
+            }
+        }
+    }
+
+    /**
+     * Observes app lifecycle to handle resume events.
+     * Prevents unnecessary data reloads on quick app switches.
+     */
+    private fun observeLifecycle() {
         scope.launch {
-            val result = profileRepository.getProfile()
-            if (result.isSuccess) {
-                val newProfile = result.getOrThrow()
-                _state.value.let { currentState ->
-                    if (currentState is MapUiState.Ready) {
-                        val oldLevel = previousLevel
-                        val newLevel = newProfile.level
-
-                        // Update previous level for future comparisons
-                        previousLevel = newLevel
-
-                        // Detect level up: new level is higher than old level (only if we had a previous level)
-                        val leveledUp = checkLevelUp && oldLevel != null && newLevel > oldLevel
-
-                        _state.value = currentState.copy(
-                            profile = newProfile,
-                            newLevel = if (leveledUp) newLevel else currentState.newLevel
-                        )
+            appLifecycleObserver.lifecycleState.collect { state ->
+                when (state) {
+                    AppLifecycleState.RESUMED -> handleResume()
+                    else -> { /* no action needed */
                     }
                 }
             }
@@ -110,39 +214,191 @@ class MapViewModel(
     }
 
     /**
-     * Loads POI data and initialised map state.
-     * Fetches POIs and revealed hexagons, then updates the state to [MapUiState.Ready]
-     * or [MapUiState.Error] based on the result.
+     * Handles app resume - decides whether to refresh data based on background duration.
      */
-    private fun loadData() {
+    private fun handleResume() {
+        if (appLifecycleObserver.wasQuickSwitch()) {
+            // Quick switch - don't reload anything
+            return
+        }
+
+        if (appLifecycleObserver.shouldRefreshOnResume()) {
+            // Long background - refresh data in the background
+            refreshDataInBackground()
+        }
+    }
+
+    /**
+     * Refreshes data in the background without showing loading state.
+     */
+    private fun refreshDataInBackground() {
         scope.launch(cityXploreDispatchers.io) {
-            // Initial load
-            val poisResult = getPoisUseCase()
-            val revealedResult = fogOfWarRepository.getRevealedHexagons()
-            val warsawResult = fogOfWarRepository.getWarsawHexagons()
+            // Refresh fog of war from server (will update local DB, Flow will notify)
+            fogOfWarRepository.refreshRevealedHexagons()
+            cacheManager.markAsFresh(CacheKey.FOG_OF_WAR)
 
-            cachedRevealedHexagons = revealedResult.getOrElse { cachedRevealedHexagons }
-            cachedWarsawHexagons = warsawResult.getOrElse { cachedWarsawHexagons }
-
-            poisResult.onSuccess { pois ->
-                _state.value = MapUiState.Ready(
-                    pois = pois.map { it.toMapPoi() },
-                    userLocation = null,
-                    isFollowingUser = true,
-                    selectedPoi = null,
-                    newlyDiscoveredPoiIds = emptySet(),
-                    revealedHexagons = revealedResult.getOrDefault(emptySet()),
-                    warsawHexagons = warsawResult.getOrDefault(emptySet())
-                )
-                // Trigger profile load again if loadData finishes later
-                loadProfile()
+            // Ensure Warsaw hexagons are loaded (they might be empty on the first run)
+            if (cachedWarsawHexagons.isEmpty()) {
+                val warsawResult = fogOfWarRepository.getWarsawHexagons()
+                val hexagons = warsawResult.getOrNull()
+                if (hexagons != null && hexagons.isNotEmpty()) {
+                    cachedWarsawHexagons = hexagons
+                    updateStateIfReady { it.copy(warsawHexagons = hexagons) }
+                }
             }
 
-            poisResult.onFailure { error ->
-                _state.value = MapUiState.Error(error.message ?: "Unable to load POIs")
+            // Refresh POIs
+            loadPois()
+            cacheManager.markAsFresh(CacheKey.POIS)
+
+            // Refresh Shared POIs
+            sharedPoiRepository.refreshReceivedPois()
+                .onSuccess {
+                    val freshSharedPois = sharedPoiRepository.getReceivedPois().first()
+                    cachedSharedPois = freshSharedPois
+                    updateStateIfReady { it.copy(sharedPois = freshSharedPois) }
+                }
+
+            // Refresh profile
+            val profileResult = profileRepository.refreshProfile()
+            profileResult.onSuccess {
+                val newProfile = profileRepository.getProfile().getOrNull()
+                if (newProfile != null) {
+                    updateStateIfReady { currentState ->
+                        currentState.copy(profile = newProfile)
+                    }
+                }
+            }
+            cacheManager.markAsFresh(CacheKey.PROFILE)
+        }
+    }
+
+    /**
+     * Observes revealed hexagons from the local database.
+     * This is the primary source of truth for fog of war - updates automatically.
+     */
+    private fun observeFogOfWar() {
+        fogOfWarObserverJob?.cancel()
+        fogOfWarObserverJob = scope.launch(cityXploreDispatchers.io) {
+            fogOfWarRepository.observeRevealedHexagons().collect { revealedHexagons ->
+                _state.update { currentState ->
+                    if (currentState is MapUiState.Ready) {
+                        currentState.copy(revealedHexagons = revealedHexagons)
+                    } else {
+                        currentState
+                    }
+                }
             }
         }
     }
+
+    /**
+     * Observes POIs from the local database.
+     * This is the primary source of truth for POI data - updates automatically
+     * when favorites are toggled or POIs are discovered.
+     */
+    private fun observePois() {
+        poiObserverJob?.cancel()
+        poiObserverJob = scope.launch(cityXploreDispatchers.io) {
+            poiRepository.observePois().collect { pois ->
+                _state.update { currentState ->
+                    if (currentState is MapUiState.Ready) {
+                        val mapPois = pois.map { it.toMapPoi() }
+                        // Update the selected POI if it exists in the new list
+                        val updatedSelectedPoi = currentState.selectedPoi?.let { selected ->
+                            mapPois.find { it.id == selected.id }
+                        }
+                        currentState.copy(
+                            pois = mapPois,
+                            selectedPoi = updatedSelectedPoi ?: currentState.selectedPoi
+                        )
+                    } else {
+                        currentState
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Observes the user profile from the local database.
+     * This ensures profile data (including XP) updates in real-time.
+     */
+    private fun observeProfile() {
+        profileObserverJob?.cancel()
+        profileObserverJob = scope.launch(cityXploreDispatchers.io) {
+            profileRepository.observeProfile().collect { profile ->
+                _state.update { currentState ->
+                    if (currentState is MapUiState.Ready && profile != null) {
+                        val oldLevel = previousLevel
+                        val newLevel = profile.level
+
+                        // Detect level up: the new level is higher than the old level
+                        val leveledUp = oldLevel != null && newLevel > oldLevel
+
+                        // Update the previous level for future comparisons
+                        previousLevel = newLevel
+
+                        currentState.copy(
+                            profile = profile,
+                            newLevel = if (leveledUp) newLevel else currentState.newLevel
+                        )
+                    } else {
+                        currentState
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Observes shared POIs from the repository and updates state.
+     */
+    private fun observeSharedPois() {
+        scope.launch {
+            sharedPoiRepository.getReceivedPois().collect { sharedPois ->
+                cachedSharedPois = sharedPois
+                _state.update { currentState ->
+                    if (currentState is MapUiState.Ready) {
+                        currentState.copy(sharedPois = sharedPois)
+                    } else {
+                        currentState
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Refreshes the user profile and checks for level up.
+     * This triggers a network refresh - observeProfile will update the state with new data.
+     * Level-up detection is done here since we want to show the level-up dialogue only after specific actions.
+     */
+    private fun refreshProfileAndCheckLevelUp() {
+        scope.launch(cityXploreDispatchers.io) {
+            val oldLevel = previousLevel
+
+            // Refresh profile from network - this updates local DB
+            profileRepository.refreshProfile()
+
+            // After refresh, check for level up if we had a previous level
+            if (oldLevel != null) {
+                val result = profileRepository.getProfile()
+                if (result.isSuccess) {
+                    val newProfile = result.getOrThrow()
+                    val newLevel = newProfile.level
+
+                    if (newLevel > oldLevel) {
+                        val currentState = _state.value
+                        if (currentState is MapUiState.Ready) {
+                            _state.value = currentState.copy(newLevel = newLevel)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 
     /**
      * Handles user actions dispatched from the UI.
@@ -175,11 +431,78 @@ class MapViewModel(
             MapAction.DismissAllDiscoveryNotifications -> dismissAllDiscoveryNotifications()
             MapAction.DismissAchievementNotification -> dismissAchievementNotification()
             MapAction.DismissLevelUpDialog -> dismissLevelUpDialog()
+            is MapAction.SelectSharedPoi -> selectSharedPoi(action.sharedPoiId)
+            is MapAction.CenterOnLocation -> centerOnLocation(action.latitude, action.longitude)
+            MapAction.ClearTargetCameraLocation -> clearTargetCameraLocation()
+            is MapAction.DismissSharedDiscoveryNotification -> dismissSharedDiscoveryNotification(action.sharedPoiId)
+            is MapAction.ViewDiscoveredSharedPoi -> viewDiscoveredSharedPoi(action.sharedPoiId)
+            MapAction.DismissAllSharedDiscoveryNotifications -> dismissAllSharedDiscoveryNotifications()
         }
     }
 
     /**
-     * Handles "View Details" action for a discovered POI notification.
+     * Centers the map on specific coordinates.
+     * Sets the target location that the map component will animate to.
+     */
+    private fun centerOnLocation(latitude: Double, longitude: Double) {
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            _state.value = currentState.copy(
+                targetCameraLocation = Location(latitude, longitude),
+                isFollowingUser = false // Disable follow mode when manually centering
+            )
+        }
+    }
+
+    /**
+     * Clears the target camera location after animation completes.
+     * This allows the same location to be targeted again.
+     */
+    private fun clearTargetCameraLocation() {
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            _state.value = currentState.copy(targetCameraLocation = null)
+        }
+    }
+
+    /**
+     * Handles the "View Details" action for a discovered Shared POI notification.
+     * Selects the POI and dismisses its notification.
+     */
+    private fun viewDiscoveredSharedPoi(sharedPoiId: String) {
+        selectSharedPoi(sharedPoiId)
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            _state.value = currentState.copy(
+                newlyDiscoveredSharedPoiIds = currentState.newlyDiscoveredSharedPoiIds - sharedPoiId
+            )
+        }
+    }
+
+    /**
+     * Dismisses the discovery notification for a specific Shared POI.
+     */
+    private fun dismissSharedDiscoveryNotification(sharedPoiId: String) {
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            _state.value = currentState.copy(
+                newlyDiscoveredSharedPoiIds = currentState.newlyDiscoveredSharedPoiIds - sharedPoiId
+            )
+        }
+    }
+
+    /**
+     * Dismisses all shared discovery notifications at once.
+     */
+    private fun dismissAllSharedDiscoveryNotifications() {
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            _state.value = currentState.copy(newlyDiscoveredSharedPoiIds = emptySet())
+        }
+    }
+
+    /**
+     * Handles the "View Details" action for a discovered POI notification.
      * Selects the POI and dismisses its notification.
      */
     private fun viewDiscoveredPoi(poiId: String) {
@@ -203,7 +526,7 @@ class MapViewModel(
     }
 
     /**
-     * Dismisses the achievement unlock notification dialog.
+     * Dismisses the achievement unlock the notification dialogue.
      */
     private fun dismissAchievementNotification() {
         val currentState = _state.value
@@ -213,7 +536,7 @@ class MapViewModel(
     }
 
     /**
-     * Dismisses the level up dialog.
+     * Dismisses the level-up dialogue.
      */
     private fun dismissLevelUpDialog() {
         val currentState = _state.value
@@ -222,40 +545,37 @@ class MapViewModel(
         }
     }
 
-    private fun toggleFavorite(poiId: String) {
-        scope.launch(cityXploreDispatchers.io) {
-            val currentState = _state.value
-            if (currentState is MapUiState.Ready) {
-                // Optimistic update
-                val updatedPois = currentState.pois.map {
-                    if (it.id == poiId) it.copy(isFavorite = !it.isFavorite) else it
-                }
-                val updatedSelected = if (currentState.selectedPoi?.id == poiId) {
-                    currentState.selectedPoi.copy(isFavorite = !currentState.selectedPoi.isFavorite)
-                } else currentState.selectedPoi
-
+    /**
+     * Selects a shared POI for viewing details.
+     * Also marks it as viewed.
+     */
+    private fun selectSharedPoi(sharedPoiId: String) {
+        val currentState = _state.value
+        if (currentState is MapUiState.Ready) {
+            val sharedPoi = currentState.sharedPois.find { it.id == sharedPoiId }
+            if (sharedPoi != null) {
                 _state.value = currentState.copy(
-                    pois = updatedPois,
-                    selectedPoi = updatedSelected
+                    selectedSharedPoi = sharedPoi,
+                    selectedPoi = null // Clear regular POI selection
                 )
 
-                toggleFavoriteUseCase(poiId).onFailure {
-                    // Revert only specific changes on the fresh state
-                    val freshState = _state.value
-                    if (freshState is MapUiState.Ready) {
-                        val revertedPois = freshState.pois.map {
-                            if (it.id == poiId) it.copy(isFavorite = !it.isFavorite) else it
-                        }
-                        val revertedSelected = if (freshState.selectedPoi?.id == poiId) {
-                            freshState.selectedPoi.copy(isFavorite = !freshState.selectedPoi.isFavorite)
-                        } else freshState.selectedPoi
-
-                        _state.value = freshState.copy(
-                            pois = revertedPois,
-                            selectedPoi = revertedSelected
-                        )
+                // Mark as viewed if not already
+                if (!sharedPoi.isViewed) {
+                    scope.launch {
+                        sharedPoiRepository.markViewed(sharedPoiId)
+                        sharedPoiRepository.refreshReceivedPois()
                     }
                 }
+            }
+        }
+    }
+
+    private fun toggleFavorite(poiId: String) {
+        scope.launch(cityXploreDispatchers.io) {
+            // toggleFavoriteUseCase updates Room DB, and observePois Flow will
+            // automatically update the UI with the new favorite state
+            toggleFavoriteUseCase(poiId).onFailure { error ->
+                println("Failed to toggle favorite for POI $poiId: ${error.message}")
             }
         }
     }
@@ -269,19 +589,21 @@ class MapViewModel(
         scope.launch(cityXploreDispatchers.io) {
             val currentState = _state.value
 
-            // Only show full loading screen if we don't have data yet
+            // Only show the full loading screen if we don't have data yet
             if (currentState !is MapUiState.Ready) {
                 _state.value = MapUiState.Loading
             }
 
             // Default values to fall back on if we are not in Ready state
             var currentIsFollowing = true
-            var currentRevealedHexagons = cachedRevealedHexagons
+            var currentRevealedHexagons = emptySet<String>()
             var currentWarsawHexagons = cachedWarsawHexagons
             var currentUserLocation: Location? = lastKnownLocation
             var currentAchievements: List<Achievement> = emptyList()
             var currentNewlyDiscoveredIds: Set<String> = emptySet()
             var currentNewLevel: Int? = null
+            var currentSharedPois: List<SharedPoi> = cachedSharedPois
+            var currentNewlyDiscoveredSharedPoiIds: Set<String> = emptySet()
             val currentProfile = if (currentState is MapUiState.Ready) currentState.profile else null
 
             if (currentState is MapUiState.Ready) {
@@ -292,6 +614,8 @@ class MapViewModel(
                 currentAchievements = currentState.newlyUnlockedAchievements
                 currentNewlyDiscoveredIds = currentState.newlyDiscoveredPoiIds
                 currentNewLevel = currentState.newLevel
+                currentSharedPois = currentState.sharedPois
+                currentNewlyDiscoveredSharedPoiIds = currentState.newlyDiscoveredSharedPoiIds
             }
 
             val result = getPoisUseCase()
@@ -307,7 +631,9 @@ class MapViewModel(
                     warsawHexagons = currentWarsawHexagons,
                     profile = currentProfile,
                     newlyUnlockedAchievements = currentAchievements,
-                    newLevel = currentNewLevel
+                    newLevel = currentNewLevel,
+                    sharedPois = currentSharedPois,
+                    newlyDiscoveredSharedPoiIds = currentNewlyDiscoveredSharedPoiIds
                 )
             }
 
@@ -324,23 +650,25 @@ class MapViewModel(
 
     /**
      * Loads the Fog of War state from the backend.
-     * Fetches revealed hexagons and updates the map state.
+     * Refreshes revealed hexagons from server - local DB will be updated,
+     * and the observing Flow will automatically update the UI.
      */
     private fun loadFogOfWar() {
         scope.launch(cityXploreDispatchers.io) {
-            val revealedResult = fogOfWarRepository.getRevealedHexagons()
-            val warsawResult = fogOfWarRepository.getWarsawHexagons()
+            // Refresh from server - this updates local DB, and Flow will notify UI
+            fogOfWarRepository.refreshRevealedHexagons()
 
-            cachedRevealedHexagons = revealedResult.getOrElse { cachedRevealedHexagons }
+            val warsawResult = fogOfWarRepository.getWarsawHexagons()
             cachedWarsawHexagons = warsawResult.getOrElse { cachedWarsawHexagons }
 
             val currentState = _state.value
             if (currentState is MapUiState.Ready) {
                 _state.value = currentState.copy(
-                    revealedHexagons = cachedRevealedHexagons,
                     warsawHexagons = cachedWarsawHexagons
                 )
             }
+
+            cacheManager.markAsFresh(CacheKey.FOG_OF_WAR)
         }
     }
 
@@ -358,7 +686,7 @@ class MapViewModel(
                     checkForNearbyPois(location)
                     updateFogOfWar(location)
 
-                    // Track distance and sync when threshold reached
+                    // Track distance and sync when the threshold reached
                     val shouldSync = distanceTracker.onNewLocation(location)
                     if (shouldSync) {
                         syncDistance()
@@ -384,7 +712,7 @@ class MapViewModel(
                 .onSuccess { result ->
                     val currentState = _state.value
                     if (currentState is MapUiState.Ready && result.newlyUnlockedAchievements.isNotEmpty()) {
-                        // Merge newly unlocked achievements from distance with any existing ones
+                        // Merge newly unlocked achievements from a distance with any existing ones
                         val mergedAchievements =
                             (currentState.newlyUnlockedAchievements + result.newlyUnlockedAchievements).distinctBy { it.id }
 
@@ -393,18 +721,16 @@ class MapViewModel(
                         )
                     }
                     // Refresh profile to get updated total distance and check for level up
-                    loadProfile(checkLevelUp = true)
+                    refreshProfileAndCheckLevelUp()
                 }
                 .onFailure { error ->
                     println("Failed to sync distance: ${error.message}")
-                    // Distance is already consumed from buffer - for MVP we accept the loss
-                    // In v2: save to local queue for offline sync
                 }
         }
     }
 
     /**
-     * Updates the Fog of War based on user's current location.
+     * Updates the Fog of War based on the user's current location.
      * Reveals hexagons within the configured radius.
      *
      * @param location The user's current location.
@@ -436,56 +762,108 @@ class MapViewModel(
 
     /**
      * Checks if any undiscovered POIs are within discovery range and triggers discovery.
+     * Also, checks for undiscovered shared POIs nearby.
      * Updates the state with newly discovered POI IDs for UI notifications.
      *
      * @param userLocation The current location of the user.
      */
     private fun checkForNearbyPois(userLocation: Location) {
         scope.launch(cityXploreDispatchers.io) {
+            // Check regular POIs
             val result = autoDiscoverUseCase.checkAndDiscoverNearbyPois(userLocation)
 
             result.onSuccess { discoveryResult ->
                 if (discoveryResult.newlyDiscoveredPoiIds.isNotEmpty()) {
-                    // Refresh POIs to get updated discovery status
-                    val poisResult = getPoisUseCase()
+                    val currentState = _state.value
+                    if (currentState is MapUiState.Ready) {
+                        // Merge newly unlocked achievements from discovery with any existing ones
+                        val mergedAchievements =
+                            (currentState.newlyUnlockedAchievements + discoveryResult.newlyUnlockedAchievements).distinctBy { it.id }
 
-                    poisResult.onSuccess { pois ->
-                        val currentState = _state.value
-                        if (currentState is MapUiState.Ready) {
-                            // Merge newly unlocked achievements from discovery with any existing ones
-                            val mergedAchievements =
-                                (currentState.newlyUnlockedAchievements + discoveryResult.newlyUnlockedAchievements).distinctBy { it.id }
-
-                            _state.value = currentState.copy(
-                                pois = pois.map(PoiModel::toMapPoi),
-                                newlyDiscoveredPoiIds = currentState.newlyDiscoveredPoiIds + discoveryResult.newlyDiscoveredPoiIds.toSet(),
-                                newlyUnlockedAchievements = mergedAchievements
-                            )
-                        }
-
-                        // Refresh profile to update XP from achievements and check for level up
-                        loadProfile(checkLevelUp = true)
+                        // Update state with newly discovered POI IDs immediately
+                        // The POI list will be updated automatically via observePois() Flow
+                        _state.value = currentState.copy(
+                            newlyDiscoveredPoiIds = currentState.newlyDiscoveredPoiIds + discoveryResult.newlyDiscoveredPoiIds.toSet(),
+                            newlyUnlockedAchievements = mergedAchievements
+                        )
                     }
 
-                    poisResult.onFailure { error ->
-                        // Log error and clear discovery state to prevent inconsistency
-                        println("Failed to refresh POIs after discovery: ${error.message}")
-                        val currentState = _state.value
-                        if (currentState is MapUiState.Ready) {
-                            // Keep the current state but clear newly discovered IDs
-                            _state.value = currentState.copy(
-                                newlyDiscoveredPoiIds = emptySet()
-                            )
-                        }
-                    }
+                    // Try to refresh the profile to update XP from achievements and check for level up
+                    // This may fail offline, which is fine - achievements will sync later
+                    refreshProfileAndCheckLevelUp()
                 }
             }
 
             result.onFailure { error ->
                 // Log auto-discovery failure
                 println("Auto-discovery failed: ${error.message}")
-                // Optionally emit a UI error event here if needed
             }
+
+            // Check shared POIs for discovery (no XP awarded)
+            checkForNearbySharedPois(userLocation)
+        }
+    }
+
+    /**
+     * Checks if any undiscovered shared POIs are within the discovery range.
+     * Note: Shared POI discoveries do NOT grant XP or count towards regular achievements.
+     *
+     * @param userLocation The current location of the user.
+     */
+    private suspend fun checkForNearbySharedPois(userLocation: Location) {
+        val currentState = _state.value
+        if (currentState !is MapUiState.Ready) return
+
+        // Use the same discovery radius as regular POIs (200 m)
+        val discoveryRadiusMeters = AutoDiscoverPoisUseCase.DISCOVERY_RADIUS_METERS
+
+        // 1. Identify undiscovered shared POIs within range
+        val poisToDiscover = currentState.sharedPois.filter { sharedPoi ->
+            if (sharedPoi.isDiscovered) return@filter false
+
+            // Try to resolve coordinates (Custom POI or Regular POI)
+            val coords = sharedPoi.coordinates ?: sharedPoi.poiId?.let { poiId ->
+                currentState.pois.find { it.id == poiId }?.let { Pair(it.latitude, it.longitude) }
+            } ?: return@filter false
+
+            val distance = calculateDistance(
+                userLocation.latitude, userLocation.longitude,
+                coords.first, coords.second
+            )
+            distance <= discoveryRadiusMeters
+        }
+
+        if (poisToDiscover.isEmpty()) return
+
+        // 2. Discover them sequentially and collect results to avoid race conditions
+        val successfullyDiscovered = mutableListOf<SharedPoi>()
+
+        poisToDiscover.forEach { poi ->
+            sharedPoiRepository.discoverSharedPoi(poi.id)
+                .onSuccess { updatedPoi ->
+                    successfullyDiscovered.add(updatedPoi)
+                }
+                .onFailure { error ->
+                    println("Failed to discover shared POI ${poi.id}: ${error.message}")
+                }
+        }
+
+        if (successfullyDiscovered.isEmpty()) return
+
+        // 3. Batch update state once
+        val freshState = _state.value
+        if (freshState is MapUiState.Ready) {
+            // Update the cached list first
+            cachedSharedPois = cachedSharedPois.map { current ->
+                successfullyDiscovered.find { it.id == current.id } ?: current
+            }
+
+            // Update UI state
+            _state.value = freshState.copy(
+                sharedPois = cachedSharedPois,
+                newlyDiscoveredSharedPoiIds = freshState.newlyDiscoveredSharedPoiIds + successfullyDiscovered.map { it.id }
+                    .toSet()
+            )
         }
     }
 
@@ -498,7 +876,8 @@ class MapViewModel(
         val currentState = _state.value
         if (currentState is MapUiState.Ready) {
             _state.value = currentState.copy(
-                selectedPoi = currentState.pois.firstOrNull { it.id == poiId }
+                selectedPoi = currentState.pois.firstOrNull { it.id == poiId },
+                selectedSharedPoi = null // Clear shared POI selection
             )
         }
     }
@@ -506,7 +885,10 @@ class MapViewModel(
     private fun deselectPoi() {
         val currentState = _state.value
         if (currentState is MapUiState.Ready) {
-            _state.value = currentState.copy(selectedPoi = null)
+            _state.value = currentState.copy(
+                selectedPoi = null,
+                selectedSharedPoi = null
+            )
         }
     }
 
@@ -540,5 +922,7 @@ class MapViewModel(
     override fun onCleared() {
         super.onCleared()
         locationObserverJob?.cancel()
+        fogOfWarObserverJob?.cancel()
+        poiObserverJob?.cancel()
     }
 }

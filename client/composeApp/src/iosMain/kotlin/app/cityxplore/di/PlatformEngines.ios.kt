@@ -7,4 +7,5 @@ import org.koin.dsl.module
 
 actual fun providePlatformEngine(): Module = module {
     single<HttpClientEngine> { Darwin.create() }
+    includes(iosNotificationModule())
 }

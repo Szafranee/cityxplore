@@ -3,41 +3,43 @@ package app.cityxplore.map.domain
 import app.cityxplore.achievements.data.toDomain
 import app.cityxplore.achievements.domain.Achievement
 import app.cityxplore.core.location.Location
+import app.cityxplore.core.utils.calculateDistance
+import app.cityxplore.map.data.PoiRepository
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.http.HttpStatusCode
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.math.sqrt
 
 /**
- * Automatically discovers POIs when user enters their proximity range.
+ * Automatically discovers POIs when the user enters their proximity range.
  *
  * Monitors user location and triggers discovery for POIs within the defined radius.
  * Handles edge cases like concurrent discoveries and network errors gracefully.
  *
- * @property getPoisUseCase Use case to fetch all POIs with their discovery status
+ * Uses local POI cache for discovery checks, enabling offline discovery.
+ *
+ * @property poiRepository Repository to access local POI data
  * @property discoverPoiUseCase Use case to mark a POI as discovered
  */
 class AutoDiscoverPoisUseCase(
-    private val getPoisUseCase: GetPoisWithDiscoveriesUseCase,
+    private val poiRepository: PoiRepository,
     private val discoverPoiUseCase: DiscoverPoiUseCase
 ) {
     companion object {
-        const val DISCOVERY_RADIUS_METERS = 200.0
+        const val DISCOVERY_RADIUS_METERS = 100.0
     }
 
     /**
      * Discovers all undiscovered POIs within range of the current location.
+     * Uses local cached POI data for offline support.
      *
      * @param currentLocation User's current GPS coordinates
-     * @return Result containing discovery result with newly discovered POI IDs and unlocked achievements, or error if operation fails
+     * @return Result containing the discovery result with newly discovered POI IDs and unlocked achievements, or error if operation fails
      */
     suspend fun checkAndDiscoverNearbyPois(currentLocation: Location): Result<DiscoveryResult> {
         return try {
-            val poisResult = getPoisUseCase()
+            // Use local POIs for offline support
+            val poisResult = poiRepository.getLocalPois()
             if (poisResult.isFailure) {
-                return Result.failure(poisResult.exceptionOrNull() ?: Exception("Failed to fetch POIs"))
+                return Result.failure(poisResult.exceptionOrNull() ?: Exception("Failed to get local POIs"))
             }
 
             val pois = poisResult.getOrThrow()
@@ -87,35 +89,4 @@ class AutoDiscoverPoisUseCase(
             exception?.printStackTrace()
         }
     }
-
-    /**
-     * Calculates great-circle distance between two geographic coordinates.
-     *
-     * Uses Haversine formula for accuracy over short distances.
-     *
-     * @return Distance in meters
-     */
-    private fun calculateDistance(
-        lat1: Double,
-        lon1: Double,
-        lat2: Double,
-        lon2: Double
-    ): Double {
-        val earthRadiusMeters = 6371000.0
-
-        val lat1Rad = toRadians(lat1)
-        val lat2Rad = toRadians(lat2)
-        val deltaLatRad = toRadians(lat2 - lat1)
-        val deltaLonRad = toRadians(lon2 - lon1)
-
-        val a = sin(deltaLatRad / 2) * sin(deltaLatRad / 2) +
-                cos(lat1Rad) * cos(lat2Rad) *
-                sin(deltaLonRad / 2) * sin(deltaLonRad / 2)
-
-        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-
-        return earthRadiusMeters * c
-    }
-
-    private fun toRadians(degrees: Double): Double = degrees * kotlin.math.PI / 180.0
 }

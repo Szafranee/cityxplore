@@ -8,7 +8,7 @@ package app.cityxplore.map.domain
  *
  * @property id Unique region identifier (e.g., "warsaw", "krakow").
  * @property displayName Human-readable name for UI.
- * @property boundaryAssetPath Path to the GeoJSON file in androidMain/assets (e.g., "warsaw_simple.geojson").
+ * @property boundaryAssetPath Path to the GeoJSON file in androidMain/assets (e.g. "warsaw_simple.geojson").
  * @property h3Resolution H3 resolution for this region (higher = smaller hexes).
  */
 data class RegionDefinition(

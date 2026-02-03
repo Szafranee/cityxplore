@@ -2,9 +2,16 @@ package app.cityxplore.achievements.data
 
 import app.cityxplore.achievements.domain.Achievement
 import app.cityxplore.achievements.domain.AchievementRepository
+import app.cityxplore.database.dao.AchievementDao
+import app.cityxplore.database.dao.getAllWithUserProgress
+import app.cityxplore.database.dao.observeAllWithUserProgress
+import app.cityxplore.database.entity.AchievementEntity
+import app.cityxplore.database.entity.UserAchievementEntity
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
@@ -14,76 +21,157 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Instant
 
 /**
- * Implementation of [AchievementRepository] using a Ktor HTTP client.
+ * Offline-first implementation of [AchievementRepository].
  *
- * This repository communicates with the backend API to fetch achievement data,
- * including user-specific achievements and global achievement definitions.
+ * Key behaviors:
+ * - **Reading:** Flow from local Room database
+ * - **Refreshing:** Network → local cache
+ * - **Offline:** Returns cached data when network unavailable
  *
  * @param client Ktor HTTP client for making API requests.
+ * @param achievementDao Local database access for achievement caching.
  */
 class AchievementRepositoryImpl(
-    private val client: HttpClient
+    private val client: HttpClient,
+    private val achievementDao: AchievementDao
 ) : AchievementRepository {
 
     /**
-     * Retrieves the achievements for the currently authenticated user.
-     *
-     * Fetches from `/api/achievements/mine` endpoint and maps DTOs to domain models.
-     * Parses unlock timestamps and calculates progress based on criteria.
-     *
-     * @return Result containing a list of [Achievement] objects with user's progress,
-     *         or a failure if the request fails.
+     * Observes achievements for the current user from the local database.
+     */
+    override fun observeMyAchievements(): Flow<List<Achievement>> {
+        return achievementDao.observeAllWithUserProgress().map { list ->
+            list.map { (achievement, userProgress) ->
+                val unlockedAt = userProgress?.unlockedAtMillis?.let { Instant.fromEpochMilliseconds(it) }
+                Achievement(
+                    id = achievement.id,
+                    name = achievement.name,
+                    description = achievement.description,
+                    category = achievement.category,
+                    iconUrl = achievement.iconUrl,
+                    points = achievement.points,
+                    isUnlocked = userProgress?.isUnlocked ?: false,
+                    unlockedAt = unlockedAt,
+                    progress = userProgress?.progress ?: 0f,
+                    progressFormatted = userProgress?.progressFormatted ?: ""
+                )
+            }
+        }
+    }
+
+    /**
+     * Retrieves achievements - first tries local cache, then network.
      */
     override suspend fun getMyAchievements(): Result<List<Achievement>> = runCatching {
-        val dtos = client.get("https://api.cityxplore.app/api/achievements/mine").body<List<UserAchievementDto>>()
-        dtos.map { dto ->
-            // Try parsing timestamp
-            val unlockedAt = dto.achievedAt?.let { str ->
-                try {
-                    Instant.parse(str)
-                } catch (_: Exception) {
-                    try {
-                        LocalDateTime.parse(str).toInstant(TimeZone.UTC)
-                    } catch (_: Exception) {
-                        null
-                    }
-                }
+        // Try the local cache first
+        val cachedAchievements = achievementDao.getAllWithUserProgress()
+        if (cachedAchievements.isNotEmpty()) {
+            return@runCatching cachedAchievements.map { (achievement, userProgress) ->
+                val unlockedAt = userProgress?.unlockedAtMillis?.let { Instant.fromEpochMilliseconds(it) }
+                Achievement(
+                    id = achievement.id,
+                    name = achievement.name,
+                    description = achievement.description,
+                    category = achievement.category,
+                    iconUrl = achievement.iconUrl,
+                    points = achievement.points,
+                    isUnlocked = userProgress?.isUnlocked ?: false,
+                    unlockedAt = unlockedAt,
+                    progress = userProgress?.progress ?: 0f,
+                    progressFormatted = userProgress?.progressFormatted ?: ""
+                )
             }
+        }
 
+        // No cache - fetch from network and cache
+        refreshFromNetwork()
+        achievementDao.getAllWithUserProgress().map { (achievement, userProgress) ->
+            val unlockedAt = userProgress?.unlockedAtMillis?.let { Instant.fromEpochMilliseconds(it) }
+            Achievement(
+                id = achievement.id,
+                name = achievement.name,
+                description = achievement.description,
+                category = achievement.category,
+                iconUrl = achievement.iconUrl,
+                points = achievement.points,
+                isUnlocked = userProgress?.isUnlocked ?: false,
+                unlockedAt = unlockedAt,
+                progress = userProgress?.progress ?: 0f,
+                progressFormatted = userProgress?.progressFormatted ?: ""
+            )
+        }
+    }
+
+    /**
+     * Refreshes achievements from the network and updates local cache.
+     */
+    override suspend fun refreshMyAchievements(): Result<Unit> = runCatching {
+        refreshFromNetwork()
+    }
+
+    /**
+     * Internal function to fetch from network and update local cache.
+     */
+    private suspend fun refreshFromNetwork() {
+        val dtos = client.get("https://api.cityxplore.app/api/achievements/mine").body<List<UserAchievementDto>>()
+
+        dtos.forEach { dto ->
+            // Save achievement definition
+            val achievementEntity = AchievementEntity.create(
+                id = dto.achievement.id,
+                name = dto.achievement.name,
+                description = dto.achievement.description,
+                category = dto.achievement.category,
+                iconUrl = dto.achievement.iconUrl,
+                points = dto.achievement.points
+            )
+            achievementDao.upsertAchievement(achievementEntity)
+
+            // Calculate progress
             val (progress, formatted) = calculateProgress(
                 dto.achievement.criteria,
                 dto.progress,
                 dto.achievedAt != null
             )
 
-            Achievement(
-                id = dto.achievement.id,
-                name = dto.achievement.name,
-                description = dto.achievement.description,
-                category = dto.achievement.category,
-                iconUrl = dto.achievement.iconUrl,
-                points = dto.achievement.points,
+            // Parse timestamp
+            val achievedAtMillis = dto.achievedAt?.let { str ->
+                try {
+                    Instant.parse(str).toEpochMilliseconds()
+                } catch (_: Exception) {
+                    try {
+                        LocalDateTime.parse(str).toInstant(TimeZone.UTC).toEpochMilliseconds()
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+            }
+
+            // Save user progress
+            val userAchievementEntity = UserAchievementEntity.create(
+                achievementId = dto.achievement.id,
                 isUnlocked = dto.achievedAt != null,
-                unlockedAt = unlockedAt,
+                unlockedAtMillis = achievedAtMillis,
                 progress = progress,
                 progressFormatted = formatted
             )
+            achievementDao.upsertUserAchievement(userAchievementEntity)
         }
     }
 
     /**
+     * Clears local achievement cache (used on logout).
+     */
+    override suspend fun clearLocalCache() {
+        achievementDao.clearAllUserAchievements()
+    }
+
+    /**
      * Retrieves all available achievement definitions from the backend.
-     *
-     * Fetches from `/api/achievements` endpoint. Returns achievements without user-specific
-     * progress data (marked as not unlocked by default).
-     *
-     * @return Result containing a list of all [Achievement] definitions,
-     *         or a failure if the request fails.
      */
     override suspend fun getAllAchievements(): Result<List<Achievement>> = runCatching {
         val dtos = client.get("https://api.cityxplore.app/api/achievements").body<List<AchievementDto>>()
         dtos.map { dto ->
-            // For general list, we assume 0 progress unless merged later
             val (progress, formatted) = calculateProgress(dto.criteria, null, false)
 
             Achievement(
@@ -93,7 +181,7 @@ class AchievementRepositoryImpl(
                 category = dto.category,
                 iconUrl = dto.iconUrl,
                 points = dto.points,
-                isUnlocked = false, // Default for "all" list, logic in VM will merge
+                isUnlocked = false,
                 unlockedAt = null,
                 progress = progress,
                 progressFormatted = formatted
@@ -103,13 +191,6 @@ class AchievementRepositoryImpl(
 
     /**
      * Retrieves achievements for a specific user by their user ID.
-     *
-     * Fetches from `/api/achievements/user/{userId}` endpoint. This endpoint requires
-     * authentication but allows viewing other users' achievements.
-     *
-     * @param userId The unique identifier of the user whose achievements to fetch.
-     * @return Result containing a list of [Achievement] objects for the specified user,
-     *         or a failure if the request fails or user is not found.
      */
     override suspend fun getUserAchievements(userId: String): Result<List<Achievement>> = runCatching {
         val dtos =
@@ -151,14 +232,11 @@ class AchievementRepositoryImpl(
     /**
      * Calculates achievement progress based on criteria and current progress data.
      *
-     * Supports different types of achievement criteria:
-     * - Count-based achievements (e.g. "discover 50 POIs")
-     * - Distance-based achievements (e.g. "travel 42 km")
-     *
-     * @param criteria JSON element containing the achievement criteria from backend.
-     * @param progress JSON element containing the user's current progress data.
-     * @param isUnlocked Whether the achievement is already unlocked (returns 1.0 if true).
-     * @return Pair of progress value (0.0-1.0) and formatted string (e.g., "25/50" or "10/42 km").
+     * Supported criteria types:
+     * - poi_count: Number of POIs discovered (returns "42/50")
+     * - distance_km: Distance traveled in kilometers (returns "21.5/42 km")
+     * - friend_count: Number of friends (returns "3/5")
+     * - time_range: Time-based achievements (returns "Not yet" or "Completed")
      */
     private fun calculateProgress(
         criteria: JsonElement?,
@@ -168,14 +246,14 @@ class AchievementRepositoryImpl(
         if (isUnlocked) return 1f to "Completed"
 
         try {
-            if (criteria != null) {
+            if (criteria != null && progress != null) {
                 val criteriaObj = criteria.jsonObject
+                val progressObj = progress.jsonObject
 
-                // Identify criteria type
-                // 1. Count based (e.g. "count": 50)
-                if (criteriaObj.containsKey("count")) {
-                    val max = criteriaObj["count"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
-                    val current = progress?.jsonObject?.get("count")?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+                // POI count criteria: {"poi_count": 50}
+                if (criteriaObj.containsKey("poi_count")) {
+                    val max = criteriaObj["poi_count"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+                    val current = progressObj["poi_count"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
 
                     if (max > 0) {
                         val p = (current.toFloat() / max.toFloat()).coerceIn(0f, 1f)
@@ -183,18 +261,34 @@ class AchievementRepositoryImpl(
                     }
                 }
 
-                // 2. Distance-based ("distance_km": 42)
+                // Distance criteria: {"distance_km": 42}
                 if (criteriaObj.containsKey("distance_km")) {
-                    val max = criteriaObj["distance_km"]?.jsonPrimitive?.content?.toFloatOrNull() ?: 0f
-                    val current =
-                        progress?.jsonObject?.get("distance_km")?.jsonPrimitive?.content?.toFloatOrNull() ?: 0f
+                    val max = criteriaObj["distance_km"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0
+                    val current = progressObj["distance_km"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0
 
                     if (max > 0) {
-                        val p = (current / max).coerceIn(0f, 1f)
-                        val currentStr = if (current % 1 == 0f) current.toInt().toString() else current.toString()
-                        val maxStr = if (max % 1 == 0f) max.toInt().toString() else max.toString()
+                        val p = (current / max).coerceIn(0.0, 1.0).toFloat()
+                        val currentStr = formatDistance(current)
+                        val maxStr = formatDistance(max)
                         return p to "$currentStr/$maxStr km"
                     }
+                }
+
+                // Friend count criteria: {"friend_count": 5}
+                if (criteriaObj.containsKey("friend_count")) {
+                    val max = criteriaObj["friend_count"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+                    val current = progressObj["friend_count"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+
+                    if (max > 0) {
+                        val p = (current.toFloat() / max.toFloat()).coerceIn(0f, 1f)
+                        return p to "$current/$max"
+                    }
+                }
+
+                // Time range criteria: {"time_range": "22:00-04:00"}
+                if (criteriaObj.containsKey("time_range")) {
+                    val met = progressObj["time_range_met"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
+                    return if (met) 1f to "Completed" else 0f to "Not yet"
                 }
             }
         } catch (_: Exception) {
@@ -202,5 +296,18 @@ class AchievementRepositoryImpl(
         }
 
         return 0f to ""
+    }
+
+    /**
+     * Formats distance value for display.
+     * Shows integer for whole numbers, 1 decimal place otherwise.
+     */
+    private fun formatDistance(distance: Double): String {
+        return if (distance == distance.toLong().toDouble()) {
+            distance.toLong().toString()
+        } else {
+            // Round to 1 decimal place
+            ((distance * 10).toLong() / 10.0).toString()
+        }
     }
 }

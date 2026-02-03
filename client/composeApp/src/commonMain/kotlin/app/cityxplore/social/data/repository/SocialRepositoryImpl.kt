@@ -4,6 +4,8 @@ import app.cityxplore.auth.domain.AuthRepository
 import app.cityxplore.social.data.remote.dto.FriendshipDto
 import app.cityxplore.social.data.remote.dto.FriendshipRequestDto
 import app.cityxplore.social.data.remote.dto.RankingEntryDto
+import app.cityxplore.social.domain.exception.CannotInviteSelfException
+import app.cityxplore.social.domain.exception.UserNotFoundException
 import app.cityxplore.social.domain.model.Friendship
 import app.cityxplore.social.domain.model.FriendshipStatus
 import app.cityxplore.social.domain.model.RankingEntry
@@ -143,7 +145,13 @@ class SocialRepositoryImpl(
         // will need refactoring to a proper server-side search as the user base scales.
         val ranking = client.get("https://api.cityxplore.app/api/rankings/global").body<List<RankingEntryDto>>()
         val target = ranking.find { it.username.equals(username, ignoreCase = true) }
-            ?: throw Exception("User '$username' not found in public directory")
+            ?: throw UserNotFoundException(username)
+
+        // Check if user is trying to send a friend request to themselves
+        val currentUserId = authRepository.getCurrentUserId()
+        if (target.userId == currentUserId) {
+            throw CannotInviteSelfException()
+        }
 
         val response = client.post("https://api.cityxplore.app/api/friends/invite") {
             contentType(ContentType.Application.Json)
@@ -267,6 +275,14 @@ class SocialRepositoryImpl(
         totalAchievementPoints = totalAchievementPoints,
         rank = rank
     )
+
+    override fun clearCache() {
+        _globalRanking.value = emptyList()
+        _friendsRanking.value = emptyList()
+        _friends.value = emptyList()
+        _pendingRequests.value = emptyList()
+        _blockedUsers.value = emptyList()
+    }
 }
 
 // Minimal UserResponseDto for getFriendProfile

@@ -5,5 +5,10 @@ import app.cityxplore.achievements.domain.AchievementRepository
 import org.koin.dsl.module
 
 val achievementsModule = module {
-    single<AchievementRepository> { AchievementRepositoryImpl(get()) }
+    single<AchievementRepository> {
+        AchievementRepositoryImpl(
+            client = get(),
+            achievementDao = get()
+        )
+    }
 }

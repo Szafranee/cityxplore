@@ -33,4 +33,13 @@ interface SharedPoiRepository : JpaRepository<SharedPoi, UUID> {
      * @return list of shared POI entities that have not been viewed yet
      */
     fun findAllByRecipientIdAndViewedAtIsNull(recipientId: UUID): List<SharedPoi>
+
+    /**
+     * Counts the number of POIs shared from one user to another.
+     *
+     * @param sharerId the UUID of the user who shared the POIs
+     * @param recipientId the UUID of the user who received the POIs
+     * @return count of shared POIs between these two users
+     */
+    fun countBySharerIdAndRecipientId(sharerId: UUID, recipientId: UUID): Long
 }

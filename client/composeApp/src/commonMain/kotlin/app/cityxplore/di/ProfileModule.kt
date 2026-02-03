@@ -15,7 +15,7 @@ import org.koin.dsl.module
  * This module provides:
  * - [DistanceTracker] for tracking distance travelled (singleton - shared across app)
  * - [DistanceSyncRepository] for syncing distance to the backend
- * - [ProfileRepository] implementation for managing user profile data
+ * - [ProfileRepository] implementation for managing user profile data (offline-first)
  * - [OnboardingViewModel] for handling new user profile creation
  * - [ProfileViewModel] for displaying user profile information
  *
@@ -26,7 +26,21 @@ import org.koin.dsl.module
 val profileModule = module {
     single { DistanceTracker() }
     single<DistanceSyncRepository> { DistanceSyncRepositoryImpl(get()) }
-    single<ProfileRepository> { ProfileRepositoryImpl(get(), get()) }
+    single<ProfileRepository> {
+        ProfileRepositoryImpl(
+            client = get(),
+            supabase = get(),
+            profileDao = get()
+        )
+    }
     factory { OnboardingViewModel(get(), get()) }
-    factory { ProfileViewModel(get(), get()) }
+    factory {
+        ProfileViewModel(
+            repository = get(),
+            achievementRepository = get(),
+            cacheManager = get(),
+            appLifecycleObserver = get(),
+            supabase = get()
+        )
+    }
 }

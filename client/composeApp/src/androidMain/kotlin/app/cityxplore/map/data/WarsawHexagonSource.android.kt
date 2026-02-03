@@ -1,6 +1,7 @@
 package app.cityxplore.map.data
 
 import android.content.Context
+import android.util.Log
 import app.cityxplore.map.domain.RegionDefinition
 import com.uber.h3core.H3Core
 import com.uber.h3core.util.LatLng
@@ -11,10 +12,16 @@ import kotlinx.serialization.json.Json
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
+private const val TAG = "RegionHexagonCache"
+
 internal actual suspend fun loadRegionHexagons(region: RegionDefinition): Set<String> =
     withContext(Dispatchers.Default) {
         RegionHexagonCache.getOrCompute(region = region)
     }
+
+internal actual fun clearHexagonCache() {
+    RegionHexagonCache.clearCache()
+}
 
 private object RegionHexagonCache : KoinComponent {
 
@@ -25,15 +32,23 @@ private object RegionHexagonCache : KoinComponent {
         isLenient = true
     }
 
-    private val h3: H3Core by lazy {
-        runCatching {
+    // Lazy H3 initialisation with proper error handling
+    private var h3Instance: H3Core? = null
+
+    @Synchronized
+    private fun getH3(): H3Core {
+        h3Instance?.let { return it }
+
+        val instance = runCatching {
             System.loadLibrary("h3-java")
             H3Core.newSystemInstance()
         }.getOrElse { error ->
-            // Log fallback for debugging JNI setup issues
-            println("Failed to load system H3 library, falling back to bundled instance: ${error.message}")
+            Log.w(TAG, "Failed to load system H3 library, falling back to bundled: ${error.message}")
             H3Core.newInstance()
         }
+
+        h3Instance = instance
+        return instance
     }
 
     // Simple in-memory cache (clears on app restart)
@@ -43,21 +58,42 @@ private object RegionHexagonCache : KoinComponent {
     fun getOrCompute(region: RegionDefinition): Set<String> {
         val cacheKey = "${region.id}_${region.h3Resolution}"
 
-        // Check in-memory cache
-        memoryCache[cacheKey]?.let { return it }
+        // Check in-memory cache - return only if not empty
+        memoryCache[cacheKey]?.let { cached ->
+            if (cached.isNotEmpty()) {
+                Log.d(TAG, "Cache hit for $cacheKey: ${cached.size} hexes")
+                return cached
+            } else {
+                // Cache has an empty set - remove it and recompute
+                Log.w(TAG, "Cache had empty set for $cacheKey, recomputing...")
+                memoryCache.remove(cacheKey)
+            }
+        }
+
+        Log.d(TAG, "Computing hexagons for $cacheKey...")
 
         // Cache miss - compute via polyfill
         val geoJsonText = runCatching {
             context.assets.open(region.boundaryAssetPath).bufferedReader().use { it.readText() }
-        }.getOrElse {
+        }.getOrElse { e ->
+            Log.e(TAG, "Failed to read GeoJSON asset: ${region.boundaryAssetPath}", e)
             return emptySet()
         }
 
+        Log.d(TAG, "Read GeoJSON: ${geoJsonText.length} chars")
+
         val featureCollection = runCatching {
             json.decodeFromString<GeoJsonFeatureCollection>(geoJsonText)
-        }.getOrElse { return emptySet() }
+        }.getOrElse { e ->
+            Log.e(TAG, "Failed to parse GeoJSON", e)
+            return emptySet()
+        }
 
-        val polygon = featureCollection.features.firstOrNull()?.geometry ?: return emptySet()
+        val polygon = featureCollection.features.firstOrNull()?.geometry
+        if (polygon == null) {
+            Log.e(TAG, "No polygon geometry found in GeoJSON")
+            return emptySet()
+        }
 
         val outerRing: List<LatLng> = polygon.coordinates
             .firstOrNull()
@@ -67,7 +103,12 @@ private object RegionHexagonCache : KoinComponent {
             }
             ?: emptyList()
 
-        if (outerRing.isEmpty()) return emptySet()
+        if (outerRing.isEmpty()) {
+            Log.e(TAG, "Empty outer ring from polygon coordinates")
+            return emptySet()
+        }
+
+        Log.d(TAG, "Outer ring has ${outerRing.size} points")
 
         val ring = if (outerRing.size >= 2 && outerRing.first() == outerRing.last()) {
             outerRing.dropLast(1)
@@ -76,15 +117,33 @@ private object RegionHexagonCache : KoinComponent {
         }
 
         val hexes = runCatching {
+            val h3 = getH3()
             h3.polygonToCells(ring, emptyList(), region.h3Resolution)
                 .map { h3.h3ToString(it) }
                 .toSet()
-        }.getOrElse {
+        }.getOrElse { e ->
+            Log.e(TAG, "H3 polygonToCells failed", e)
             emptySet()
         }
 
-        memoryCache[cacheKey] = hexes
+        Log.d(TAG, "Generated ${hexes.size} hexagons for $cacheKey")
+
+        // Only cache if we got valid data
+        if (hexes.isNotEmpty()) {
+            memoryCache[cacheKey] = hexes
+        }
+
         return hexes
+    }
+
+    /**
+     * Clears the in-memory cache. Called on logout to ensure fresh data on the next login.
+     */
+    @Synchronized
+    fun clearCache() {
+        Log.d(TAG, "Clearing hexagon cache")
+        memoryCache.clear()
+        h3Instance = null
     }
 }
 
