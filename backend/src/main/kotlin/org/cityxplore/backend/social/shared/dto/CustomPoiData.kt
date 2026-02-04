@@ -4,6 +4,7 @@ import jakarta.validation.constraints.DecimalMax
 import jakarta.validation.constraints.DecimalMin
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
+import java.io.Serializable
 
 /**
  * DTO representing custom Point of Interest data that can be shared between users.
@@ -38,4 +39,4 @@ data class CustomPoiData(
 
     @field:Size(max = 3, message = "Cannot exceed 3 image URLs")
     val imageUrls: List<String>? = null
-)
+) : Serializable
