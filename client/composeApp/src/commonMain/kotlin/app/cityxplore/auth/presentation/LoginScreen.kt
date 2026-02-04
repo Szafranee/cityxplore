@@ -46,8 +46,13 @@ import cityxplore.client.composeapp.generated.resources.Res
 import cityxplore.client.composeapp.generated.resources.cityxplore_logo_short
 import cityxplore.client.composeapp.generated.resources.discord_logo
 import cityxplore.client.composeapp.generated.resources.google_logo
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.compose.auth.composable.NativeSignInResult
+import io.github.jan.supabase.compose.auth.composable.rememberSignInWithGoogle
+import io.github.jan.supabase.compose.auth.composeAuth
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.vectorResource
+import org.koin.compose.koinInject
 
 @Composable
 fun LoginScreen(
@@ -55,8 +60,38 @@ fun LoginScreen(
     onLogin: (String, String) -> Unit,
     onSocialLogin: (SocialProvider) -> Unit,
     onRegisterClick: () -> Unit,
-    onClearError: () -> Unit
+    onClearError: () -> Unit,
+    onGoogleSignInError: (String) -> Unit = {}
 ) {
+    val supabaseClient: SupabaseClient = koinInject()
+
+    // Native Google Sign-In state using ComposeAuth
+    val googleSignInState = supabaseClient.composeAuth.rememberSignInWithGoogle(
+        onResult = { result ->
+            when (result) {
+                is NativeSignInResult.Success -> {
+                    // Session is automatically handled by Supabase
+                }
+
+                is NativeSignInResult.ClosedByUser -> {
+                    // User cancelled - no action needed
+                }
+
+                is NativeSignInResult.Error -> {
+                    onGoogleSignInError(result.message)
+                }
+
+                is NativeSignInResult.NetworkError -> {
+                    onGoogleSignInError(result.message)
+                }
+            }
+        },
+        fallback = {
+            // Fallback for platforms without native Google Sign-In (uses OAuth redirect)
+            onSocialLogin(SocialProvider.GOOGLE)
+        }
+    )
+
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
@@ -211,7 +246,7 @@ fun LoginScreen(
             ) {
                 SocialLoginButton(
                     altText = "Continue with Google",
-                    onClick = { onSocialLogin(SocialProvider.GOOGLE) },
+                    onClick = { googleSignInState.startFlow() },
                     containerColor = Color.White,
                     contentColor = Color.Black,
                     logo = vectorResource(Res.drawable.google_logo),

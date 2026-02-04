@@ -33,10 +33,11 @@ fun getRequiredProperty(key: String): String {
 }
 
 // Resolve properties once at configuration time
-val supabaseUrl: String by lazy { getRequiredProperty("SUPABASE_URL") }
-val supabaseKey: String by lazy { getRequiredProperty("SUPABASE_KEY") }
-val mapboxPublicToken: String by lazy { getRequiredProperty("MAPBOX_PUBLIC_TOKEN") }
-val googleMapsKey: String by lazy { getRequiredProperty("GOOGLE_MAPS_KEY") }
+val supabaseUrl: String = getRequiredProperty("SUPABASE_URL")
+val supabaseKey: String = getRequiredProperty("SUPABASE_KEY")
+val mapboxPublicToken: String = getRequiredProperty("MAPBOX_PUBLIC_TOKEN")
+val googleMapsKey: String = getRequiredProperty("GOOGLE_MAPS_KEY")
+val googleWebClientId: String = getRequiredProperty("GOOGLE_WEB_CLIENT_ID")
 
 buildConfig {
     packageName("app.cityxplore")
@@ -45,6 +46,7 @@ buildConfig {
     buildConfigField("String", "SUPABASE_KEY", "\"$supabaseKey\"")
     buildConfigField("String", "MAPBOX_PUBLIC_TOKEN", "\"$mapboxPublicToken\"")
     buildConfigField("String", "GOOGLE_MAPS_KEY", "\"$googleMapsKey\"")
+    buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
 
 
     // Configure DEBUG conditionally - defaults to false for release safety
@@ -87,6 +89,9 @@ kotlin {
             implementation(libs.kotlinx.coroutines.play.services)
             implementation(libs.mapbox.maps.android)
             implementation(libs.h3)
+            implementation(libs.androidx.credentials)
+            implementation(libs.androidx.credentials.play.services.auth)
+            implementation(libs.googleid)
         }
         commonMain.dependencies {
             implementation(libs.runtime)
