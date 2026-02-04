@@ -71,7 +71,7 @@ kotlin {
         iosSimulatorArm64()
     ).forEach { iosTarget ->
         iosTarget.binaries.framework {
-            baseName = "ComposeApp"
+            baseName = "CityXplore"
             isStatic = true
         }
     }
@@ -142,6 +142,7 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
+        setProperty("archivesBaseName", "CityXplore")
 
         // Use the shared mapboxPublicToken resolved at top level
         manifestPlaceholders["MAPBOX_ACCESS_TOKEN"] = mapboxPublicToken
