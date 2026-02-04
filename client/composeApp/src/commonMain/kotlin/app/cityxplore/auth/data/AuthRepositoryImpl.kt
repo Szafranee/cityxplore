@@ -99,7 +99,12 @@ class AuthRepositoryImpl(
         return try {
             val redirectUrl = "app.cityxplore://login"
             when (provider) {
-                SocialProvider.GOOGLE -> auth.signInWith(Google, redirectUrl)
+                SocialProvider.GOOGLE -> {
+                    // Native Google Sign-In is handled in the UI layer via ComposeAuth
+                    // This is a fallback for non-native platforms
+                    auth.signInWith(Google, redirectUrl)
+                }
+
                 SocialProvider.DISCORD -> auth.signInWith(Discord, redirectUrl)
             }
             Result.success(Unit)

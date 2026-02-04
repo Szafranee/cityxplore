@@ -14,6 +14,8 @@ android-compileSdk = "36"
 android-minSdk = "24"
 android-targetSdk = "36"
 androidx-activity = "1.12.3"
+androidx-credentials = "1.5.0"
+googleid = "1.2.0"
 kotlinxCoroutines = "1.10.2"
 kotlinxCoroutinesTest = "1.10.2"
 kotlinxDatetime = "0.7.1"
@@ -71,6 +73,9 @@ runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "run
 tika-core = { module = "org.apache.tika:tika-core", version.ref = "tika" }
 h3 = { module = "com.uber:h3", version.ref = "h3" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "androidx-activity" }
+androidx-credentials = { module = "androidx.credentials:credentials", version.ref = "androidx-credentials" }
+androidx-credentials-play-services-auth = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "androidx-credentials" }
+googleid = { module = "com.google.android.libraries.identity.googleid:googleid", version.ref = "googleid" }
 androidx-lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycleViewmodel" }
 androidx-material-icons-extended = { module = "androidx.compose.material:material-icons-extended", version.ref = "materialIconsExtended" }
 hibernate-core-v6629final = { module = "org.hibernate.orm:hibernate-core", version.ref = "hibernateCoreVersion" }
