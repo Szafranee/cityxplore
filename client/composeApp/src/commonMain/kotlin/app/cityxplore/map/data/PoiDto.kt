@@ -64,7 +64,7 @@ data class PoiDto(
 @Serializable
 data class PoiMetadataDto(
     val trivia: String? = null,
-    @SerialName("opening_hours") val openingHours: OpeningHoursDto? = null,
+    @SerialName("opening_hours") val openingHours: List<String>? = null,
     @SerialName("visit_duration") val visitDuration: String? = null,
     @SerialName("is_free") val isFree: Boolean? = null,
     val website: String? = null,
@@ -72,15 +72,9 @@ data class PoiMetadataDto(
     @SerialName("build_year") val buildYear: String? = null
 )
 
-@Serializable
-data class OpeningHoursDto(
-    @SerialName("open_now") val openNow: Boolean? = null,
-    @SerialName("weekday_text") val weekdayText: List<String> = emptyList()
-)
-
 fun PoiMetadataDto.toDomain() = app.cityxplore.map.domain.PoiMetadata(
     trivia = trivia,
-    openingHours = openingHours?.toDomain(),
+    openingHours = openingHours,
     visitDuration = visitDuration,
     isFree = isFree,
     website = website,
@@ -88,10 +82,6 @@ fun PoiMetadataDto.toDomain() = app.cityxplore.map.domain.PoiMetadata(
     buildYear = buildYear
 )
 
-fun OpeningHoursDto.toDomain() = app.cityxplore.map.domain.OpeningHours(
-    openNow = openNow,
-    weekdayText = weekdayText
-)
 
 /**
  * Enumeration representing POI categories as received from the backend.
