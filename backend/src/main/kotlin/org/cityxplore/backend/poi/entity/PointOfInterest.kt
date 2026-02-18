@@ -17,6 +17,30 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.time.LocalDateTime
 import java.util.UUID
 
+/**
+ * JPA Entity representing a Point of Interest (POI) in the CityXplore system.
+ *
+ * @property id Unique identifier (UUID).
+ * @property name Display name of the POI (max 200 chars).
+ * @property description Optional detailed description (max 2000 chars).
+ * @property category Category enum value: HISTORICAL, CULTURAL, NATURE, FOOD, SPORTS, ENTERTAINMENT, OTHER, UNKNOWN.
+ * @property location Geographic coordinates as PostGIS GEOGRAPHY(POINT, 4326).
+ * @property metadata Flexible JSONB metadata. Supported keys:
+ *   - `trivia` (String?): A "Did you know?" fun fact about the place.
+ *   - `opening_hours` (List<String>?): Opening hours per day, e.g. ["Monday: 9:00 AM – 5:00 PM", ...].
+ *   - `visit_duration` (String?): Estimated visit time, e.g. "1-2h".
+ *   - `is_free` (Boolean?): Whether entry is free.
+ *   - `website` (String?): Official website URL.
+ *   - `address` (String?): Physical address.
+ *   - `build_year` (String?): Year of construction or historical era.
+ * @property imageUrls Array of [PoiImage] objects with photo URLs and attributions.
+ * @property createdAt Timestamp of POI creation.
+ * @property updatedAt Timestamp of the last update.
+ * @property isActive Whether the POI is visible in the app.
+ * @property isMajor Whether this is a major landmark (for achievements like "Landmark Hunter").
+ *
+ * @see PoiImage for image structure documentation.
+ */
 @Entity
 @EntityListeners(AuditingEntityListener::class)
 @Table(name = "points_of_interest")

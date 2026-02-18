@@ -6,15 +6,41 @@ import java.io.Serializable
 
 /**
  * Represents an image associated with a Point of Interest (POI).
- * This class handles images from various sources, including direct URLs
- * (e.g. Wikimedia) and API references (e.g. Google Places).
  *
- * @property url Direct URL to the image (if available).
- * @property photoReference ID/Reference for fetching the image from an external API (e.g. Google Places).
- * @property source The source of the image (e.g. "Wikimedia Commons", "Google Places").
- * @property author The author or creator of the image (for attribution).
- * @property license The licence under which the image is provided (e.g. "CC BY-SA 4.0").
- * @property attributions HTML attributions required by the provider (specifically for Google Places).
+ * This class handles images from various sources. The structure varies based on [source]:
+ *
+ * **Wikimedia Commons** (preferred):
+ * ```json
+ * {
+ *   "source": "Wikimedia Commons",
+ *   "url": "https://upload.wikimedia.org/...",
+ *   "author": "Author Name",
+ *   "license": "CC BY-SA 4.0"
+ * }
+ * ```
+ *
+ * **Google Places API**:
+ * ```json
+ * {
+ *   "source": "Google Places",
+ *   "photo_reference": "AcnlKN30DEJ5...",
+ *   "attributions": "<a href='...'>Attribution</a>"
+ * }
+ * ```
+ *
+ * **Legacy/Unknown**:
+ * ```json
+ * { "url": "https://example.com/photo.jpg" }
+ * ```
+ *
+ * @property url Direct URL to the image (required for Wikimedia, optional for Google Places).
+ * @property photoReference Google Places photo reference token (client generates URL with an API key).
+ * @property source Source identifier: "Wikimedia Commons", "Google Places", "User Upload", or null.
+ * @property author Author/creator name for attribution (recommended for Wikimedia).
+ * @property license License identifier, e.g. "CC BY-SA 4.0", "CC0", "Public Domain".
+ * @property attributions HTML attribution string required by Google Places API.
+ *
+ * @see org.cityxplore.backend.poi.entity.PointOfInterest for parent entity.
  */
 data class PoiImage(
     @field:URL

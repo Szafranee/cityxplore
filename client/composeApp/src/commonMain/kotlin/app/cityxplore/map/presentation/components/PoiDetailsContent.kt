@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MoneyOff
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.AlertDialog
@@ -138,7 +139,7 @@ fun PoiDetailsContent(
         val uriHandler = LocalUriHandler.current
         var showOpeningHoursDialog by remember { mutableStateOf(false) }
 
-        if (showOpeningHoursDialog && poi.metadata.openingHours?.weekdayText?.isNotEmpty() == true) {
+        if (showOpeningHoursDialog && poi.metadata.openingHours?.isNotEmpty() == true) {
             AlertDialog(
                 onDismissRequest = { showOpeningHoursDialog = false },
                 confirmButton = {
@@ -149,7 +150,7 @@ fun PoiDetailsContent(
                 title = { Text("Opening Hours") },
                 text = {
                     Column {
-                        poi.metadata.openingHours.weekdayText.forEach { dayText ->
+                        poi.metadata.openingHours.forEach { dayText ->
                             Text(
                                 text = dayText,
                                 style = MaterialTheme.typography.bodyMedium,
@@ -276,15 +277,17 @@ fun PoiDetailsContent(
             )
 
             // Opening Hours
-            if (poi.metadata.openingHours?.openNow != null) {
-                val isOpen = poi.metadata.openingHours.openNow
+            if (poi.metadata.openingHours?.isNotEmpty() == true) {
                 AssistChip(
-                    label = { Text(if (isOpen) "Open Now" else "Closed") },
+                    label = { Text("Opening Hours") },
                     onClick = { showOpeningHoursDialog = true },
-                    colors = AssistChipDefaults.assistChipColors(
-                        labelColor = if (isOpen) AppColors.openStatus else AppColors.closedStatus,
-                        leadingIconContentColor = if (isOpen) AppColors.openStatus else AppColors.closedStatus
-                    )
+                    leadingIcon = {
+                        Icon(
+                            Icons.Filled.Schedule,
+                            contentDescription = "Opening Hours",
+                            modifier = Modifier.size(AssistChipDefaults.IconSize)
+                        )
+                    }
                 )
             }
 

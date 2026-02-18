@@ -3,7 +3,6 @@ package app.cityxplore.database.entity
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import app.cityxplore.database.currentTimeMillis
-import app.cityxplore.map.domain.OpeningHours
 import app.cityxplore.map.domain.PhotoSource
 import app.cityxplore.map.domain.PoiCategory
 import app.cityxplore.map.domain.PoiMetadata
@@ -57,22 +56,13 @@ data class PoiPhotoEntity(
 }
 
 /**
- * Serializable wrapper for OpeningHours to support nested structure from API.
- */
-@Serializable
-data class OpeningHoursEntity(
-    @SerialName("open_now") val openNow: Boolean? = null,
-    @SerialName("weekday_text") val weekdayText: List<String> = emptyList()
-)
-
-/**
  * Serializable wrapper for PoiMetadata to store in Room as JSON.
  * Uses snake_case field names to match the backend API format.
  */
 @Serializable
 data class PoiMetadataEntity(
     val trivia: String? = null,
-    @SerialName("opening_hours") val openingHours: OpeningHoursEntity? = null,
+    @SerialName("opening_hours") val openingHours: List<String>? = null,
     @SerialName("visit_duration") val visitDuration: String? = null,
     @SerialName("is_free") val isFree: Boolean? = null,
     val website: String? = null,
@@ -81,9 +71,7 @@ data class PoiMetadataEntity(
 ) {
     fun toDomain(): PoiMetadata = PoiMetadata(
         trivia = trivia,
-        openingHours = openingHours?.let {
-            OpeningHours(openNow = it.openNow, weekdayText = it.weekdayText)
-        },
+        openingHours = openingHours,
         visitDuration = visitDuration,
         isFree = isFree,
         website = website,
@@ -94,9 +82,7 @@ data class PoiMetadataEntity(
     companion object {
         fun fromDomain(metadata: PoiMetadata): PoiMetadataEntity = PoiMetadataEntity(
             trivia = metadata.trivia,
-            openingHours = metadata.openingHours?.let {
-                OpeningHoursEntity(openNow = it.openNow, weekdayText = it.weekdayText)
-            },
+            openingHours = metadata.openingHours,
             visitDuration = metadata.visitDuration,
             isFree = metadata.isFree,
             website = metadata.website,

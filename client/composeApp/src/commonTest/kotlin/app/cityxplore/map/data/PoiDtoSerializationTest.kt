@@ -171,10 +171,7 @@ class PoiDtoSerializationTest {
                 "category": "CULTURAL",
                 "metadata": {
                     "trivia": "Built in 1862",
-                    "opening_hours": {
-                        "open_now": true,
-                        "weekday_text": ["Mon-Fri: 9AM-5PM", "Sat-Sun: 10AM-6PM"]
-                    },
+                    "opening_hours": ["Mon-Fri: 9AM-5PM", "Sat-Sun: 10AM-6PM"],
                     "visit_duration": "2-3 hours",
                     "is_free": false,
                     "website": "https://museum.example.com",
@@ -188,8 +185,7 @@ class PoiDtoSerializationTest {
 
         assertNotNull(poi.metadata)
         assertEquals("Built in 1862", poi.metadata.trivia)
-        assertEquals(true, poi.metadata.openingHours?.openNow)
-        assertEquals(2, poi.metadata.openingHours?.weekdayText?.size)
+        assertEquals(2, poi.metadata.openingHours?.size)
         assertEquals("2-3 hours", poi.metadata.visitDuration)
         assertEquals(false, poi.metadata.isFree)
         assertEquals("https://museum.example.com", poi.metadata.website)
