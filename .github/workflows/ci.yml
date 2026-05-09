@@ -69,7 +69,7 @@ jobs:
         run: |
           echo "Checking Supabase migrations..."
           supabase --version
-          supabase db lint --linked
+          supabase db lint
 
   publish:
     name: Build & Push Docker Image
