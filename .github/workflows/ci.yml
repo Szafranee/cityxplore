@@ -50,10 +50,6 @@ jobs:
       - name: Backend checks (compile + tests)
         run: ./gradlew :backend:check --no-daemon
 
-      # ---- CLIENT ----
-      #      - name: Validate KMP client build
-      #        run: ./gradlew :client:composeApp:assemble --no-daemon
-
       # ---- MIGRATIONS ----
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v1
@@ -69,7 +65,59 @@ jobs:
         run: |
           echo "Checking Supabase migrations..."
           supabase --version
-          supabase db lint --linked
+          supabase db lint
+
+  client:
+    name: Client Build & Test (Android)
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      MAPBOX_PUBLIC_TOKEN: ${{ secrets.MAPBOX_PUBLIC_TOKEN }}
+      GOOGLE_MAPS_KEY: ${{ secrets.GOOGLE_MAPS_KEY }}
+      GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK platform 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Decode release keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > keystore.jks
+
+      - name: Build release APK
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/keystore.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew :client:composeApp:assembleRelease --no-daemon
+
+      - name: Run client unit tests
+        run: ./gradlew :client:composeApp:testReleaseUnitTest --no-daemon
+
+      - name: Upload release APK
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: CityXplore-release-${{ github.sha }}
+          path: client/composeApp/build/outputs/apk/release/*.apk
+          retention-days: 30
 
   publish:
     name: Build & Push Docker Image
