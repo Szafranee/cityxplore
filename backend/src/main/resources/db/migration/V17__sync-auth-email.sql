@@ -40,12 +40,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Use drop trigger if exists to make it idempotent
-DROP TRIGGER IF EXISTS on_auth_user_email_updated ON auth.users;
+-- Only create the trigger if auth schema exists (Supabase env); skip on plain Postgres (local dev)
+DO
+$$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'auth') THEN
+        DROP TRIGGER IF EXISTS on_auth_user_email_updated ON auth.users;
 
-CREATE TRIGGER on_auth_user_email_updated
-    AFTER UPDATE
-    ON auth.users
-    FOR EACH ROW
-    WHEN (OLD.email IS DISTINCT FROM NEW.email)
-EXECUTE FUNCTION public.handle_user_email_update();
+        CREATE TRIGGER on_auth_user_email_updated
+            AFTER UPDATE
+            ON auth.users
+            FOR EACH ROW
+            WHEN (OLD.email IS DISTINCT FROM NEW.email)
+        EXECUTE FUNCTION public.handle_user_email_update();
+    END IF;
+END
+$$;

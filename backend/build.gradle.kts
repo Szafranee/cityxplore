@@ -46,6 +46,7 @@ dependencies {
     implementation(libs.h3)
     compileOnly(libs.lombok)
     runtimeOnly(libs.postgresql)
+    runtimeOnly(libs.micrometer.registry.prometheus)
     annotationProcessor(libs.projectlombok.lombok)
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.kotlin.test.junit5)

@@ -80,6 +80,7 @@ class SecurityConfig {
             .authorizeHttpRequests { auth ->
                 auth
                     .requestMatchers("/api/public/**").permitAll()
+                    .requestMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
                     .requestMatchers("/api/admin/**").hasRole("ADMIN")
                     .anyRequest().authenticated()
             }
