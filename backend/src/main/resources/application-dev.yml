@@ -31,3 +31,12 @@ spring:
 supabase:
   api-key: ${SUPABASE_ANON_KEY:}
   secret-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    tags:
+      application: cityxplore-backend

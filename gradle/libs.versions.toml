@@ -48,8 +48,6 @@ h3 = "4.4.0"
 springBoot = "3.5.9"
 springSecurityTest = "7.0.2"
 lombok = "1.18.42"
-flyway-database-postgresql = "12.0.0"
-flyway-core = "12.0.0"
 kotlin-reflect = "2.3.0"
 junit-platform-launcher = "6.0.2"
 junit-platform-engine = "6.0.2"
@@ -69,6 +67,7 @@ ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktorClien
 mapbox-maps-android = { module = "com.mapbox.maps:android", version.ref = "mapboxMaps" }
 material-icons-extended = { module = "org.jetbrains.compose.material:material-icons-extended", version.ref = "materialIconsExtendedVersion" }
 material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "material3" }
+micrometer-registry-prometheus = { module = "io.micrometer:micrometer-registry-prometheus" }
 runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "runtime" }
 tika-core = { module = "org.apache.tika:tika-core", version.ref = "tika" }
 h3 = { module = "com.uber:h3", version.ref = "h3" }
@@ -84,8 +83,8 @@ hypersistence-utils-hibernate-x3 = { module = "io.hypersistence:hypersistence-ut
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform-launcher" }
 junit-platform-engine = { module = "org.junit.platform:junit-platform-engine", version.ref = "junit-platform-engine" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin-reflect" }
-flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway-database-postgresql" }
-flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway-core" }
+flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql" }
+flyway-core = { module = "org.flywaydb:flyway-core" }
 jackson-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
 kotlin-test = { group = "org.jetbrains.kotlin", name = "kotlin-test", version.ref = "kotlin" }
 kotlin-test-junit5 = { module = "org.jetbrains.kotlin:kotlin-test-junit5" }
