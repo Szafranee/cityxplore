@@ -71,3 +71,6 @@ supabase/.temp
 .env.keys
 .env.local
 .env.*.local
+
+# Engineering thesis manuscript (LaTeX sources, kept local only)
+inzynierka/
